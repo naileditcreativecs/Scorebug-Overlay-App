@@ -650,6 +650,7 @@ namespace CollegeFootballRamDiagnostic
                 { "remainingRamWork", new string[0] },
                 { "automaticLocator", autoDiscoverySummary },
                 { "timeoutBind", timeoutBindDiagnostic },
+                { "possessionBind", possessionBindDiagnostic },
                 { "scoreboardCandidates", scoreboardCandidateCount },
                 { "scoreHudDownDistanceCandidates", scoreHudDownDistanceCandidateCount },
                 { "ramScoreMatchesScreenSnapshot", screen != null && awayScore.Available && homeScore.Available
@@ -760,6 +761,7 @@ namespace CollegeFootballRamDiagnostic
                 ? (hasBothTeamNames ? DateTime.UtcNow.AddMilliseconds(500) : DateTime.UtcNow.AddSeconds(5))
                 : DateTime.UtcNow.AddSeconds(2);
             scoreboardCandidateCount = discovery.ScoreboardCandidateCount;
+            possessionBindDiagnostic = discovery.PossessionDiagnostic;
             autoDiscoverySummary = String.Format(CultureInfo.InvariantCulture,
                 "scanned {0:N0} MB; scoreboard {1}; timeout copies {2}; catalog {3}; teams {4}/{5}; live distance {6}",
                 discovery.BytesScanned / (1024 * 1024),
@@ -1719,6 +1721,9 @@ namespace CollegeFootballRamDiagnostic
         // being indistinguishable from "not there".
         private string timeoutBindDiagnostic = "not attempted";
 
+        // DIAGNOSTIC. Why possession had no address on the last discovery.
+        private string possessionBindDiagnostic = "not evaluated";
+
         private void RetryRequestedScoreHudDiscovery()
         {
             bool requested;
@@ -2300,6 +2305,7 @@ namespace CollegeFootballRamDiagnostic
                 InstallRawTimeoutSlots(result, false);
                 InstallLivePossession(result, false);
                 ApplyOrientedTimeoutFields();
+                possessionBindDiagnostic = result.PossessionDiagnostic;
             }
             bool completePair = HasCompleteTeamNamePair(result);
             autoDiscoverySummary = String.Format(CultureInfo.InvariantCulture,

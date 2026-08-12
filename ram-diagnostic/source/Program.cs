@@ -3488,6 +3488,7 @@ namespace CollegeFootballRamDiagnostic
                         { "homeTimeouts", HexList(value.HomeTimeoutAddresses) },
                         { "awayTimeouts", HexList(value.AwayTimeoutAddresses) },
                         { "timeoutCloneHomePossessions", HexList(value.TimeoutCloneHomePossessionAddresses) },
+                        { "possessionBind", value.PossessionDiagnostic },
                         { "livePossessions", HexList(value.LivePossessionAddresses) },
                         { "liveDowns", HexList(value.LiveDownAddresses) },
                         { "liveDistances", HexList(value.LiveDistanceAddresses) },

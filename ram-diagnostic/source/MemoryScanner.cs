@@ -42,6 +42,12 @@ namespace CollegeFootballRamDiagnostic
 
     internal sealed class RamAutoDiscovery
     {
+        // DIAGNOSTIC. Possession is only ever taken from a "legacy" scoreboard
+        // record that independently agrees with the moving wide record. When no
+        // such pair exists there is no possession address at all, which reads
+        // downstream as simply "unavailable" with no way to tell whether the
+        // legacy record is absent or merely disagreeing. This records which.
+        public string PossessionDiagnostic = "not evaluated";
         public long ScoreboardBlock;
         public bool UsesWideScoreboardLayout;
         public long VerificationScoreboardBlock;
@@ -2496,6 +2502,24 @@ namespace CollegeFootballRamDiagnostic
                 // pair. Both can survive a matchup change. A paused/static
                 // startup intentionally remains unavailable until gameplay
                 // supplies temporal proof.
+
+                // Diagnostic only - counts what the pairing above had to work
+                // with, so an empty possession address can name its own cause.
+                int movingWideCandidates = 0;
+                int legacyCandidates = 0;
+                for (int index = 0; index < scoreboardCandidates.Count; index++)
+                {
+                    RamBlockCandidate candidate = scoreboardCandidates[index];
+                    if (!candidate.UsesWideLayout) legacyCandidates++;
+                    else if (candidate.LiveChangeObserved) movingWideCandidates++;
+                }
+                result.PossessionDiagnostic = synchronizedLegacy != null
+                    ? "paired (legacy 0x" + synchronizedLegacy.Address.ToString("X", CultureInfo.InvariantCulture)
+                        + ", possession=" + synchronizedLegacy.Possession.ToString(CultureInfo.InvariantCulture) + ")"
+                    : "no synchronized legacy (moving wide=" + movingWideCandidates.ToString(CultureInfo.InvariantCulture)
+                        + ", legacy candidates=" + legacyCandidates.ToString(CultureInfo.InvariantCulture)
+                        + ", total=" + scoreboardCandidates.Count.ToString(CultureInfo.InvariantCulture)
+                        + ", primary=" + (primary != null ? "found" : "none") + ")";
 
                 if (primary != null)
                 {
