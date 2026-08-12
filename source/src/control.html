@@ -134,17 +134,16 @@
       <div class="grid two">
         <article class="card">
           <div class="card-heading"><div><p class="eyebrow">DATA SOURCE</p><h2>Live scoreboard values</h2></div><span id="mode-badge" class="badge">Automatic</span></div>
-          <label>Use values from
+          <label hidden>Use values from
             <select id="scoreboard-data-source">
               <option value="ram">RAM reader only</option>
             </select>
           </label>
           <p id="scoreboard-data-source-help" class="hint">Live values are read directly from the game.</p>
-          <label hidden>Screen reader / test mode
+          <label>Mode
             <select id="reader-mode">
-              <option value="local-ocr">Automatic local reader</option>
+              <option value="local-ocr">Automatic</option>
               <option value="manual">Manual test controls</option>
-              <option value="mock">Animated mock game</option>
             </select>
           </label>
           <label hidden>Native scorebug
@@ -154,7 +153,6 @@
               <option value="standard">Standard high-contrast scorebug</option>
             </select>
           </label>
-          <p class="hint">The screen reader still detects whether the native scorebug is visible. Choose the game window if auto-detection needs help.</p>
         </article>
 
         <article class="card">
