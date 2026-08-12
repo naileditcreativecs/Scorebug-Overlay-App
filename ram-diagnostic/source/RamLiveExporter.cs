@@ -693,6 +693,7 @@ namespace CollegeFootballRamDiagnostic
                 { "timeoutBind", timeoutBindDiagnostic },
                 { "timeoutInstall", timeoutInstallDiagnostic },
                 { "timeoutCatalog", catalogTimeoutDiagnostic },
+                { "rankBind", rankBindDiagnostic },
                 { "possessionBind", possessionBindDiagnostic },
                 { "scoreboardCandidates", scoreboardCandidateCount },
                 { "scoreHudDownDistanceCandidates", scoreHudDownDistanceCandidateCount },
@@ -1770,6 +1771,10 @@ namespace CollegeFootballRamDiagnostic
         // giving up until the process or matchup changes.
         private DateTime nextTimeoutRecoveryDiscoveryUtc = DateTime.MinValue;
         private string catalogTimeoutDiagnostic = "not checked";
+        // Why ranks and records are or are not bound. The rank/record path
+        // had no diagnostic at all, so a silent early return was
+        // indistinguishable from the game simply having no ranked teams.
+        private string rankBindDiagnostic = "never called";
 
         // DIAGNOSTIC. Why possession had no address on the last discovery.
         private string possessionBindDiagnostic = "not evaluated";
@@ -3010,8 +3015,35 @@ namespace CollegeFootballRamDiagnostic
         private void ApplyScoreHudRankCandidates(List<ScoreHudTeamCandidate> teams)
         {
             scoreHudTeamCandidateCount = teams.Count;
-            if (matchupTransitionPending || String.IsNullOrWhiteSpace(lastAwayTeamName)
-                || String.IsNullOrWhiteSpace(lastHomeTeamName) || teams.Count < 2) return;
+            // Team names are deliberately NOT required here.
+            //
+            // This method decides which ScoreHud team object is home and which
+            // is away, and then installs ranks, records and timeouts from them.
+            // It has never used the names to do that - orientation is decided by
+            // score and possession in TrySelectFreshScoreHudSides. The name check
+            // that used to be on this line was a gate, not a dependency, and it
+            // meant one unresolved field silently withheld three working ones:
+            // observed live as ranks blank, records blank and
+            // "timeoutInstall: selection declined" while the standalone locator
+            // was reporting "timeoutBind: bound (home=3 away=3)" at the same
+            // moment.
+            //
+            // The protections that actually matter are kept: a pending matchup
+            // transition still blocks, orientation is still keyed to TeamId so a
+            // different matchup cannot inherit it, and a fresh orientation still
+            // needs distinct scores or a confirmed possession plus repeated
+            // agreement before it binds.
+            if (matchupTransitionPending)
+            {
+                rankBindDiagnostic = "waiting: matchup transition pending";
+                return;
+            }
+            if (teams.Count < 2)
+            {
+                rankBindDiagnostic = "no bind: only " + teams.Count
+                    + " ScoreHud team object(s) found, need 2";
+                return;
+            }
             teams.Sort(delegate(ScoreHudTeamCandidate left, ScoreHudTeamCandidate right)
             {
                 return left.Address.CompareTo(right.Address);
@@ -3025,13 +3057,30 @@ namespace CollegeFootballRamDiagnostic
             bool distinctScoreEvidence = false;
             if (orientedAwayScoreHudTeamId >= 0 && orientedHomeScoreHudTeamId >= 0)
             {
-                if (!TrySelectBoundScoreHudSides(teams, awayScore, homeScore, out away, out home)) return;
+                if (!TrySelectBoundScoreHudSides(teams, awayScore, homeScore, out away, out home))
+                {
+                    rankBindDiagnostic = "lost bind: no candidate matches team ids "
+                        + orientedAwayScoreHudTeamId + "/" + orientedHomeScoreHudTeamId
+                        + " among " + teams.Count + " objects";
+                    return;
+                }
             }
             else
             {
                 if (!TrySelectFreshScoreHudSides(teams, awayScore, homeScore, possession,
                     out away, out home, out distinctScoreEvidence))
                 {
+                    // Orientation needs either two different scores or a
+                    // trusted possession bit to tell home from away. Say which
+                    // of those is missing rather than returning in silence.
+                    rankBindDiagnostic = "no orientation: scores "
+                        + (awayScore.Available ? awayScore.Value.ToString(CultureInfo.InvariantCulture) : "?")
+                        + "-" + (homeScore.Available ? homeScore.Value.ToString(CultureInfo.InvariantCulture) : "?")
+                        + (distinctScoreEvidence ? " (distinct)" : " (tied, so possession is required)")
+                        + ", possession " + (possession.Available
+                            ? possession.Value.ToString(CultureInfo.InvariantCulture)
+                            : "unavailable")
+                        + ", " + teams.Count + " objects";
                     ResetPendingScoreHudOrientation();
                     nextRankScoreHudDiscoveryUtc = DateTime.UtcNow.AddSeconds(2);
                     return;
@@ -3054,6 +3103,8 @@ namespace CollegeFootballRamDiagnostic
                 }
                 if (scoreHudOrientationConfirmations < requiredConfirmations)
                 {
+                    rankBindDiagnostic = "confirming: " + scoreHudOrientationConfirmations
+                        + "/" + requiredConfirmations + " agreeing reads";
                     SetField("awayRank", new long[0]);
                     SetField("homeRank", new long[0]);
                     nextRankScoreHudDiscoveryUtc = DateTime.UtcNow.AddSeconds(2);
@@ -3064,6 +3115,10 @@ namespace CollegeFootballRamDiagnostic
                 ResetPendingScoreHudOrientation();
             }
 
+            rankBindDiagnostic = "bound (away rank " + away.Rank + " record "
+                + (FormatTeamRecord(away.Wins, away.Losses, away.Ties) ?? "?")
+                + ", home rank " + home.Rank + " record "
+                + (FormatTeamRecord(home.Wins, home.Losses, home.Ties) ?? "?") + ")";
             SetField("awayRank", new long[] { away.Address + 44 });
             SetField("homeRank", new long[] { home.Address + 44 });
             lastAwayRank = away.Rank;
