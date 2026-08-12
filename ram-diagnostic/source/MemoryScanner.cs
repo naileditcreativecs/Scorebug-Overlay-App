@@ -3482,18 +3482,49 @@ namespace CollegeFootballRamDiagnostic
                 return;
             }
 
-            // No labeled-vector evidence was present. Preserve the old pool
-            // analysis only as diagnostics; raw text addresses and duplicate
-            // counts cannot be rebound safely across a same-process game load.
+            // No labeled-vector evidence was present. This is the common case,
+            // not an edge case: in Play Now the role vectors carry no references
+            // to the markers (refs=0) and there are no tradition slugs to map
+            // them with, so the labeled route has nothing to work from.
+            //
+            // The old pool analysis still runs and still gets the right answer.
+            // Proven on a live Pitt v USC game: the 08-11 01:50 reader, which
+            // used this finder, reported away='Usc' home='Pittsburgh', while the
+            // 08-11 03:47 reader that added the labeled-vector rework reported
+            // nothing at all on the very same game. The names were never missing
+            // from memory - they were computed here and then deleted below.
+            //
+            // Deleting them was a deliberate trade for safety: raw text
+            // addresses could rebind to the wrong teams across a same-process
+            // game load, which is the hanging-teams bug. But withholding is only
+            // the right default when there is something better to wait for, and
+            // here there is not - so keep the answer and mark it as needing the
+            // extra confirmation instead.
+            //
+            // TeamNamesFromFallback makes the exporter run this pair through
+            // AdvanceMatchupConfirmation: the same ordered pair, with matching
+            // address signatures, observed twice before anything is published,
+            // and dropped the moment the matchup changes. That is the protection
+            // the original fallback lacked and the reason it was switched off.
             ChooseActiveTeams(result, homeMarkers, traditions, catalogNames);
-            result.TeamRoleDiagnostics.Add("no authoritative labeled-vector role binding");
-            result.HomeTeamName = null;
-            result.AwayTeamName = null;
-            result.HomeTeamMarkerAddress = 0;
-            result.HomeTeamNameAddresses.Clear();
-            result.AwayTeamNameAddresses.Clear();
-            result.AwayTeamAssetPoolBase = 0;
-            result.AwayTeamAssetPoolLength = 0;
+            bool recoveredWithoutLabels = !String.IsNullOrWhiteSpace(result.AwayTeamName)
+                && !String.IsNullOrWhiteSpace(result.HomeTeamName)
+                && !String.Equals(result.AwayTeamName, result.HomeTeamName,
+                    StringComparison.OrdinalIgnoreCase);
+            result.TeamNamesFromFallback = recoveredWithoutLabels;
+            result.TeamRoleDiagnostics.Add(recoveredWithoutLabels
+                ? "no labeled-vector evidence; recovered names from pool fallback"
+                : "no authoritative labeled-vector role binding");
+            if (!recoveredWithoutLabels)
+            {
+                result.HomeTeamName = null;
+                result.AwayTeamName = null;
+                result.HomeTeamMarkerAddress = 0;
+                result.HomeTeamNameAddresses.Clear();
+                result.AwayTeamNameAddresses.Clear();
+                result.AwayTeamAssetPoolBase = 0;
+                result.AwayTeamAssetPoolLength = 0;
+            }
         }
 
         private LabeledVectorRoleResolution TryChooseLabeledVectorRoleTeams(RamAutoDiscovery result,

@@ -4311,6 +4311,47 @@ namespace CollegeFootballRamDiagnostic
                         downTwo, distanceThree,
                         RamLiveExporter.ScoreHudExpectedNone, freshZeroGoal) != goalDownZeroDistance)
                     throw new Exception("Zero-distance Goal variant was not accepted.");
+                // A pool-fallback pair reads the same names every sweep but from
+                // whichever duplicate copies it happens to find, so its address
+                // signature moves. Confirming on the names must therefore work
+                // across a changed signature - otherwise the count resets every
+                // pass and a correct pair is never published.
+                {
+                    string cAway = null, cHome = null, cAwaySig = null, cHomeSig = null;
+                    int confirmations = 0;
+                    bool first = RamLiveExporter.AdvanceMatchupConfirmation(
+                        ref cAway, ref cHome, ref cAwaySig, ref cHomeSig, ref confirmations,
+                        "USC", "Pittsburgh", "0x1000", "0x2000", false);
+                    bool second = RamLiveExporter.AdvanceMatchupConfirmation(
+                        ref cAway, ref cHome, ref cAwaySig, ref cHomeSig, ref confirmations,
+                        "USC", "Pittsburgh", "0x3000", "0x4000", false);
+                    // A fallback pair publishes on first sighting and keeps
+                    // agreeing with itself as the addresses move underneath it.
+                    if (!first || !second)
+                        throw new Exception("A fallback pair was not confirmed on names across moving addresses.");
+                    if (cAwaySig != "0x3000" || cHomeSig != "0x4000")
+                        throw new Exception("Confirmation did not track the most recent addresses.");
+                    // Different teams must still reset, fallback or not.
+                    // A changed matchup resets the count. On the fallback path it
+                    // then republishes immediately with the new teams, which is
+                    // the self-correcting behaviour that makes first-sighting
+                    // publication safe.
+                    bool third = RamLiveExporter.AdvanceMatchupConfirmation(
+                        ref cAway, ref cHome, ref cAwaySig, ref cHomeSig, ref confirmations,
+                        "Ohio State", "Michigan", "0x3000", "0x4000", false);
+                    if (!third || confirmations != 1 || cAway != "Ohio State")
+                        throw new Exception("A changed matchup did not take over on the fallback path.");
+                    // The strict path still demands matching addresses.
+                    string sAway = null, sHome = null, sAwaySig = null, sHomeSig = null;
+                    int strict = 0;
+                    RamLiveExporter.AdvanceMatchupConfirmation(
+                        ref sAway, ref sHome, ref sAwaySig, ref sHomeSig, ref strict,
+                        "USC", "Pittsburgh", "0x1000", "0x2000", true);
+                    if (RamLiveExporter.AdvanceMatchupConfirmation(
+                        ref sAway, ref sHome, ref sAwaySig, ref sHomeSig, ref strict,
+                        "USC", "Pittsburgh", "0x9000", "0xA000", true))
+                        throw new Exception("The strict path confirmed despite a changed address signature.");
+                }
                 // Team records come off the same object as the rank. A season
                 // record is "W-L"; ties only appear when there are any, so the
                 // common case stays two numbers wide on the scorebug.

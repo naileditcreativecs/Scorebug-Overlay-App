@@ -696,6 +696,8 @@ namespace CollegeFootballRamDiagnostic
                 { "timeoutCatalog", catalogTimeoutDiagnostic },
                 { "rankBind", rankBindDiagnostic },
                 { "teamIdNames", teamIdNamesDiagnostic },
+                { "teamRole", teamRoleDiagnostic },
+                { "matchupBind", matchupBindDiagnostic },
                 { "possessionBind", possessionBindDiagnostic },
                 { "scoreboardCandidates", scoreboardCandidateCount },
                 { "scoreHudDownDistanceCandidates", scoreHudDownDistanceCandidateCount },
@@ -808,6 +810,15 @@ namespace CollegeFootballRamDiagnostic
                 : DateTime.UtcNow.AddSeconds(2);
             scoreboardCandidateCount = discovery.ScoreboardCandidateCount;
             possessionBindDiagnostic = discovery.PossessionDiagnostic;
+            // The finder explains itself, but only to the --locate probe. Every
+            // name problem tonight was diagnosed by running a probe alongside
+            // the reader, which competes with it for CPU and answers a question
+            // about a *different* scan than the one that actually publishes.
+            // Carry the running reader's own reasoning into the export.
+            teamRoleDiagnostic = discovery.TeamRoleDiagnostics == null
+                || discovery.TeamRoleDiagnostics.Count == 0
+                ? "no role diagnostics"
+                : String.Join(" | ", discovery.TeamRoleDiagnostics.ToArray());
             autoDiscoverySummary = String.Format(CultureInfo.InvariantCulture,
                 "scanned {0:N0} MB; scoreboard {1}; timeout copies {2}; catalog {3}; teams {4}/{5}; live distance {6}",
                 discovery.BytesScanned / (1024 * 1024),
@@ -1778,6 +1789,8 @@ namespace CollegeFootballRamDiagnostic
         // indistinguishable from the game simply having no ranked teams.
         private string rankBindDiagnostic = "never called";
         private string teamIdNamesDiagnostic = "never called";
+        private string teamRoleDiagnostic = "never called";
+        private string matchupBindDiagnostic = "never called";
 
         // DIAGNOSTIC. Why possession had no address on the last discovery.
         private string possessionBindDiagnostic = "not evaluated";
@@ -2441,7 +2454,19 @@ namespace CollegeFootballRamDiagnostic
             // Install what does not need an identity first. The verification in
             // ApplyVerifiedHomeAwayTimeoutFields is unchanged, so nothing is
             // published that has not been proven on its own terms.
-            if (!HasCompleteTeamNamePair(result)) return;
+            if (!HasCompleteTeamNamePair(result))
+            {
+                // Say which half of the pair test failed. "No names" and "names
+                // but no addresses" and "names the exporter will not trust" are
+                // three different bugs that used to look identical from outside.
+                matchupBindDiagnostic = "pair rejected: away='"
+                    + (result.AwayTeamName ?? "") + "' home='" + (result.HomeTeamName ?? "")
+                    + "' addresses " + (result.AwayTeamNameAddresses == null ? 0 : result.AwayTeamNameAddresses.Count)
+                    + "," + (result.HomeTeamNameAddresses == null ? 0 : result.HomeTeamNameAddresses.Count)
+                    + " labeled=" + result.HasLabeledTeamRoleBinding
+                    + " fallback=" + result.TeamNamesFromFallback;
+                return;
+            }
             string awaySignature = AddressSignature(result.AwayTeamNameAddresses);
             string homeSignature = AddressSignature(result.HomeTeamNameAddresses);
             if (rejectRetiredOrderedPair
@@ -2476,8 +2501,16 @@ namespace CollegeFootballRamDiagnostic
                 ref candidateAwayTeamName, ref candidateHomeTeamName,
                 ref candidateAwayTeamAddressSignature, ref candidateHomeTeamAddressSignature,
                 ref teamNamePairConfirmations,
-                result.AwayTeamName, result.HomeTeamName, awaySignature, homeSignature);
+                result.AwayTeamName, result.HomeTeamName, awaySignature, homeSignature,
+                // A labelled binding has stable addresses and keeps the stricter
+                // check. A pool-fallback pair does not, so it is confirmed on the
+                // names alone - see SameMatchupCandidate.
+                !result.TeamNamesFromFallback);
             nextTeamNameDiscoveryUtc = DateTime.UtcNow.AddSeconds(5);
+            matchupBindDiagnostic = "confirming " + (result.AwayTeamName ?? "?")
+                + " at " + (result.HomeTeamName ?? "?") + ": "
+                + teamNamePairConfirmations.ToString(CultureInfo.InvariantCulture) + "/2"
+                + (confirmed ? " -> committed" : "");
             if (confirmed) CommitConfirmedMatchup(result);
         }
 
@@ -4046,9 +4079,34 @@ namespace CollegeFootballRamDiagnostic
             string observedAway, string observedHome,
             string observedAwayAddresses, string observedHomeAddresses)
         {
-            return String.Equals(candidateAway, observedAway, StringComparison.OrdinalIgnoreCase)
-                && String.Equals(candidateHome, observedHome, StringComparison.OrdinalIgnoreCase)
-                && String.Equals(candidateAwayAddresses, observedAwayAddresses, StringComparison.Ordinal)
+            return SameMatchupCandidate(candidateAway, candidateHome,
+                candidateAwayAddresses, candidateHomeAddresses,
+                observedAway, observedHome, observedAwayAddresses, observedHomeAddresses, true);
+        }
+
+        internal static bool SameMatchupCandidate(string candidateAway, string candidateHome,
+            string candidateAwayAddresses, string candidateHomeAddresses,
+            string observedAway, string observedHome,
+            string observedAwayAddresses, string observedHomeAddresses,
+            bool requireAddressMatch)
+        {
+            if (!String.Equals(candidateAway, observedAway, StringComparison.OrdinalIgnoreCase)
+                || !String.Equals(candidateHome, observedHome, StringComparison.OrdinalIgnoreCase))
+                return false;
+            // The addresses are corroboration, not the answer. When the pair came
+            // from the pool fallback they are the addresses of duplicate copies of
+            // the same text, and which copies are found - and in what order -
+            // varies between sweeps. Demanding a byte-identical signature then
+            // resets the confirmation count on every pass, so a pair that reads
+            // correctly every single time is never confirmed and the matchup
+            // transition never clears. Observed live: the finder returned
+            // USC/Pittsburgh on every sweep while the exporter published neither,
+            // and ranks, records and timeouts stayed blocked behind it.
+            //
+            // The names are what gets published, so agreeing on the names twice
+            // is the check that actually matters.
+            if (!requireAddressMatch) return true;
+            return String.Equals(candidateAwayAddresses, observedAwayAddresses, StringComparison.Ordinal)
                 && String.Equals(candidateHomeAddresses, observedHomeAddresses, StringComparison.Ordinal);
         }
 
@@ -4057,19 +4115,49 @@ namespace CollegeFootballRamDiagnostic
             string observedAway, string observedHome,
             string observedAwayAddresses, string observedHomeAddresses)
         {
+            return AdvanceMatchupConfirmation(ref candidateAway, ref candidateHome,
+                ref candidateAwayAddresses, ref candidateHomeAddresses, ref confirmations,
+                observedAway, observedHome, observedAwayAddresses, observedHomeAddresses, true);
+        }
+
+        internal static bool AdvanceMatchupConfirmation(ref string candidateAway, ref string candidateHome,
+            ref string candidateAwayAddresses, ref string candidateHomeAddresses, ref int confirmations,
+            string observedAway, string observedHome,
+            string observedAwayAddresses, string observedHomeAddresses,
+            bool requireAddressMatch)
+        {
             if (SameMatchupCandidate(candidateAway, candidateHome,
                 candidateAwayAddresses, candidateHomeAddresses,
-                observedAway, observedHome, observedAwayAddresses, observedHomeAddresses))
+                observedAway, observedHome, observedAwayAddresses, observedHomeAddresses,
+                requireAddressMatch))
                 confirmations++;
             else
             {
                 candidateAway = observedAway;
                 candidateHome = observedHome;
-                candidateAwayAddresses = observedAwayAddresses;
-                candidateHomeAddresses = observedHomeAddresses;
                 confirmations = 1;
             }
-            return confirmations >= 2;
+            // Always track the latest addresses. The confirmation is about the
+            // names; the field addresses installed afterwards should be the ones
+            // most recently observed, not the ones from the first sighting.
+            candidateAwayAddresses = observedAwayAddresses;
+            candidateHomeAddresses = observedHomeAddresses;
+            // A labelled pair still waits for a second agreeing sighting.
+            //
+            // A fallback pair publishes on the first one. Waiting for two was
+            // costing the names entirely: something between sweeps kept resetting
+            // the count, so a finder that returned USC/Pittsburgh correctly on
+            // every single pass sat at "1/2" forever and published nothing, with
+            // ranks, records and timeouts all blocked behind it.
+            //
+            // Publishing immediately is safe here for the same reason the clock
+            // is safe: this pair is re-read on every sweep and the newest answer
+            // always wins. The hanging-teams bug came from committing a name once
+            // and then caching it forever; a value that keeps re-reading corrects
+            // itself within seconds instead of hanging. Showing the right teams
+            // now, with a brief chance of correcting them, beats showing "Away"
+            // and "Home" for an entire game.
+            return confirmations >= (requireAddressMatch ? 2 : 1);
         }
 
         private List<long> CopyConfiguredAddresses(string fieldName)
@@ -4876,4 +4964,5 @@ namespace CollegeFootballRamDiagnostic
         }
     }
 }
+
 
