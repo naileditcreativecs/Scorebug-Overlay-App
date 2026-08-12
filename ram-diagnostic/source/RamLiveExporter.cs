@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Web.Script.Serialization;
 
@@ -314,8 +315,8 @@ namespace CollegeFootballRamDiagnostic
             {
                 PrepareRestoredMatchupState();
                 // The game process can outlive the overlay and retain a fully
-                // readable prior-game core. Static cache readability—even with
-                // an agreeing legacy record—is not current-game proof. Drop all
+                // readable prior-game core. Static cache readabilityâ€”even with
+                // an agreeing legacy recordâ€”is not current-game proof. Drop all
                 // addresses and force the same live-progression discovery used
                 // on a cold process attach. A paused restart intentionally stays
                 // blank until gameplay moves.
@@ -3058,9 +3059,99 @@ namespace CollegeFootballRamDiagnostic
                         + "/" + (String.IsNullOrWhiteSpace(name) ? "?" : name);
                 }
                 catch { entry += "unreadable"; }
+                entry += DescribeDisplayPointer(team);
                 seen.Add(entry);
             }
-            return "anchor0=" + anchor + " | " + String.Join("  ", seen.ToArray());
+            // Distinct ids matter more than the raw count: several clones of one
+            // team still cannot orient a scoreboard, and that reads very
+            // differently from genuinely having found both sides.
+            return "anchor0=" + anchor
+                + " objects=" + teams.Count.ToString(CultureInfo.InvariantCulture)
+                + " distinct=" + reported.Count.ToString(CultureInfo.InvariantCulture)
+                + " | " + String.Join("  ", seen.ToArray());
+        }
+
+        // Every ScoreHud team object carries a pointer at +24 that the parser
+        // reads and nothing has ever used. If it leads to the team's display
+        // name then names come from the same object as rank, record, score and
+        // timeouts, which is what the catalog route failed to deliver:
+        // indexing the catalog by TeamId returned Fresno State for a Pitt v USC
+        // game, because record 0 is AIRFOR and the table is alphabetical, so
+        // the row number is not the game's team id.
+        //
+        // Report what is actually at the other end - a string, a pointer to a
+        // string, or neither - rather than assuming. Both encodings are tried
+        // because the game stores some names UTF-16 and some ASCII.
+        private string DescribeDisplayPointer(ScoreHudTeamCandidate team)
+        {
+            if (team.DisplayPointer == 0) return " [display=null]";
+            string direct = ReadableTextAt(team.DisplayPointer);
+            if (direct != null) return " [display->" + direct + "]";
+            // Not text itself: try one level of indirection, which is how a
+            // wrapper object around a string would look.
+            for (int offset = 0; offset <= 0x30; offset += 8)
+            {
+                long inner;
+                try { inner = BitConverter.ToInt64(scanner.ReadBytes(team.DisplayPointer + offset, 8), 0); }
+                catch { break; }
+                if (inner == 0) continue;
+                string text = ReadableTextAt(inner);
+                if (text != null) return " [display+0x" + offset.ToString("X") + "->" + text + "]";
+            }
+            return " [display=" + team.DisplayPointer.ToString("X") + " no text]";
+        }
+
+        // A run of printable characters that looks like a name, in either
+        // ASCII or UTF-16. Returns null when the bytes are not text.
+        private string ReadableTextAt(long address)
+        {
+            byte[] bytes;
+            try { bytes = scanner.ReadBytes(address, 64); }
+            catch { return null; }
+            StringBuilder ascii = new StringBuilder();
+            for (int i = 0; i < bytes.Length && bytes[i] != 0; i++)
+            {
+                if (bytes[i] < 0x20 || bytes[i] > 0x7E) { ascii.Length = 0; break; }
+                ascii.Append((char)bytes[i]);
+            }
+            if (ascii.Length >= 3) return ascii.ToString();
+            StringBuilder wide = new StringBuilder();
+            for (int i = 0; i + 1 < bytes.Length; i += 2)
+            {
+                if (bytes[i] == 0 && bytes[i + 1] == 0) break;
+                if (bytes[i + 1] != 0 || bytes[i] < 0x20 || bytes[i] > 0x7E) { wide.Length = 0; break; }
+                wide.Append((char)bytes[i]);
+            }
+            return wide.Length >= 3 ? wide.ToString() : null;
+        }
+
+        private string FindTeamIdInCatalog(long catalogBase, int teamId)
+        {
+            if (teamId <= 0) return "";
+            byte[] bytes;
+            try { bytes = scanner.ReadBytes(catalogBase, 0xF000); }
+            catch { return " [catalog unreadable]"; }
+            List<string> hits = new List<string>();
+            for (int record = 0; (record + 1) * 0xD8 <= bytes.Length && hits.Count < 4; record++)
+            {
+                int start = record * 0xD8;
+                for (int offset = 0; offset + 4 <= 0xD8; offset += 4)
+                {
+                    if (BitConverter.ToInt32(bytes, start + offset) != teamId) continue;
+                    int nameStart = start + 32;
+                    int nameEnd = nameStart;
+                    while (nameEnd < bytes.Length && nameEnd < nameStart + 32
+                        && bytes[nameEnd] != 0) nameEnd++;
+                    string name = nameEnd > nameStart
+                        ? Encoding.ASCII.GetString(bytes, nameStart, nameEnd - nameStart)
+                        : "?";
+                    hits.Add("+0x" + offset.ToString("X") + "->" + name);
+                    break;
+                }
+            }
+            return hits.Count == 0
+                ? " [id not found in any catalog record]"
+                : " [" + String.Join(" ", hits.ToArray()) + "]";
         }
 
         private void ApplyScoreHudRankCandidates(List<ScoreHudTeamCandidate> teams)
@@ -4785,3 +4876,4 @@ namespace CollegeFootballRamDiagnostic
         }
     }
 }
+
