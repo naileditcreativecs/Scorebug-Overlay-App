@@ -177,7 +177,11 @@ namespace CollegeFootballRamDiagnostic
         public long DisplayPointer;
         public int Color;
         public int TeamId;
+        // Rank is normalised: 1-25 for a ranked team, 0 for anything else.
+        // RawRank keeps whatever the game actually stored, because "unranked"
+        // is not necessarily zero and we need to be able to see what it is.
         public int Rank;
+        public int RawRank;
         public int Ties;
         public int Timeouts;
         public int Losses;
@@ -1110,6 +1114,14 @@ namespace CollegeFootballRamDiagnostic
             return result;
         }
 
+        // A real poll ranking is 1-25. Anything else - zero, a sentinel, a
+        // leftover - means the team is not ranked, and the rest of the reader
+        // only ever has to distinguish "ranked Nth" from "not ranked".
+        internal static int NormalizeTeamRank(int rank)
+        {
+            return rank >= 1 && rank <= 25 ? rank : 0;
+        }
+
         public List<ScoreHudTeamCandidate> FindScoreHudTeamCandidatesByScores(
             int awayScore, int homeScore, CancellationToken token)
         {
@@ -1156,7 +1168,21 @@ namespace CollegeFootballRamDiagnostic
                         int wins = BitConverter.ToInt32(buffer, index + 68);
                         int possession = buffer[index + 72];
                         int teambuilder = buffer[index + 73];
-                        if (teamId < 0 || teamId > 10000 || rank < 0 || rank > 25
+                        // An unranked team is not required to store rank 0.
+                        // Demanding 0-25 here silently discarded the entire team
+                        // object of any unranked side: observed live on Pitt v
+                        // USC, where USC (ranked 15) was found and Pittsburgh
+                        // (unranked) was not, leaving one team object where
+                        // orientation needs two - which is why ranks, records and
+                        // timeouts could not bind at all.
+                        //
+                        // This is the same mistake as assuming a Goal/Inches
+                        // layer carries distance 0 when it actually carries 50:
+                        // "not applicable" is a sentinel, not a zero. Accept a
+                        // wide band and normalise below; the vtable, type info,
+                        // header and the remaining field ranges are what identify
+                        // a team object, and they are unaffected.
+                        if (teamId < 0 || teamId > 10000 || rank < -1 || rank > 1000
                             || ties < 0 || ties > 99 || timeouts < 0 || timeouts > 3
                             || losses < 0 || losses > 99 || challenges < 0 || challenges > 3
                             || wins < 0 || wins > 99 || possession > 1 || teambuilder > 1) continue;
@@ -1171,7 +1197,8 @@ namespace CollegeFootballRamDiagnostic
                             DisplayPointer = BitConverter.ToInt64(buffer, index + 24),
                             Color = BitConverter.ToInt32(buffer, index + 32),
                             TeamId = teamId,
-                            Rank = rank,
+                            Rank = NormalizeTeamRank(rank),
+                            RawRank = rank,
                             Ties = ties,
                             Timeouts = timeouts,
                             Losses = losses,
@@ -1397,7 +1424,11 @@ namespace CollegeFootballRamDiagnostic
             int wins = BitConverter.ToInt32(bytes, 68);
             int possession = bytes[72];
             int teambuilder = bytes[73];
-            if (teamId < 0 || teamId > 10000 || rank < 0 || rank > 25
+            // Same widening as the sweep: an unranked team's rank field is a
+            // sentinel, not a zero, and rejecting it here would make the live
+            // re-read of an unranked team's object fail every tick even after
+            // the sweep had found it.
+            if (teamId < 0 || teamId > 10000 || rank < -1 || rank > 1000
                 || ties < 0 || ties > 99 || timeouts < 0 || timeouts > 3
                 || losses < 0 || losses > 99 || score < 0 || score > 255
                 || challenges < 0 || challenges > 3 || wins < 0 || wins > 99
@@ -1411,7 +1442,8 @@ namespace CollegeFootballRamDiagnostic
                 DisplayPointer = BitConverter.ToInt64(bytes, 24),
                 Color = BitConverter.ToInt32(bytes, 32),
                 TeamId = teamId,
-                Rank = rank,
+                Rank = NormalizeTeamRank(rank),
+                RawRank = rank,
                 Ties = ties,
                 Timeouts = timeouts,
                 Losses = losses,

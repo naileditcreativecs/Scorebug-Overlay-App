@@ -4311,6 +4311,20 @@ namespace CollegeFootballRamDiagnostic
                         downTwo, distanceThree,
                         RamLiveExporter.ScoreHudExpectedNone, freshZeroGoal) != goalDownZeroDistance)
                     throw new Exception("Zero-distance Goal variant was not accepted.");
+                // An unranked team must still produce a usable team object.
+                // Rejecting its rank field is how Pittsburgh's object vanished
+                // from a Pitt v USC game, leaving one team where orientation
+                // needs two.
+                if (MemoryScanner.NormalizeTeamRank(15) != 15
+                    || MemoryScanner.NormalizeTeamRank(1) != 1
+                    || MemoryScanner.NormalizeTeamRank(25) != 25)
+                    throw new Exception("A real poll ranking was not preserved.");
+                if (MemoryScanner.NormalizeTeamRank(0) != 0
+                    || MemoryScanner.NormalizeTeamRank(-1) != 0
+                    || MemoryScanner.NormalizeTeamRank(26) != 0
+                    || MemoryScanner.NormalizeTeamRank(99) != 0
+                    || MemoryScanner.NormalizeTeamRank(255) != 0)
+                    throw new Exception("An unranked sentinel was not normalised to unranked.");
                 // A pool-fallback pair reads the same names every sweep but from
                 // whichever duplicate copies it happens to find, so its address
                 // signature moves. Confirming on the names must therefore work

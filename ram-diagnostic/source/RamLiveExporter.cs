@@ -3122,6 +3122,9 @@ namespace CollegeFootballRamDiagnostic
                 reported.Add(team.TeamId);
                 string entry = team.TeamId.ToString(CultureInfo.InvariantCulture)
                     + " r" + team.Rank.ToString(CultureInfo.InvariantCulture)
+                    + (team.RawRank != team.Rank
+                        ? "(raw " + team.RawRank.ToString(CultureInfo.InvariantCulture) + ")"
+                        : String.Empty)
                     + " s" + team.Score.ToString(CultureInfo.InvariantCulture) + "=";
                 try
                 {
