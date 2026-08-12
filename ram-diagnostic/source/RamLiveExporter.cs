@@ -66,6 +66,11 @@ namespace CollegeFootballRamDiagnostic
         private int restoredMatchupStatePreparedProcessId;
         private int lastAwayRankGeneration = -1;
         private int lastHomeRankGeneration = -1;
+        // Records ride on the rank object: the same ScoreHud team candidate
+        // that carries Rank also carries Wins/Losses/Ties, so reading them
+        // costs nothing extra and shares the rank generation for lifetime.
+        private string lastAwayRecord;
+        private string lastHomeRecord;
         private int orientedAwayScoreHudTeamId = -1;
         private int orientedHomeScoreHudTeamId = -1;
         private int pendingAwayScoreHudTeamId = -1;
@@ -429,8 +434,14 @@ namespace CollegeFootballRamDiagnostic
             ApplyOrientedTimeoutFields();
             RamReadResult homeTimeouts = Read("homeTimeouts", 0, 3);
             RamReadResult awayTimeouts = Read("awayTimeouts", 0, 3);
-            RamReadResult awayRank = ReadLiveRank("awayRank", ref lastAwayRank, ref lastAwayRankGeneration);
-            RamReadResult homeRank = ReadLiveRank("homeRank", ref lastHomeRank, ref lastHomeRankGeneration);
+            RamReadResult awayRank = ReadLiveRank("awayRank", ref lastAwayRank,
+                ref lastAwayRankGeneration, ref lastAwayRecord);
+            RamReadResult homeRank = ReadLiveRank("homeRank", ref lastHomeRank,
+                ref lastHomeRankGeneration, ref lastHomeRecord);
+            // Only serve a cached record inside the matchup that produced it.
+            string awayRecord = lastAwayRankGeneration == matchupGeneration ? lastAwayRecord : null;
+            string homeRecord = lastHomeRankGeneration == matchupGeneration ? lastHomeRecord : null;
+            if (matchupTransitionPending) { awayRecord = null; homeRecord = null; }
             RamTextResult awayTeamName = ReadTeamName("awayTeamNameAscii", "awayTeamKeyAscii");
             RamTextResult homeTeamName = ReadTeamName("homeTeamNameAscii", "homeTeamKeyAscii");
             awayTeamName = CanonicalizeRoleTeamRead(awayTeamName, lastAwayTeamName);
@@ -511,6 +522,8 @@ namespace CollegeFootballRamDiagnostic
             ram["homeTimeouts"] = homeTimeouts.ToDictionary();
             ram["awayRank"] = awayRank.ToDictionary();
             ram["homeRank"] = homeRank.ToDictionary();
+            ram["awayRecord"] = awayRecord;
+            ram["homeRecord"] = homeRecord;
             ram["scoreHudDownDistance"] = ScoreHudDownDistanceDictionary(scoreHudDownDistance);
             ram["scoreHudMessage"] = ScoreHudMessageDictionary(CurrentScoreHudMessage());
             string publishedAwayName = matchupTransitionPending ? null : lastAwayTeamName;
@@ -546,6 +559,8 @@ namespace CollegeFootballRamDiagnostic
                 { "nameSource", awayNameSource },
                 { "rank", awayRank.Available && awayRank.Value > 0 ? (object)awayRank.Value : null },
                 { "rankSource", awayRank.Available ? "ram" : "missing" },
+                { "record", awayRecord },
+                { "recordSource", awayRecord != null ? "ram" : "missing" },
                 { "score", exportedAwayScore },
                 { "scoreSource", awayScore.Available ? "ram" : "screen" },
                 { "timeouts", awayTimeouts.Available ? (object)awayTimeouts.Value : null },
@@ -559,6 +574,8 @@ namespace CollegeFootballRamDiagnostic
                 { "nameSource", homeNameSource },
                 { "rank", homeRank.Available && homeRank.Value > 0 ? (object)homeRank.Value : null },
                 { "rankSource", homeRank.Available ? "ram" : "missing" },
+                { "record", homeRecord },
+                { "recordSource", homeRecord != null ? "ram" : "missing" },
                 { "score", exportedHomeScore },
                 { "scoreSource", homeScore.Available ? "ram" : "screen" },
                 { "timeouts", homeTimeouts.Available ? (object)homeTimeouts.Value : null },
@@ -669,7 +686,7 @@ namespace CollegeFootballRamDiagnostic
 
             root["discovery"] = new Dictionary<string, object>
             {
-                { "workingRamFields", new string[] { "awayTeamName", "homeTeamName", "awayRank", "homeRank", "awayScore", "homeScore", "quarter", "gameClock", "playClock", "possession", "down", "distance", "specialDownState", "homeTimeouts", "awayTimeouts" } },
+                { "workingRamFields", new string[] { "awayTeamName", "homeTeamName", "awayRank", "homeRank", "awayRecord", "homeRecord", "awayScore", "homeScore", "quarter", "gameClock", "playClock", "possession", "down", "distance", "specialDownState", "homeTimeouts", "awayTimeouts" } },
                 { "screenBackedFields", new string[0] },
                 { "remainingRamWork", new string[0] },
                 { "automaticLocator", autoDiscoverySummary },
@@ -2948,6 +2965,19 @@ namespace CollegeFootballRamDiagnostic
             return TryReadConfiguredRankObject(fieldName, out candidate);
         }
 
+        // "W-L", or "W-L-T" when there are ties. Returns null rather than a
+        // guess when the numbers are outside what a season can produce - the
+        // reader publishes nothing before it publishes something wrong.
+        internal static string FormatTeamRecord(int wins, int losses, int ties)
+        {
+            if (wins < 0 || wins > 99 || losses < 0 || losses > 99
+                || ties < 0 || ties > 99) return null;
+            string text = wins.ToString(CultureInfo.InvariantCulture)
+                + "-" + losses.ToString(CultureInfo.InvariantCulture);
+            if (ties > 0) text += "-" + ties.ToString(CultureInfo.InvariantCulture);
+            return text;
+        }
+
         private bool TryReadConfiguredRankObject(string fieldName, out ScoreHudTeamCandidate candidate)
         {
             candidate = null;
@@ -2959,13 +2989,17 @@ namespace CollegeFootballRamDiagnostic
             catch { return false; }
         }
 
-        private RamReadResult ReadLiveRank(string fieldName, ref int lastValue, ref int lastValueGeneration)
+        private RamReadResult ReadLiveRank(string fieldName, ref int lastValue,
+            ref int lastValueGeneration, ref string lastRecord)
         {
             ScoreHudTeamCandidate candidate;
             if (TryReadConfiguredRankObject(fieldName, out candidate))
             {
                 lastValue = candidate.Rank;
                 lastValueGeneration = matchupGeneration;
+                // One read, both fields. A record that fails the sanity check
+                // clears the cache instead of leaving the previous game's.
+                lastRecord = FormatTeamRecord(candidate.Wins, candidate.Losses, candidate.Ties);
                 return new RamReadResult(true, candidate.Rank, 1, 1, 1);
             }
             return lastValue >= 0 && lastValueGeneration == matchupGeneration
@@ -3034,6 +3068,8 @@ namespace CollegeFootballRamDiagnostic
             SetField("homeRank", new long[] { home.Address + 44 });
             lastAwayRank = away.Rank;
             lastHomeRank = home.Rank;
+            lastAwayRecord = FormatTeamRecord(away.Wins, away.Losses, away.Ties);
+            lastHomeRecord = FormatTeamRecord(home.Wins, home.Losses, home.Ties);
             lastAwayRankGeneration = matchupGeneration;
             lastHomeRankGeneration = matchupGeneration;
             ApplyOrientedTimeoutFields(away, home);

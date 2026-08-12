@@ -4311,6 +4311,21 @@ namespace CollegeFootballRamDiagnostic
                         downTwo, distanceThree,
                         RamLiveExporter.ScoreHudExpectedNone, freshZeroGoal) != goalDownZeroDistance)
                     throw new Exception("Zero-distance Goal variant was not accepted.");
+                // Team records come off the same object as the rank. A season
+                // record is "W-L"; ties only appear when there are any, so the
+                // common case stays two numbers wide on the scorebug.
+                if (RamLiveExporter.FormatTeamRecord(0, 0, 0) != "0-0")
+                    throw new Exception("A fresh 0-0 record was not formatted as 0-0.");
+                if (RamLiveExporter.FormatTeamRecord(9, 3, 0) != "9-3")
+                    throw new Exception("A win-loss record was not formatted as W-L.");
+                if (RamLiveExporter.FormatTeamRecord(7, 4, 1) != "7-4-1")
+                    throw new Exception("A tie was not included in the record.");
+                // Out-of-range numbers mean the address is not a team object.
+                // Publish nothing rather than a fabricated record.
+                if (RamLiveExporter.FormatTeamRecord(-1, 0, 0) != null
+                    || RamLiveExporter.FormatTeamRecord(0, 250, 0) != null
+                    || RamLiveExporter.FormatTeamRecord(0, 0, 100) != null)
+                    throw new Exception("An impossible record was published instead of withheld.");
                 if (!RamLiveExporter.ScoreHudGoalOrInchesCandidate(goalDown)
                     || !RamLiveExporter.ScoreHudGoalOrInchesCandidate(inchesDown)
                     || !RamLiveExporter.ScoreHudGoalOrInchesCandidate(goalDownZeroDistance)

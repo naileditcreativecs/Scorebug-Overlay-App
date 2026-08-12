@@ -838,6 +838,12 @@ function ramScoreboardPayload(document) {
     const rank = normalizeRamInteger(source.rank, { min: 1, max: 25 });
     apply(target, 'rank', rank, source.rankSource === 'ram'
       && (source.rank == null || rank !== null), `${side}.rank`);
+    // "W-L" or "W-L-T", already sanity-checked by the reader. Validate the
+    // shape here anyway so a malformed export cannot reach the scorebug.
+    const record = typeof source.record === 'string' && /^\d{1,2}-\d{1,2}(?:-\d{1,2})?$/.test(source.record)
+      ? source.record
+      : null;
+    apply(target, 'record', record, source.recordSource === 'ram' && record !== null, `${side}.record`);
     const score = normalizeRamInteger(source.score, { min: 0, max: 255 });
     apply(target, 'score', score, source.scoreSource === 'ram'
       && score !== null, `${side}.score`);
