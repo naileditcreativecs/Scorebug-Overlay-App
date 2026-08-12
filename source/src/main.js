@@ -851,6 +851,28 @@ function ramScoreboardPayload(document) {
 }
 
 function applyRamScoreboardState(screenState) {
+  // Manual and mock modes mean the operator is supplying the values, so those
+  // values have to survive publication. RAM-only layering rebuilds the state
+  // from an empty base and keeps only what RAM confirmed, which silently
+  // discarded everything typed into the manual form - that is why "Send these
+  // values" appeared to do nothing once the app became RAM-only.
+  //
+  // Visibility is forced the same way RAM-only mode forces it: in these modes
+  // there is no native scorebug to take a visibility cue from, and the operator
+  // asking for a value on screen is the cue.
+  const recognitionMode = settings.recognition?.mode;
+  if (recognitionMode === 'manual' || recognitionMode === 'mock') {
+    const screen = screenState && typeof screenState === 'object' ? screenState : {};
+    return {
+      ...screen,
+      meta: {
+        ...(screen.meta || {}),
+        source: recognitionMode,
+        visible: true,
+        confidence: 1,
+      },
+    };
+  }
   return applyScoreboardDataSource(
     screenState,
     runtime.ramScoreboardState,
