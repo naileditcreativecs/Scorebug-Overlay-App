@@ -114,17 +114,26 @@ still unresolved.
 
 ---
 
-## 4. Publish win/loss records
+## 4. Publish win/loss records  — BUILT 2026-08-12, AWAITING LIVE CHECK
 
-**Problem.** The ScoreHud team object already carries `Wins`, `Losses`, `Ties`
-and `Color`. They are parsed on every read and thrown away — only a debug probe
-ever prints them.
+**Was.** The ScoreHud team object already carried `Wins`, `Losses`, `Ties` and
+`Color`. They were parsed on every read and thrown away — only a debug probe
+ever printed them.
 
-**Method.** Plumbing: format `W-L`, add to the export and the app state.
+**Built.** They come off the same object as the rank, so
+`TryReadConfiguredRankObject` already returned them: `ReadLiveRank` now captures
+rank and record from the one candidate it was fetching anyway. No extra memory
+read, no new discovery. Published as `away.record` / `home.record`, formatted
+`W-L`, or `W-L-T` only when there are ties. Out-of-range numbers publish
+nothing rather than a guess. The overlay already binds `away.record`, so a theme
+with a record element picks it up with no further work.
 
-**Done when.** Records show on the scorebug.
+The record cache shares the rank's generation counter on purpose — every reset
+that invalidates a rank invalidates the record with it, so there is one lifetime
+to reason about, not two that can drift.
 
-**Note.** This is the smallest job on the list and needs no new discovery.
+**Still to prove.** No live play since the change. Needs a game to confirm the
+numbers are real ones.
 
 ---
 
@@ -133,7 +142,11 @@ ever prints them.
 Records publish as `W-L`. In Play Now they must read `0-0`. Never publish an
 implausible record — blank rather than wrong.
 
-Check what Play Now actually holds in those fields before writing the rule.
+**Deliberately not written yet.** What Play Now actually stores in these fields
+is still unknown, and it may already be `0-0`, in which case the rule is not
+needed and would only add a way to be wrong. The raw numbers now also go to the
+`ram` diagnostic block (`ram.awayRecord` / `ram.homeRecord`), so one glance at a
+live Play Now game answers this without another investigation.
 
 ---
 
