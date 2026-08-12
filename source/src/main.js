@@ -223,6 +223,30 @@ let ramReaderRestartTimer = null;
 let ramReaderSeedMode = null;
 let ramScoreboardTimer = null;
 let ramScoreboardSignature = '';
+
+// Reader health watchdog. The reader can stay alive and busy while publishing
+// nothing at all - on 2026-08-11 the game was restarted underneath it and it
+// spent over two hours scanning for a process that no longer existed, with the
+// scorebug frozen on two-hour-old values that still looked plausible. The one
+// signal that catches every version of this is simply whether fresh data is
+// arriving, so that is what is watched rather than any single field.
+let ramReaderHealthTimer = null;
+let lastRamDataAtMs = 0;
+let lastRamRecoveryAtMs = 0;
+let lastRamReaderStartAtMs = 0;
+let consecutiveRamRecoveries = 0;
+// The reader needs up to 30s for a cold scan, so anything near that just
+// kills it mid-acquisition and it can never finish. Measured 2026-08-12:
+// a 25s threshold restarted it five times in a row and it never read once.
+const RAM_DATA_STALE_MS = 90000;
+// However long the threshold, never judge a reader that has only just
+// started - it has produced nothing yet because it is still looking.
+const RAM_READER_GRACE_MS = 60000;
+const RAM_RECOVERY_COOLDOWN_MS = 30000;
+// After repeated failures the game is probably closed or on a menu, so back off
+// rather than restarting a child process every half minute forever.
+const RAM_RECOVERY_BACKOFF_MS = 300000;
+const RAM_RECOVERY_ATTEMPTS_BEFORE_BACKOFF = 5;
 let captureLoopTimer = null;
 let captureBusy = false;
 let clockPresentationTimer = null;
@@ -911,6 +935,9 @@ function pollRamScoreboardState() {
       game: payload.state.game,
     });
     if (signature === ramScoreboardSignature) return;
+    // Fresh data proves the reader is alive; the watchdog measures from here.
+    lastRamDataAtMs = Date.now();
+    consecutiveRamRecoveries = 0;
     const firstRamState = !runtime.ramScoreboardState;
     ramScoreboardSignature = signature;
     runtime.ramScoreboardState = payload.state;
@@ -932,10 +959,12 @@ function startRamScoreboardBridge() {
   if (ramScoreboardTimer) return;
   pollRamScoreboardState();
   ramScoreboardTimer = setInterval(pollRamScoreboardState, 100);
+  startRamReaderHealthWatch();
   ramScoreboardTimer.unref?.();
 }
 
 function stopRamScoreboardBridge() {
+  stopRamReaderHealthWatch();
   if (ramScoreboardTimer) clearInterval(ramScoreboardTimer);
   ramScoreboardTimer = null;
   ramLiveDocumentReader.clear();
@@ -971,6 +1000,7 @@ function startRamReaderService() {
   const seedPath = seedMode === 'screen'
     ? path.join(dataExportRootPath(), 'live-screen-scoreboard.json')
     : path.join(dataExportRootPath(), 'ram-reader-no-screen-seed.json');
+  lastRamReaderStartAtMs = Date.now();
   const child = spawn(executable, [
     '--service',
     seedPath,
@@ -1017,6 +1047,53 @@ function stopRamReaderService() {
   if (!child) return;
   child.removeAllListeners();
   try { child.kill(); } catch { }
+}
+
+// Force the reader to drop everything and locate the game again. Used by the
+// Fresh read button and hotkey, and by the watchdog below.
+function reacquireRamReader(reason) {
+  if (!usesRamReader(scoreboardDataSourceMode())) return false;
+  lastRamDataAtMs = Date.now();
+  lastRamRecoveryAtMs = Date.now();
+  clearRamScoreboardState();
+  stopRamReaderService();
+  startRamReaderService();
+  startRamScoreboardBridge();
+  logMessage(`RAM reader re-acquiring the game (${reason}).`);
+  return true;
+}
+
+function watchRamReaderHealth() {
+  if (!usesRamReader(scoreboardDataSourceMode()) || !runtime.started) return;
+  const now = Date.now();
+  // Nothing has arrived yet this session: start the clock rather than treating
+  // a cold start as a failure.
+  if (!lastRamDataAtMs) { lastRamDataAtMs = now; return; }
+  const staleFor = now - lastRamDataAtMs;
+  if (staleFor < RAM_DATA_STALE_MS) return;
+  // Still inside its acquisition window: leave it alone.
+  if (lastRamReaderStartAtMs && now - lastRamReaderStartAtMs < RAM_READER_GRACE_MS) return;
+  const cooldown = consecutiveRamRecoveries >= RAM_RECOVERY_ATTEMPTS_BEFORE_BACKOFF
+    ? RAM_RECOVERY_BACKOFF_MS
+    : RAM_RECOVERY_COOLDOWN_MS;
+  if (now - lastRamRecoveryAtMs < cooldown) return;
+  consecutiveRamRecoveries += 1;
+  logMessage(`RAM reader published nothing for ${Math.round(staleFor / 1000)}s; restarting it `
+    + `(attempt ${consecutiveRamRecoveries}).`);
+  reacquireRamReader('no data');
+}
+
+function startRamReaderHealthWatch() {
+  if (ramReaderHealthTimer) return;
+  ramReaderHealthTimer = setInterval(watchRamReaderHealth, 5000);
+  ramReaderHealthTimer.unref?.();
+}
+
+function stopRamReaderHealthWatch() {
+  if (ramReaderHealthTimer) clearInterval(ramReaderHealthTimer);
+  ramReaderHealthTimer = null;
+  lastRamDataAtMs = 0;
+  consecutiveRamRecoveries = 0;
 }
 
 function applyScoreboardDataSourcePreference({ publish = true, announce = false } = {}) {
@@ -4831,8 +4908,9 @@ async function runControlAction(action) {
       await scanForGameWindow();
       validationSession?.recordGameWindow(runtime.game);
       await configureReader();
+      reacquireRamReader('fresh read requested');
       applyVisibility('fresh-read');
-      logMessage('Fresh read requested: game window rescanned and the local reader state was rebuilt.');
+      logMessage('Fresh read requested: the reader was restarted and is locating the game again.');
       break;
     }
     default:
