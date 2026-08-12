@@ -649,6 +649,7 @@ namespace CollegeFootballRamDiagnostic
                 { "screenBackedFields", new string[0] },
                 { "remainingRamWork", new string[0] },
                 { "automaticLocator", autoDiscoverySummary },
+                { "timeoutBind", timeoutBindDiagnostic },
                 { "scoreboardCandidates", scoreboardCandidateCount },
                 { "scoreHudDownDistanceCandidates", scoreHudDownDistanceCandidateCount },
                 { "ramScoreMatchesScreenSnapshot", screen != null && awayScore.Available && homeScore.Available
@@ -1711,6 +1712,12 @@ namespace CollegeFootballRamDiagnostic
 
         private int lastScannedDown = -1;
         private int lastScannedDistance = -1;
+
+        // DIAGNOSTIC. Records why timeout binding declined on the last attempt,
+        // published as discovery.timeoutBind. Every path that gives up on the
+        // timeout fields sets this, so a failure names its own cause instead of
+        // being indistinguishable from "not there".
+        private string timeoutBindDiagnostic = "not attempted";
 
         private void RetryRequestedScoreHudDiscovery()
         {
@@ -3030,19 +3037,44 @@ namespace CollegeFootballRamDiagnostic
             if (!ConfiguredTimeoutCloneContextsAreSafe(
                     homeAddresses, awayAddresses, out clearConfiguredSlots))
             {
+                timeoutBindDiagnostic = "clone-contexts-unsafe (slots home="
+                    + homeAddresses.Count.ToString(CultureInfo.InvariantCulture)
+                    + " away=" + awayAddresses.Count.ToString(CultureInfo.InvariantCulture)
+                    + " clear=" + (clearConfiguredSlots ? "yes" : "no") + ")";
                 if (clearConfiguredSlots) ClearConfiguredTimeoutCloneSlots();
                 return false;
             }
             RamReadResult home = Read("timeoutSlotTeamIdZero", 0, 3);
             RamReadResult away = Read("timeoutSlotTeamIdOther", 0, 3);
-            if (!home.Available || !away.Available
-                || !VerifiedHomeAwayTimeoutCopiesAreSafe(
-                    homeAddresses.Count, awayAddresses.Count,
-                    home.Value, away.Value)
-                || !TimeoutCloneReadHasFullConsensus(
-                    home.ConfiguredCopies, home.SuccessfulReads, home.AgreeingCopies)
-                || !TimeoutCloneReadHasFullConsensus(
-                    away.ConfiguredCopies, away.SuccessfulReads, away.AgreeingCopies)) return false;
+            if (!home.Available || !away.Available)
+            {
+                timeoutBindDiagnostic = "slot-read-unavailable (home="
+                    + (home.Available ? "ok" : "no") + " away=" + (away.Available ? "ok" : "no") + ")";
+                return false;
+            }
+            if (!VerifiedHomeAwayTimeoutCopiesAreSafe(
+                    homeAddresses.Count, awayAddresses.Count, home.Value, away.Value))
+            {
+                timeoutBindDiagnostic = "copies-unsafe (home=" + home.Value.ToString(CultureInfo.InvariantCulture)
+                    + " away=" + away.Value.ToString(CultureInfo.InvariantCulture)
+                    + " counts " + homeAddresses.Count.ToString(CultureInfo.InvariantCulture)
+                    + "/" + awayAddresses.Count.ToString(CultureInfo.InvariantCulture) + ")";
+                return false;
+            }
+            if (!TimeoutCloneReadHasFullConsensus(
+                    home.ConfiguredCopies, home.SuccessfulReads, home.AgreeingCopies))
+            {
+                timeoutBindDiagnostic = "home-no-consensus (configured=" + home.ConfiguredCopies
+                    + " reads=" + home.SuccessfulReads + " agree=" + home.AgreeingCopies + ")";
+                return false;
+            }
+            if (!TimeoutCloneReadHasFullConsensus(
+                    away.ConfiguredCopies, away.SuccessfulReads, away.AgreeingCopies))
+            {
+                timeoutBindDiagnostic = "away-no-consensus (configured=" + away.ConfiguredCopies
+                    + " reads=" + away.SuccessfulReads + " agree=" + away.AgreeingCopies + ")";
+                return false;
+            }
 
             SetField("awayTimeouts", awayAddresses);
             SetField("homeTimeouts", homeAddresses);
@@ -3053,19 +3085,39 @@ namespace CollegeFootballRamDiagnostic
                 homeAddresses, awayAddresses, out clearAfterReread);
             if (!contextStillSafe)
             {
+                timeoutBindDiagnostic = "reread-contexts-unsafe (clear="
+                    + (clearAfterReread ? "yes" : "no") + ")";
                 if (clearAfterReread) ClearConfiguredTimeoutCloneSlots();
                 return false;
             }
-            return TimeoutCloneReadHasFullConsensus(
+            if (!TimeoutCloneReadHasFullConsensus(
                     orientedAway.ConfiguredCopies, orientedAway.SuccessfulReads, orientedAway.AgreeingCopies)
-                && TimeoutCloneReadHasFullConsensus(
-                    orientedHome.ConfiguredCopies, orientedHome.SuccessfulReads, orientedHome.AgreeingCopies)
-                && VerifiedHomeAwayTimeoutRereadIsValid(
+                || !TimeoutCloneReadHasFullConsensus(
+                    orientedHome.ConfiguredCopies, orientedHome.SuccessfulReads, orientedHome.AgreeingCopies))
+            {
+                timeoutBindDiagnostic = "reread-no-consensus (away " + orientedAway.SuccessfulReads
+                    + "/" + orientedAway.AgreeingCopies + "/" + orientedAway.ConfiguredCopies
+                    + ", home " + orientedHome.SuccessfulReads
+                    + "/" + orientedHome.AgreeingCopies + "/" + orientedHome.ConfiguredCopies + ")";
+                return false;
+            }
+            if (!VerifiedHomeAwayTimeoutRereadIsValid(
                     orientedAway.Available, orientedHome.Available,
                     orientedAway.Value, orientedHome.Value,
-                    away.Value, home.Value)
-                && RuntimeCatalogTimeoutCountersMatch(
-                    orientedHome.Value, orientedAway.Value);
+                    away.Value, home.Value))
+            {
+                timeoutBindDiagnostic = "reread-mismatch (first home=" + home.Value + " away=" + away.Value
+                    + ", reread home=" + orientedHome.Value + " away=" + orientedAway.Value + ")";
+                return false;
+            }
+            if (!RuntimeCatalogTimeoutCountersMatch(orientedHome.Value, orientedAway.Value))
+            {
+                timeoutBindDiagnostic = "catalog-counters-mismatch (clone home="
+                    + orientedHome.Value + " away=" + orientedAway.Value + ")";
+                return false;
+            }
+            timeoutBindDiagnostic = "bound (home=" + orientedHome.Value + " away=" + orientedAway.Value + ")";
+            return true;
         }
 
         private bool RuntimeCatalogTimeoutCountersMatch(int cloneHome, int cloneAway)
