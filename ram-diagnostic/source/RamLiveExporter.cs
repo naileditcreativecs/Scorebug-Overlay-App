@@ -650,6 +650,7 @@ namespace CollegeFootballRamDiagnostic
                 { "remainingRamWork", new string[0] },
                 { "automaticLocator", autoDiscoverySummary },
                 { "timeoutBind", timeoutBindDiagnostic },
+                { "timeoutInstall", timeoutInstallDiagnostic },
                 { "possessionBind", possessionBindDiagnostic },
                 { "scoreboardCandidates", scoreboardCandidateCount },
                 { "scoreHudDownDistanceCandidates", scoreHudDownDistanceCandidateCount },
@@ -1720,6 +1721,8 @@ namespace CollegeFootballRamDiagnostic
         // timeout fields sets this, so a failure names its own cause instead of
         // being indistinguishable from "not there".
         private string timeoutBindDiagnostic = "not attempted";
+        // DIAGNOSTIC: whether the slot install ran at all, and why it declined.
+        private string timeoutInstallDiagnostic = "never called";
 
         // DIAGNOSTIC. Why possession had no address on the last discovery.
         private string possessionBindDiagnostic = "not evaluated";
@@ -2253,6 +2256,23 @@ namespace CollegeFootballRamDiagnostic
             if (result == null || scanner.Process == null || scanner.Process.Id != processId
                 || resultMatchupGeneration != matchupGeneration) return;
 
+            // Timeouts and possession are bound to neither team identity nor
+            // the matchup epoch. Timeout sides come from invariant offsets
+            // (+0x44 home, +0x48 away) and every value is verified again in
+            // ApplyVerifiedHomeAwayTimeoutFields before publication.
+            //
+            // They are installed here, ahead of the gates below, because each
+            // of those discards the entire discovery result on a return -
+            // the moving-core proof, the different-core confirmation and the
+            // ambiguous-role branch. Between them, a reader that located the
+            // timeout addresses on every single scan never installed them
+            // once. Observed 2026-08-12: locator returned
+            // homeTimeouts [0x7FA33A74, 0x7FA33D44] while the reader reported
+            // configuredCopies=0 and "clone-contexts-unsafe (slots 0/0)".
+            InstallRawTimeoutSlots(result, false);
+            InstallLivePossession(result, false);
+            ApplyOrientedTimeoutFields();
+
             if (result.TeamCatalogBase != 0)
             {
                 SetField("teamCatalogBase", new long[] { result.TeamCatalogBase });
@@ -2290,8 +2310,27 @@ namespace CollegeFootballRamDiagnostic
             differentCoreConfirmations = 0;
             if (result.TeamRoleEvidenceAmbiguous && !matchupTransitionPending)
             {
-                ClearStaleOutput(screenJsonPath);
-                InvalidateProfile("ambiguous labeled team-role evidence");
+                // Ambiguous role evidence means we cannot say which team is on
+                // which side, so no team-bound identity may be published. It
+                // does NOT invalidate everything else.
+                //
+                // This previously called InvalidateProfile, which resets
+                // resolvedProcessId and forces a full re-discovery. In a game
+                // where the role markers are simply absent that happens on
+                // every background cycle, so the reader reset itself every few
+                // seconds forever and timeouts, ranks and possession could
+                // never bind. Observed 2026-08-12: the locator returned the
+                // timeout addresses on every scan while the reader reported
+                // configuredCopies=0 and "clone-contexts-unsafe (slots 0/0)".
+                //
+                // The timeout clones do not depend on role evidence for their
+                // sides - those come from the invariant offsets documented in
+                // ApplyOrientedTimeoutFields (+0x44 home, +0x48 away) - so they
+                // are safe to install here. Names stay unpublished until a
+                // matchup actually confirms.
+                autoDiscoverySummary = "live scoreboard retained; team roles ambiguous "
+                    + "(names unavailable, other fields unaffected)";
+                nextTeamNameDiscoveryUtc = DateTime.UtcNow.AddSeconds(5);
                 return;
             }
             ObserveMatchupDiscovery(result);
@@ -2323,6 +2362,21 @@ namespace CollegeFootballRamDiagnostic
 
         private void ObserveMatchupDiscovery(RamAutoDiscovery result)
         {
+            // Timeouts and possession do not depend on knowing which teams are
+            // playing. They used to be installed only further down this method,
+            // behind the team-name gate below - so whenever the game did not
+            // expose team markers, a discovery that had *already located the
+            // timeout addresses* was discarded whole, and timeouts, possession
+            // and ranks all went blank together with the names.
+            //
+            // Observed 2026-08-12: the locator returned
+            // homeTimeouts [0x7FA33A74, 0x7FA33D44] on every single scan while
+            // the running reader reported configuredCopies=0, purely because
+            // the matchup could not be identified.
+            //
+            // Install what does not need an identity first. The verification in
+            // ApplyVerifiedHomeAwayTimeoutFields is unchanged, so nothing is
+            // published that has not been proven on its own terms.
             if (!HasCompleteTeamNamePair(result)) return;
             string awaySignature = AddressSignature(result.AwayTeamNameAddresses);
             string homeSignature = AddressSignature(result.HomeTeamNameAddresses);
@@ -2433,15 +2487,28 @@ namespace CollegeFootballRamDiagnostic
         {
             List<long> slotZero;
             List<long> slotOther;
+            int homeCount = result == null || result.HomeTimeoutAddresses == null
+                ? -1 : result.HomeTimeoutAddresses.Count;
+            int awayCount = result == null || result.AwayTimeoutAddresses == null
+                ? -1 : result.AwayTimeoutAddresses.Count;
             if (TrySelectBackgroundTimeoutSlots(result, out slotZero, out slotOther))
             {
+                timeoutInstallDiagnostic = "installed (home=" + slotZero.Count
+                    + " away=" + slotOther.Count + ")";
                 // The two verified clones expose invariant side counters:
                 // +0x44 is home and +0x48 is away. Keep the historical cache
                 // field names internal; publication applies the proven mapping.
                 SetField("timeoutSlotTeamIdZero", slotZero);
                 SetField("timeoutSlotTeamIdOther", slotOther);
             }
-            else if (clearWhenMissing)
+            else
+            {
+                timeoutInstallDiagnostic = "selection declined (result home=" + homeCount
+                    + " away=" + awayCount + ", clearWhenMissing="
+                    + (clearWhenMissing ? "yes" : "no") + ")";
+            }
+            if (!TrySelectBackgroundTimeoutSlots(result, out slotZero, out slotOther)
+                && clearWhenMissing)
             {
                 SetField("timeoutSlotTeamIdZero", new long[0]);
                 SetField("timeoutSlotTeamIdOther", new long[0]);
