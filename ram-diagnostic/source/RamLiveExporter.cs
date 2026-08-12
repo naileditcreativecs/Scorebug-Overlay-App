@@ -351,21 +351,37 @@ namespace CollegeFootballRamDiagnostic
             // back to 1/3 before it could reach 3/3, leaving the reader unable
             // to acquire at all. Observed live 2026-08-12 on a game restart.
             //
-            // This condition must only cover things that can actually bind and
-            // then stop asking. Briefly widened to include awayRank so ranks and
-            // records would recover too - but ranks need two ScoreHud team
-            // objects and this game exposes one, so the condition never went
-            // false, the sweep ran every 10s forever, and each sweep knocked the
-            // synchronized-scoreboard confirmation back to 1/3. The overlay lost
-            // its data every few seconds: strictly worse than blank ranks.
+            // Ranks and records are included as well, because they bind in the
+            // same place as timeouts and nothing else asks for a sweep once the
+            // matchup has committed. Loading a second game showed the cost of
+            // leaving them out: names came across fine, and timeouts, ranks and
+            // records all stayed blank for the whole game because their one
+            // chance to re-bind had already passed.
             //
-            // Timeouts do bind, and once bound the sweeping stops on its own.
+            // An earlier attempt at this ran the sweep every 10s forever,
+            // because at the time ranks could not bind at all - the unranked
+            // side's team object was being discarded, so orientation only ever
+            // saw one team - and every sweep knocked the synchronized-scoreboard
+            // confirmation back to 1/3, emptying the overlay. Unranked teams are
+            // read properly now, so ranks do bind and the sweeping does stop.
+            //
+            // The attempt cap is the backstop for that failure mode returning:
+            // if these fields cannot bind in this game, give up rather than
+            // sweep for the rest of it. Blank ranks are survivable; an overlay
+            // that goes dark every few seconds is not. The counter resets on
+            // every new matchup, so the next game gets a fresh set of tries.
+            bool scoreHudFieldsUnbound = !HasConfiguredField("timeoutSlotTeamIdZero")
+                || !HasConfiguredField("awayRank");
             bool timeoutsNeedDiscovery = !processNeedsDiscovery && !matchupNeedsDiscovery
                 && lastPublishedProcessId == scanner.Process.Id
-                && !HasConfiguredField("timeoutSlotTeamIdZero")
+                && scoreHudFieldsUnbound
+                && scoreHudRecoveryAttempts < MaximumScoreHudRecoveryAttempts
                 && DateTime.UtcNow >= nextTimeoutRecoveryDiscoveryUtc;
             if (timeoutsNeedDiscovery)
-                nextTimeoutRecoveryDiscoveryUtc = DateTime.UtcNow.AddSeconds(20);
+            {
+                scoreHudRecoveryAttempts++;
+                nextTimeoutRecoveryDiscoveryUtc = DateTime.UtcNow.AddSeconds(10);
+            }
             // A full memory sweep can take several seconds. Never run that
             // sweep repeatedly just because an optional team-name object has
             // not appeared; doing so freezes the clock export. Missing names
@@ -1804,6 +1820,9 @@ namespace CollegeFootballRamDiagnostic
         // are missing, keep re-running discovery on a slow cadence instead of
         // giving up until the process or matchup changes.
         private DateTime nextTimeoutRecoveryDiscoveryUtc = DateTime.MinValue;
+        // Bounded retries for the ScoreHud-derived fields, reset per matchup.
+        private const int MaximumScoreHudRecoveryAttempts = 18;
+        private int scoreHudRecoveryAttempts;
         private string catalogTimeoutDiagnostic = "not checked";
         // Why ranks and records are or are not bound. The rank/record path
         // had no diagnostic at all, so a silent early return was
@@ -2560,6 +2579,13 @@ namespace CollegeFootballRamDiagnostic
             lastAwayTeamName = result.AwayTeamName;
             lastHomeTeamName = result.HomeTeamName;
             lastMatchupFromFallback = result.TeamNamesFromFallback;
+            // A new matchup gets a fresh set of recovery attempts. The ScoreHud
+            // fields are cleared a few lines below, so without this reset a
+            // second game in the same session would inherit an exhausted counter
+            // and never re-bind its timeouts, ranks or records - which is
+            // exactly what loading game two looked like.
+            scoreHudRecoveryAttempts = 0;
+            nextTimeoutRecoveryDiscoveryUtc = DateTime.MinValue;
             SetField("awayTeamNameAscii", result.AwayTeamNameAddresses);
             SetField("homeTeamNameAscii", result.HomeTeamNameAddresses);
             InstallTeamRoleBinding(result, true);
@@ -5007,6 +5033,7 @@ namespace CollegeFootballRamDiagnostic
         }
     }
 }
+
 
 
 
