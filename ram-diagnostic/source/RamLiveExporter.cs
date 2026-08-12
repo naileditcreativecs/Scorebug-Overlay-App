@@ -338,7 +338,14 @@ namespace CollegeFootballRamDiagnostic
             // matchup change, so one unlucky sweep meant timeouts stayed
             // unbound for the whole session. Retry on a slow cadence while
             // they are missing - a sweep costs seconds, so 20s not 2s.
+            // Only ever a recovery pass for an already-established game. A
+            // full discovery resets the synchronized-scoreboard confirmation,
+            // and in a fresh game the timeouts are always unbound - so without
+            // this guard the recovery fired every 20s and knocked confirmation
+            // back to 1/3 before it could reach 3/3, leaving the reader unable
+            // to acquire at all. Observed live 2026-08-12 on a game restart.
             bool timeoutsNeedDiscovery = !processNeedsDiscovery && !matchupNeedsDiscovery
+                && lastPublishedProcessId == scanner.Process.Id
                 && !HasConfiguredField("timeoutSlotTeamIdZero")
                 && DateTime.UtcNow >= nextTimeoutRecoveryDiscoveryUtc;
             if (timeoutsNeedDiscovery)
@@ -1758,20 +1765,23 @@ namespace CollegeFootballRamDiagnostic
         }
 
         // ScoreHud allocates a new object for each special presentation, so a
-        // Kickoff or PAT can only be found by a search that starts after it
-        // appears. With the sweep itself now well under a second, the two-second
-        // gap between attempts became the larger part of the delay - a kickoff
-        // graphic can come and go inside it. While a transition is actually
-        // expected, retry quickly; outside that window keep the original spacing
-        // so the reader is not scanning constantly during ordinary play. The
-        // transition window is bounded elsewhere, so this cannot run away.
+        // Kickoff, PAT, Goal or Inches can only be found by a sweep that starts
+        // after it appears - and the graphic is often gone within a few seconds.
+        //
+        // The interval only sets the gap between attempts. Whether an attempt
+        // happens at all is decided by ShouldRequestScoreHudSpecialDiscovery, and
+        // a completed sweep clears the request, so ordinary play still costs one
+        // sweep per new down. Only one sweep runs at a time, so a short interval
+        // cannot stack scans. Given that, there is no reason to wait: retry as
+        // soon as the last attempt finished.
+        //
+        // This previously used two seconds for anything that was not a kickoff or
+        // PAT. Goal-to-go and short yardage are ordinary scrimmage downs, so they
+        // took that slow path on top of the sweep itself - which is exactly why
+        // they showed up late while kickoffs did not.
         private TimeSpan ScoreHudDiscoveryInterval()
         {
-            bool transitionExpected = scoreHudExpectedNonScrimmageSpecial != ScoreHudExpectedNone
-                && DateTime.UtcNow < scoreHudTransitionScanUntilUtc;
-            return transitionExpected
-                ? TimeSpan.FromMilliseconds(250)
-                : TimeSpan.FromSeconds(2);
+            return TimeSpan.FromMilliseconds(250);
         }
 
         private ScoreHudDownDistanceCandidate ApplyCompletedScoreHudDiscovery()
