@@ -3388,10 +3388,16 @@ namespace CollegeFootballRamDiagnostic
                 ResetPendingScoreHudOrientation();
             }
 
+            // Record which side ended up at the higher address, every time the
+            // orientation was established by evidence we trust. This is the
+            // ground truth needed to decide whether allocation order can ever
+            // be used to orient a 0-0 kickoff, and it costs nothing to collect.
             rankBindDiagnostic = "bound (away rank " + away.Rank + " record "
                 + (FormatTeamRecord(away.Wins, away.Losses, away.Ties) ?? "?")
                 + ", home rank " + home.Rank + " record "
-                + (FormatTeamRecord(home.Wins, home.Losses, home.Ties) ?? "?") + ")";
+                + (FormatTeamRecord(home.Wins, home.Losses, home.Ties) ?? "?")
+                + ", order " + (away.Address > home.Address ? "away-higher" : "away-lower")
+                + ")";
             SetField("awayRank", new long[] { away.Address + 44 });
             SetField("homeRank", new long[] { home.Address + 44 });
             lastAwayRank = away.Rank;
@@ -3476,14 +3482,21 @@ namespace CollegeFootballRamDiagnostic
                 && awayScore.Value != homeScore.Value;
             if (!awayScore.Available || !homeScore.Available) return false;
             bool canUsePossession = possession.Available && possession.Value <= 1;
-            // Every game starts 0-0, and possession frequently has no source at
-            // all, so requiring one of them meant ranks, records and timeouts
-            // stayed blank until somebody scored - every single game. Allocation
-            // order is the remaining evidence, and it is consistent: the lower
-            // address is home, the higher is away.
-            if (!distinctScoreEvidence && !canUsePossession)
-                return TrySelectScoreHudSidesByAddressOrder(teams, awayScore, homeScore,
-                    out away, out home);
+            // Orienting by allocation order was tried here and reverted.
+            //
+            // The rule it used - lower address is home - was inferred from the
+            // teamIdNames diagnostic, which is built before teams.Sort() runs.
+            // That list was therefore never in address order, so the rule was
+            // inferred from nothing. Both games it was checked against had in
+            // fact bound from differing scores, so the guess was never actually
+            // exercised until a Dynasty game, where it put both teams' records
+            // on the wrong side.
+            //
+            // Wrong values are worse than missing ones. Wait for real evidence
+            // until the true ordering is known - and record what that ordering
+            // is, every time orientation succeeds by other means, so the
+            // question can be settled with data instead of another guess.
+            if (!distinctScoreEvidence && !canUsePossession) return false;
 
             for (int awayIndex = 0; awayIndex < teams.Count; awayIndex++)
             {
