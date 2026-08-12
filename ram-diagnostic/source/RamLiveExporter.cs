@@ -350,6 +350,16 @@ namespace CollegeFootballRamDiagnostic
             // this guard the recovery fired every 20s and knocked confirmation
             // back to 1/3 before it could reach 3/3, leaving the reader unable
             // to acquire at all. Observed live 2026-08-12 on a game restart.
+            //
+            // This condition must only cover things that can actually bind and
+            // then stop asking. Briefly widened to include awayRank so ranks and
+            // records would recover too - but ranks need two ScoreHud team
+            // objects and this game exposes one, so the condition never went
+            // false, the sweep ran every 10s forever, and each sweep knocked the
+            // synchronized-scoreboard confirmation back to 1/3. The overlay lost
+            // its data every few seconds: strictly worse than blank ranks.
+            //
+            // Timeouts do bind, and once bound the sweeping stops on its own.
             bool timeoutsNeedDiscovery = !processNeedsDiscovery && !matchupNeedsDiscovery
                 && lastPublishedProcessId == scanner.Process.Id
                 && !HasConfiguredField("timeoutSlotTeamIdZero")
