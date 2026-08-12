@@ -74,6 +74,34 @@ reader all night.
 
 ---
 
+## 2b. Goal/Inches when no special layer exists  (NEW 2026-08-12)
+
+Captured live during a 2nd & Inches:
+
+```
+core:    down= dist= kind=pendingSpecial dd=''
+objects: downDistanceCandidates: []          <- none at all in memory
+```
+
+The reader is behaving correctly here. The numeric core reports distance 0,
+which is shared by Goal and Inches, so it sets pendingSpecial and withholds
+rather than guessing. But there was no ScoreHud down-distance object present
+to say which one it is - not a stale one, none.
+
+So this is a third distinct case, separate from the goal-to-go problem:
+
+- goal-to-go with real yardage: core says e.g. 3, layer exists, must be found
+- Inches with core 0: layer must exist to disambiguate, and sometimes does not
+
+**Possible route.** Goal and Inches are distinguishable by field position
+without any layer: distance 0 inside the opponent 10 is Goal, distance 0
+anywhere else is Inches. That needs the ball-on/yard-line field, which the
+reader does not currently read. Worth finding - it would resolve the ambiguity
+from the numeric core alone and stop depending on a layer that is not always
+there.
+
+---
+
 ## 3. Confirm the decoupling end to end
 
 **Already built, not yet proven.** Timeouts and possession are now installed
