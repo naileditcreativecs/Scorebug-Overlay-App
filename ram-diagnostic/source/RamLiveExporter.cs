@@ -1823,6 +1823,10 @@ namespace CollegeFootballRamDiagnostic
         // Bounded retries for the ScoreHud-derived fields, reset per matchup.
         private const int MaximumScoreHudRecoveryAttempts = 18;
         private int scoreHudRecoveryAttempts;
+        // Consecutive sweeps where the bound sides stopped matching their
+        // scores. Enough of them means the orientation is wrong, not that a
+        // score was caught mid-update.
+        private int lostScoreHudBindCount;
         private string catalogTimeoutDiagnostic = "not checked";
         // Why ranks and records are or are not bound. The rank/record path
         // had no diagnostic at all, so a silent early return was
@@ -3308,11 +3312,31 @@ namespace CollegeFootballRamDiagnostic
             {
                 if (!TrySelectBoundScoreHudSides(teams, awayScore, homeScore, out away, out home))
                 {
+                    // A bound side stops matching when its score no longer agrees
+                    // - which is exactly what happens if the provisional
+                    // address-order orientation guessed the sides backwards and
+                    // the game has now scored. Previously this just returned, so
+                    // a wrong orientation stalled for the rest of the game and
+                    // could never be re-derived. Drop the binding and orient
+                    // again from whatever evidence now exists.
+                    //
+                    // A few consecutive misses are required first: a single miss
+                    // is usually just a score updating between two reads, and
+                    // tearing down a good orientation for that would thrash.
+                    lostScoreHudBindCount++;
                     rankBindDiagnostic = "lost bind: no candidate matches team ids "
                         + orientedAwayScoreHudTeamId + "/" + orientedHomeScoreHudTeamId
-                        + " among " + teams.Count + " objects";
+                        + " among " + teams.Count + " objects ("
+                        + lostScoreHudBindCount + " consecutive)";
+                    if (lostScoreHudBindCount >= 3)
+                    {
+                        rankBindDiagnostic += " - re-orienting";
+                        lostScoreHudBindCount = 0;
+                        ResetScoreHudOrientation();
+                    }
                     return;
                 }
+                lostScoreHudBindCount = 0;
             }
             else
             {
@@ -3379,6 +3403,68 @@ namespace CollegeFootballRamDiagnostic
             ApplyOrientedTimeoutFields(away, home);
         }
 
+        // Orientation of last resort, for the tied-score case with no usable
+        // possession bit - which is every kickoff of every game.
+        //
+        // The two ScoreHud team objects are allocated in a stable order: the
+        // lower address is home, the higher is away. Confirmed against two
+        // separately bound games (Pitt v USC, ranked USC away at the higher
+        // address both times) where the orientation had been established
+        // independently by differing scores.
+        //
+        // This is weaker evidence than a score or a possession bit, so it is
+        // treated as provisional: distinctScoreEvidence stays false, which keeps
+        // the three-confirmation requirement, and the moment the scores diverge
+        // TrySelectBoundScoreHudSides stops matching a wrong guess and the
+        // orientation is re-derived from real evidence. A mistake corrects
+        // itself within a few seconds instead of persisting for the game.
+        //
+        // Only ranks, records and timeouts hang off this. Scores, clock, down
+        // and distance come from the core scoreboard and are unaffected.
+        internal static bool TrySelectScoreHudSidesByAddressOrder(
+            List<ScoreHudTeamCandidate> teams, RamReadResult awayScore, RamReadResult homeScore,
+            out ScoreHudTeamCandidate away, out ScoreHudTeamCandidate home)
+        {
+            away = null;
+            home = null;
+            // Only for the genuinely tied case. If the scores differ, the caller
+            // has real evidence and must use it.
+            if (!awayScore.Available || !homeScore.Available
+                || awayScore.Value != homeScore.Value) return false;
+            int score = awayScore.Value;
+            List<int> ids = new List<int>();
+            for (int i = 0; i < teams.Count; i++)
+            {
+                if (teams[i].Score != score) continue;
+                if (!ids.Contains(teams[i].TeamId)) ids.Add(teams[i].TeamId);
+            }
+            // Exactly two teams, or there is nothing to orient.
+            if (ids.Count != 2) return false;
+            long firstLowest = Int64.MaxValue;
+            long secondLowest = Int64.MaxValue;
+            ScoreHudTeamCandidate firstTop = null;
+            ScoreHudTeamCandidate secondTop = null;
+            for (int i = 0; i < teams.Count; i++)
+            {
+                ScoreHudTeamCandidate team = teams[i];
+                if (team.Score != score) continue;
+                if (team.TeamId == ids[0])
+                {
+                    if (team.Address < firstLowest) firstLowest = team.Address;
+                    if (firstTop == null || team.Address > firstTop.Address) firstTop = team;
+                }
+                else if (team.TeamId == ids[1])
+                {
+                    if (team.Address < secondLowest) secondLowest = team.Address;
+                    if (secondTop == null || team.Address > secondTop.Address) secondTop = team;
+                }
+            }
+            if (firstTop == null || secondTop == null || firstLowest == secondLowest) return false;
+            if (firstLowest < secondLowest) { home = firstTop; away = secondTop; }
+            else { home = secondTop; away = firstTop; }
+            return away.Address != home.Address;
+        }
+
         internal static bool TrySelectFreshScoreHudSides(List<ScoreHudTeamCandidate> teams,
             RamReadResult awayScore, RamReadResult homeScore, RamReadResult possession,
             out ScoreHudTeamCandidate away, out ScoreHudTeamCandidate home,
@@ -3390,7 +3476,14 @@ namespace CollegeFootballRamDiagnostic
                 && awayScore.Value != homeScore.Value;
             if (!awayScore.Available || !homeScore.Available) return false;
             bool canUsePossession = possession.Available && possession.Value <= 1;
-            if (!distinctScoreEvidence && !canUsePossession) return false;
+            // Every game starts 0-0, and possession frequently has no source at
+            // all, so requiring one of them meant ranks, records and timeouts
+            // stayed blank until somebody scored - every single game. Allocation
+            // order is the remaining evidence, and it is consistent: the lower
+            // address is home, the higher is away.
+            if (!distinctScoreEvidence && !canUsePossession)
+                return TrySelectScoreHudSidesByAddressOrder(teams, awayScore, homeScore,
+                    out away, out home);
 
             for (int awayIndex = 0; awayIndex < teams.Count; awayIndex++)
             {
@@ -5033,6 +5126,7 @@ namespace CollegeFootballRamDiagnostic
         }
     }
 }
+
 
 
 

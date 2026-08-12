@@ -4311,6 +4311,44 @@ namespace CollegeFootballRamDiagnostic
                         downTwo, distanceThree,
                         RamLiveExporter.ScoreHudExpectedNone, freshZeroGoal) != goalDownZeroDistance)
                     throw new Exception("Zero-distance Goal variant was not accepted.");
+                // Every game starts 0-0, so orientation must not depend on the
+                // scores differing. Allocation order decides it: lower address
+                // is home, higher is away.
+                {
+                    ScoreHudTeamCandidate lower = new ScoreHudTeamCandidate
+                    {
+                        Address = 0x1000, TeamId = 41, Rank = 0, Score = 0
+                    };
+                    ScoreHudTeamCandidate upper = new ScoreHudTeamCandidate
+                    {
+                        Address = 0x2000, TeamId = 33, Rank = 15, Score = 0
+                    };
+                    RamReadResult zero = new RamReadResult(true, 0, 1, 1, 1);
+                    ScoreHudTeamCandidate tiedAway;
+                    ScoreHudTeamCandidate tiedHome;
+                    if (!RamLiveExporter.TrySelectScoreHudSidesByAddressOrder(
+                            new List<ScoreHudTeamCandidate> { upper, lower }, zero, zero,
+                            out tiedAway, out tiedHome))
+                        throw new Exception("A tied scoreboard was not oriented by address order.");
+                    if (tiedHome != lower || tiedAway != upper)
+                        throw new Exception("Address order put the wrong team on the wrong side.");
+                    // One team, however many clones, cannot orient anything.
+                    ScoreHudTeamCandidate clone = new ScoreHudTeamCandidate
+                    {
+                        Address = 0x3000, TeamId = 41, Rank = 0, Score = 0
+                    };
+                    if (RamLiveExporter.TrySelectScoreHudSidesByAddressOrder(
+                            new List<ScoreHudTeamCandidate> { lower, clone }, zero, zero,
+                            out tiedAway, out tiedHome))
+                        throw new Exception("Clones of a single team were treated as two sides.");
+                    // With the scores actually differing the caller has real
+                    // evidence and this path must decline.
+                    RamReadResult seven = new RamReadResult(true, 7, 1, 1, 1);
+                    if (RamLiveExporter.TrySelectScoreHudSidesByAddressOrder(
+                            new List<ScoreHudTeamCandidate> { upper, lower }, seven, zero,
+                            out tiedAway, out tiedHome))
+                        throw new Exception("Address order overrode real score evidence.");
+                }
                 // An unranked team must still produce a usable team object.
                 // Rejecting its rank field is how Pittsburgh's object vanished
                 // from a Pitt v USC game, leaving one team where orientation
