@@ -12,7 +12,7 @@
     <div>
       <p class="eyebrow">COLLEGE FOOTBALL 27</p>
       <h1>Scoreboard Overlay</h1>
-      <p class="header-subtitle">Every overlay tool has its own tab. The proven reader and calibration stay unchanged.</p>
+      <p class="header-subtitle">Every overlay tool has its own tab.</p>
     </div>
     <span id="app-version" class="version">v1.3.40 FOX RAW TRANSPARENT LOGOS</span>
   </header>
@@ -28,8 +28,6 @@
     <button class="tab active" data-tab="dashboard">Home</button>
     <button class="tab" data-tab="library">HTML library <span id="theme-library-tab-count" class="tab-count">0</span></button>
     <button class="tab" data-tab="data">Reader &amp; live data</button>
-    <button class="tab" data-tab="reading-profiles">Reading profiles</button>
-    <button class="tab" data-tab="calibration">Reading areas</button>
     <button class="tab" data-tab="theme">Theme &amp; placement</button>
     <button class="tab" data-tab="green-screen">Green screen</button>
     <button class="tab" data-tab="settings">Settings</button>
@@ -106,8 +104,7 @@
           <p class="profile-scope-warning"><strong>Choose the game resolution:</strong> Standard, ultrawide, and super-ultrawide sizes each keep their own reader calibration.</p>
           <div class="button-row profile-actions">
             <button id="btn-save-resolution" class="primary">Use this size</button>
-            <button id="btn-calibrate-profile" data-tab="calibration">Inspect game reader</button>
-          </div>
+            </div>
           <div class="button-row scoreboard-choice-row">
             <button id="btn-open-library">Choose scoreboard</button>
           </div>
@@ -131,6 +128,7 @@
       </div>
     </section>
 
+    <button hidden id="btn-calibrate-profile" data-tab="calibration">Inspect game reader</button>
     <section class="panel" data-panel="data">
       <div class="advanced-page-heading"><div><p class="eyebrow">READER</p><h2>Reader &amp; live data</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
       <div class="grid two">
@@ -138,20 +136,18 @@
           <div class="card-heading"><div><p class="eyebrow">DATA SOURCE</p><h2>Live scoreboard values</h2></div><span id="mode-badge" class="badge">Automatic</span></div>
           <label>Use values from
             <select id="scoreboard-data-source">
-              <option value="auto">Automatic — RAM with screen fallback</option>
               <option value="ram">RAM reader only</option>
-              <option value="screen">Screen reader only</option>
             </select>
           </label>
-          <p id="scoreboard-data-source-help" class="hint">RAM is preferred. If it is unavailable, the screen reader keeps the scoreboard working.</p>
-          <label>Screen reader / test mode
+          <p id="scoreboard-data-source-help" class="hint">Live values are read directly from the game.</p>
+          <label hidden>Screen reader / test mode
             <select id="reader-mode">
               <option value="local-ocr">Automatic local reader</option>
               <option value="manual">Manual test controls</option>
               <option value="mock">Animated mock game</option>
             </select>
           </label>
-          <label>Native scorebug
+          <label hidden>Native scorebug
             <select id="donor-profile">
               <option value="auto">Auto-detect (recommended)</option>
               <option value="optical-reader-donor-exp-v0.1">Automatic Reader Boxes / Optical Donor</option>
@@ -163,8 +159,8 @@
 
         <article class="card">
           <div class="card-heading"><div><p class="eyebrow">RECOGNITION</p><h2>Validation</h2></div></div>
-          <label>Minimum OCR confidence <output id="confidence-output">20%</output><input id="minimum-confidence" type="range" min="20" max="95" value="20"></label>
-          <label>Stable frames <input id="stable-frames" type="number" min="1" max="10" value="2"></label>
+          <label hidden>Minimum OCR confidence <output id="confidence-output">20%</output><input id="minimum-confidence" type="range" min="20" max="95" value="20"></label>
+          <label hidden>Stable frames <input id="stable-frames" type="number" min="1" max="10" value="2"></label>
           <label>Live clock correction (seconds) <input id="clock-offset-seconds" type="number" min="-5" max="5" step="1" value="0"></label>
           <button id="btn-save-reader" class="primary full">Save reader settings</button>
         </article>
@@ -192,7 +188,7 @@
       </article>
     </section>
 
-    <section class="panel" data-panel="reading-profiles">
+    <section class="panel" data-panel="reading-profiles" hidden>
       <div class="advanced-page-heading"><div><p class="eyebrow">READER BEHAVIOR</p><h2>Reading profiles</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
       <article class="card reading-profile-intro">
         <div class="card-heading"><div><p class="eyebrow">ACTIVE PROFILE</p><h2 id="active-reading-profile">Safe</h2></div><span id="active-reading-profile-badge" class="badge">CURRENT</span></div>
@@ -215,7 +211,7 @@
       <p class="profile-scope-warning"><strong>Safe is frozen:</strong> selecting Aggressive does not rewrite or replace Safe. You can switch back at any time and immediately restore the exact reading behavior you are using today.</p>
     </section>
 
-    <section class="panel" data-panel="calibration">
+    <section class="panel" data-panel="calibration" hidden>
       <div class="advanced-page-heading"><div><p class="eyebrow">OPTIONAL TUNING</p><h2>Inspect the live reader boxes</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
       <article class="card">
         <div id="calibration-profile-summary" class="calibration-profile-summary" aria-live="polite">
@@ -345,7 +341,6 @@
             <label>Move and resize overlay<input id="edit-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+E"></label>
             <label>Reload scoreboard HTML<input id="reload-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+R"></label>
             <label>Toggle automatic visibility<input id="automatic-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+A"></label>
-            <label>Capture calibration picture<input id="calibration-capture-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+C"></label>
             <label>Open scorebug resizer<input id="quick-settings-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+O"></label>
             <label>Force a fresh read<input id="fresh-read-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+F"></label>
           </div>
