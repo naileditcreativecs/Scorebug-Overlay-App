@@ -1,6 +1,7 @@
 node_modules/
+build-tools/*
+!build-tools/check-orphaned-ui.js
 tester-builds/
-build-tools/
 win-unpacked/
 *.zip
 UserData/
