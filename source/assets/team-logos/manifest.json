@@ -1,0 +1,2276 @@
+{
+  "schema": "cfb27-team-assets/1",
+  "generatedAt": "2026-08-08T21:23:58.304Z",
+  "source": {
+    "description": "Tightly cropped transparent CFB27 logo defaults; original game canvases are bundled as selectable variants",
+    "redistribution": "local-personal-test-only"
+  },
+  "teams": [
+    {
+      "id": "0",
+      "assetId": "2147485392",
+      "name": "Air Force",
+      "primary": "#0a71cd",
+      "secondary": "#a1a6aa",
+      "file": "000-air-force.png",
+      "width": 395,
+      "height": 376,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "AIR FORCE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "1",
+      "assetId": "2147485393",
+      "name": "Akron",
+      "primary": "#947329",
+      "secondary": "#081041",
+      "file": "001-akron.png",
+      "width": 478,
+      "height": 250,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "AKRON"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "2",
+      "assetId": "2147485394",
+      "name": "Alabama",
+      "primary": "#9e1b32",
+      "secondary": "#828a8f",
+      "file": "002-alabama.png",
+      "width": 389,
+      "height": 370,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "ALABAMA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "3",
+      "assetId": "2147485399",
+      "name": "Appalachian State",
+      "primary": "#ffd700",
+      "secondary": "#000000",
+      "file": "003-appalachian-state.png",
+      "width": 318,
+      "height": 338,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "APPALACHIAN STATE",
+        "APP STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "4",
+      "assetId": "2147485400",
+      "name": "Arizona",
+      "primary": "#003876",
+      "secondary": "#cd1041",
+      "file": "004-arizona.png",
+      "width": 380,
+      "height": 334,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "ARIZONA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "5",
+      "assetId": "2147485401",
+      "name": "Arizona State",
+      "primary": "#a3224b",
+      "secondary": "#c69820",
+      "file": "005-arizona-state.png",
+      "width": 241,
+      "height": 440,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "ARIZONA STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "6",
+      "assetId": "2147485402",
+      "name": "Arkansas",
+      "primary": "#c40040",
+      "secondary": "#ffffff",
+      "file": "006-arkansas.png",
+      "width": 429,
+      "height": 202,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "ARKANSAS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "7",
+      "assetId": "2147485404",
+      "name": "Arkansas State",
+      "primary": "#af0028",
+      "secondary": "#000000",
+      "file": "007-arkansas-state.png",
+      "width": 367,
+      "height": 363,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "ARKANSAS STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "8",
+      "assetId": "2147485405",
+      "name": "Army",
+      "primary": "#baa200",
+      "secondary": "#000000",
+      "file": "008-army.png",
+      "width": 337,
+      "height": 371,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "ARMY"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "9",
+      "assetId": "2147485406",
+      "name": "Auburn",
+      "primary": "#03244d",
+      "secondary": "#dd550c",
+      "file": "009-auburn.png",
+      "width": 399,
+      "height": 336,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "AUBURN"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "10",
+      "assetId": "2147485409",
+      "name": "Ball State",
+      "primary": "#c60317",
+      "secondary": "#ffffff",
+      "file": "010-ball-state.png",
+      "width": 289,
+      "height": 374,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "BALL STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "11",
+      "assetId": "2147485410",
+      "name": "Baylor",
+      "primary": "#006600",
+      "secondary": "#bfa402",
+      "file": "011-baylor.png",
+      "width": 311,
+      "height": 352,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "BAYLOR"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "12",
+      "assetId": "2147485414",
+      "name": "Boise State",
+      "primary": "#b9672e",
+      "secondary": "#2d4490",
+      "file": "012-boise-state.png",
+      "width": 399,
+      "height": 317,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "BOISE STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "13",
+      "assetId": "2147485415",
+      "name": "Boston College",
+      "primary": "#880029",
+      "secondary": "#a29e69",
+      "file": "013-boston-college.png",
+      "width": 400,
+      "height": 347,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "BOSTON COLLEGE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "14",
+      "assetId": "2147485416",
+      "name": "Bowling Green State",
+      "primary": "#663300",
+      "secondary": "#c85400",
+      "file": "014-bowling-green-state.png",
+      "width": 406,
+      "height": 362,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "BOWLING GREEN STATE",
+        "BOWLING GREEN",
+        "BGSU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "15",
+      "assetId": "2147485420",
+      "name": "Buffalo",
+      "primary": "#092b54",
+      "secondary": "#ffffff",
+      "file": "015-buffalo.png",
+      "width": 371,
+      "height": 342,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "BUFFALO"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "16",
+      "assetId": "2147485423",
+      "name": "BYU",
+      "primary": "#324274",
+      "secondary": "#ffffff",
+      "file": "016-byu.png",
+      "width": 428,
+      "height": 262,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "BYU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "17",
+      "assetId": "2147485427",
+      "name": "California",
+      "primary": "#003b8a",
+      "secondary": "#fcae18",
+      "file": "017-california.png",
+      "width": 416,
+      "height": 316,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "CALIFORNIA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "18",
+      "assetId": "2147485436",
+      "name": "Central Michigan",
+      "primary": "#932c47",
+      "secondary": "#c8af1a",
+      "file": "018-central-michigan.png",
+      "width": 409,
+      "height": 277,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "CENTRAL MICHIGAN"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "19",
+      "assetId": "2147582537",
+      "name": "Charlotte",
+      "primary": "#00703c",
+      "secondary": "#ffffff",
+      "file": "019-charlotte.png",
+      "width": 292,
+      "height": 345,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "CHARLOTTE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "20",
+      "assetId": "2147485441",
+      "name": "Cincinnati",
+      "primary": "#94082d",
+      "secondary": "#000000",
+      "file": "020-cincinnati.png",
+      "width": 258,
+      "height": 393,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "CINCINNATI"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "21",
+      "assetId": "2147485444",
+      "name": "Clemson",
+      "primary": "#f2682b",
+      "secondary": "#4e2683",
+      "file": "021-clemson.png",
+      "width": 392,
+      "height": 358,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "CLEMSON"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "22",
+      "assetId": "2147485446",
+      "name": "Coastal Carolina",
+      "primary": "#008185",
+      "secondary": "#a27752",
+      "file": "022-coastal-carolina.png",
+      "width": 359,
+      "height": 382,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "COASTAL CAROLINA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "23",
+      "assetId": "2147485450",
+      "name": "Colorado",
+      "primary": "#999545",
+      "secondary": "#000000",
+      "file": "023-colorado.png",
+      "width": 412,
+      "height": 290,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "COLORADO"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "24",
+      "assetId": "2147485451",
+      "name": "Colorado State",
+      "primary": "#988741",
+      "secondary": "#005846",
+      "file": "024-colorado-state.png",
+      "width": 411,
+      "height": 392,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "COLORADO STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "25",
+      "assetId": "2147485453",
+      "name": "Connecticut",
+      "primary": "#1c2f69",
+      "secondary": "#ffffff",
+      "file": "025-connecticut.png",
+      "width": 368,
+      "height": 460,
+      "source": "storyline-500-tight-crop",
+      "aliases": [
+        "CONNECTICUT",
+        "UCONN"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "26",
+      "assetId": "2147485463",
+      "name": "Duke",
+      "primary": "#27458e",
+      "secondary": "#ffffff",
+      "file": "026-duke.png",
+      "width": 365,
+      "height": 321,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "DUKE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "27",
+      "assetId": "2147485470",
+      "name": "Eastern Michigan",
+      "primary": "#008357",
+      "secondary": "#c8d2d2",
+      "file": "027-eastern-michigan.png",
+      "width": 315,
+      "height": 335,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "EASTERN MICHIGAN"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "28",
+      "assetId": "2147485468",
+      "name": "East Carolina",
+      "primary": "#5f1f80",
+      "secondary": "#c3bd00",
+      "file": "028-east-carolina.png",
+      "width": 370,
+      "height": 374,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "EAST CAROLINA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "29",
+      "assetId": "2147485478",
+      "name": "FIU",
+      "primary": "#1f6f7a",
+      "secondary": "#a8ad75",
+      "file": "029-fiu.png",
+      "width": 300,
+      "height": 360,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "FIU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "30",
+      "assetId": "2147485479",
+      "name": "Florida",
+      "primary": "#fa4616",
+      "secondary": "#0021a5",
+      "file": "030-florida.png",
+      "width": 435,
+      "height": 266,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "FLORIDA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "31",
+      "assetId": "2147485476",
+      "name": "FAU",
+      "primary": "#192e63",
+      "secondary": "#970711",
+      "file": "031-fau.png",
+      "width": 409,
+      "height": 249,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "FAU",
+        "FLORIDA ATLANTIC"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "32",
+      "assetId": "2147485481",
+      "name": "Florida State",
+      "primary": "#782f40",
+      "secondary": "#ceb888",
+      "file": "032-florida-state.png",
+      "width": 381,
+      "height": 370,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "FLORIDA STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "33",
+      "assetId": "2147485485",
+      "name": "Fresno State",
+      "primary": "#ec1950",
+      "secondary": "#022356",
+      "file": "033-fresno-state.png",
+      "width": 411,
+      "height": 281,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "FRESNO STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "34",
+      "assetId": "2147485490",
+      "name": "Georgia",
+      "primary": "#af0028",
+      "secondary": "#000000",
+      "file": "034-georgia.png",
+      "width": 424,
+      "height": 265,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "GEORGIA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "35",
+      "assetId": "2147485487",
+      "name": "Georgia Southern",
+      "primary": "#1c3664",
+      "secondary": "#87714c",
+      "file": "035-georgia-southern.png",
+      "width": 424,
+      "height": 238,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "GEORGIA SOUTHERN"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "36",
+      "assetId": "2147509797",
+      "name": "Georgia State",
+      "primary": "#265183",
+      "secondary": "#b27d2a",
+      "file": "036-georgia-state.png",
+      "width": 419,
+      "height": 330,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "GEORGIA STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "37",
+      "assetId": "2147485491",
+      "name": "Georgia Tech",
+      "primary": "#b69c00",
+      "secondary": "#000000",
+      "file": "037-georgia-tech.png",
+      "width": 413,
+      "height": 249,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "GEORGIA TECH"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "38",
+      "assetId": "2147485498",
+      "name": "Hawaii",
+      "primary": "#014c37",
+      "secondary": "#000000",
+      "file": "038-hawaii.png",
+      "width": 404,
+      "height": 291,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "HAWAII"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "39",
+      "assetId": "2147485503",
+      "name": "Houston",
+      "primary": "#a00000",
+      "secondary": "#ffffff",
+      "file": "039-houston.png",
+      "width": 381,
+      "height": 347,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "HOUSTON"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "40",
+      "assetId": "2147485507",
+      "name": "Illinois",
+      "primary": "#b1640f",
+      "secondary": "#1c2f69",
+      "file": "040-illinois.png",
+      "width": 246,
+      "height": 326,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "ILLINOIS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "41",
+      "assetId": "2147485509",
+      "name": "Indiana",
+      "primary": "#ac1d20",
+      "secondary": "#eeedeb",
+      "file": "041-indiana.png",
+      "width": 314,
+      "height": 371,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "INDIANA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "42",
+      "assetId": "2147485512",
+      "name": "Iowa",
+      "primary": "#c8b301",
+      "secondary": "#000000",
+      "file": "042-iowa.png",
+      "width": 414,
+      "height": 262,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "IOWA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "43",
+      "assetId": "2147485513",
+      "name": "Iowa State",
+      "primary": "#c51225",
+      "secondary": "#c88b06",
+      "file": "043-iowa-state.png",
+      "width": 430,
+      "height": 295,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "IOWA STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "44",
+      "assetId": "2147485519",
+      "name": "Kansas",
+      "primary": "#006bb6",
+      "secondary": "#e8000d",
+      "file": "044-kansas.png",
+      "width": 408,
+      "height": 346,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "KANSAS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "45",
+      "assetId": "2147485520",
+      "name": "Kansas State",
+      "primary": "#3f1a75",
+      "secondary": "#8f8e93",
+      "file": "045-kansas-state.png",
+      "width": 409,
+      "height": 294,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "KANSAS STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "46",
+      "assetId": "2147485521",
+      "name": "Kent State",
+      "primary": "#003875",
+      "secondary": "#bb930e",
+      "file": "046-kent-state.png",
+      "width": 425,
+      "height": 275,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "KENT STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "47",
+      "assetId": "2147485522",
+      "name": "Kentucky",
+      "primary": "#1e56a1",
+      "secondary": "#ffffff",
+      "file": "047-kentucky.png",
+      "width": 406,
+      "height": 317,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "KENTUCKY"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "48",
+      "assetId": "2147485531",
+      "name": "Liberty",
+      "primary": "#0a254e",
+      "secondary": "#000000",
+      "file": "048-liberty.png",
+      "width": 460,
+      "height": 415,
+      "source": "storyline-500-tight-crop",
+      "aliases": [
+        "LIBERTY"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "49",
+      "assetId": "2147485696",
+      "name": "UL Lafayette",
+      "primary": "#a32136",
+      "secondary": "#b88e12",
+      "file": "049-ul-lafayette.png",
+      "width": 426,
+      "height": 208,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UL LAFAYETTE",
+        "LOUISIANA",
+        "ULL"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "50",
+      "assetId": "2147485526",
+      "name": "LA. Tech",
+      "primary": "#283baf",
+      "secondary": "#ee3e41",
+      "file": "050-la-tech.png",
+      "width": 422,
+      "height": 234,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "LA TECH",
+        "LA TECH",
+        "LOUISIANA TECH"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "51",
+      "assetId": "2147485533",
+      "name": "Louisville",
+      "primary": "#a00000",
+      "secondary": "#000000",
+      "file": "051-louisville.png",
+      "width": 358,
+      "height": 382,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "LOUISVILLE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "52",
+      "assetId": "2147485534",
+      "name": "LSU",
+      "primary": "#461d7c",
+      "secondary": "#fdd023",
+      "file": "052-lsu.png",
+      "width": 455,
+      "height": 145,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "LSU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "53",
+      "assetId": "2147485539",
+      "name": "Marshall",
+      "primary": "#016330",
+      "secondary": "#ffffff",
+      "file": "053-marshall.png",
+      "width": 439,
+      "height": 274,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MARSHALL"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "54",
+      "assetId": "2147485540",
+      "name": "Maryland",
+      "primary": "#af0028",
+      "secondary": "#ffd520",
+      "file": "054-maryland.png",
+      "width": 342,
+      "height": 359,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MARYLAND"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "55",
+      "assetId": "2147485543",
+      "name": "Memphis",
+      "primary": "#2d4490",
+      "secondary": "#888c8f",
+      "file": "055-memphis.png",
+      "width": 369,
+      "height": 321,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MEMPHIS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "56",
+      "assetId": "2147485546",
+      "name": "Miami",
+      "primary": "#b85f13",
+      "secondary": "#014c37",
+      "file": "056-miami.png",
+      "width": 408,
+      "height": 241,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MIAMI"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "57",
+      "assetId": "2147485547",
+      "name": "Miami of Ohio",
+      "primary": "#a71b25",
+      "secondary": "#ffffff",
+      "file": "057-miami-of-ohio.png",
+      "width": 415,
+      "height": 294,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MIAMI OF OHIO",
+        "MIAMI OH",
+        "MIAMI OHIO",
+        "MIAMI OH"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "58",
+      "assetId": "2147485548",
+      "name": "Michigan",
+      "primary": "#00274c",
+      "secondary": "#ffcb05",
+      "file": "058-michigan.png",
+      "width": 420,
+      "height": 289,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MICHIGAN"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "59",
+      "assetId": "2147485549",
+      "name": "Michigan State",
+      "primary": "#18453b",
+      "secondary": "#ffffff",
+      "file": "059-michigan-state.png",
+      "width": 353,
+      "height": 385,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MICHIGAN STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "60",
+      "assetId": "2147485550",
+      "name": "Middle Tennessee State",
+      "primary": "#007ac3",
+      "secondary": "#ffffff",
+      "file": "060-middle-tennessee-state.png",
+      "width": 454,
+      "height": 251,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MIDDLE TENNESSEE STATE",
+        "MIDDLE TENNESSEE",
+        "MTSU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "61",
+      "assetId": "2147485552",
+      "name": "Minnesota",
+      "primary": "#6c2f2f",
+      "secondary": "#fda20d",
+      "file": "061-minnesota.png",
+      "width": 401,
+      "height": 230,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MINNESOTA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "62",
+      "assetId": "2147485554",
+      "name": "Mississippi State",
+      "primary": "#910029",
+      "secondary": "#d1d5d8",
+      "file": "062-mississippi-state.png",
+      "width": 453,
+      "height": 266,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MISSISSIPPI STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "63",
+      "assetId": "2147485555",
+      "name": "Missouri",
+      "primary": "#b29900",
+      "secondary": "#000000",
+      "file": "063-missouri.png",
+      "width": 447,
+      "height": 246,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "MISSOURI"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "64",
+      "assetId": "2147485576",
+      "name": "Navy",
+      "primary": "#133c6b",
+      "secondary": "#fec81d",
+      "file": "064-navy.png",
+      "width": 284,
+      "height": 311,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NAVY"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "65",
+      "assetId": "2147485574",
+      "name": "N.C. State",
+      "primary": "#b22632",
+      "secondary": "#ffffff",
+      "file": "065-n-c-state.png",
+      "width": 265,
+      "height": 340,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "N C STATE",
+        "NC STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "66",
+      "assetId": "2147485579",
+      "name": "Nebraska",
+      "primary": "#d00000",
+      "secondary": "#f5f1e7",
+      "file": "066-nebraska.png",
+      "width": 326,
+      "height": 307,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NEBRASKA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "67",
+      "assetId": "2147485581",
+      "name": "Nevada",
+      "primary": "#1b3d7a",
+      "secondary": "#afb4b8",
+      "file": "067-nevada.png",
+      "width": 413,
+      "height": 249,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NEVADA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "68",
+      "assetId": "2147485584",
+      "name": "New Mexico",
+      "primary": "#a82720",
+      "secondary": "#a3abab",
+      "file": "068-new-mexico.png",
+      "width": 330,
+      "height": 384,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NEW MEXICO"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "69",
+      "assetId": "2147485583",
+      "name": "New Mexico State",
+      "primary": "#9e1944",
+      "secondary": "#ffffff",
+      "file": "069-new-mexico-state.png",
+      "width": 460,
+      "height": 338,
+      "source": "storyline-500-tight-crop",
+      "aliases": [
+        "NEW MEXICO STATE",
+        "NMSU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "70",
+      "assetId": "2147485589",
+      "name": "North Carolina",
+      "primary": "#6ca1d5",
+      "secondary": "#143769",
+      "file": "070-north-carolina.png",
+      "width": 398,
+      "height": 305,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NORTH CAROLINA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "71",
+      "assetId": "2147485592",
+      "name": "North Texas",
+      "primary": "#006044",
+      "secondary": "#ffffff",
+      "file": "071-north-texas.png",
+      "width": 349,
+      "height": 361,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NORTH TEXAS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "72",
+      "assetId": "2147485573",
+      "name": "Northern Illinois",
+      "primary": "#c40040",
+      "secondary": "#000000",
+      "file": "072-northern-illinois.png",
+      "width": 362,
+      "height": 336,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NORTHERN ILLINOIS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "73",
+      "assetId": "2147485596",
+      "name": "Northwestern",
+      "primary": "#59248a",
+      "secondary": "#b3a59c",
+      "file": "073-northwestern.png",
+      "width": 239,
+      "height": 350,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NORTHWESTERN"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "74",
+      "assetId": "2147485598",
+      "name": "Notre Dame",
+      "primary": "#003f77",
+      "secondary": "#ffd81e",
+      "file": "074-notre-dame.png",
+      "width": 385,
+      "height": 328,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "NOTRE DAME"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "75",
+      "assetId": "2147485602",
+      "name": "Ohio",
+      "primary": "#006e53",
+      "secondary": "#ffffff",
+      "file": "075-ohio.png",
+      "width": 362,
+      "height": 295,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "OHIO"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "76",
+      "assetId": "2147485604",
+      "name": "Ohio State",
+      "primary": "#bb0000",
+      "secondary": "#666666",
+      "file": "076-ohio-state.png",
+      "width": 379,
+      "height": 356,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "OHIO STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "77",
+      "assetId": "2147485605",
+      "name": "Oklahoma",
+      "primary": "#841719",
+      "secondary": "#ffffff",
+      "file": "077-oklahoma.png",
+      "width": 298,
+      "height": 363,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "OKLAHOMA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "78",
+      "assetId": "2147485606",
+      "name": "Oklahoma State",
+      "primary": "#be631c",
+      "secondary": "#000000",
+      "file": "078-oklahoma-state.png",
+      "width": 445,
+      "height": 220,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "OKLAHOMA STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "79",
+      "assetId": "2147542715",
+      "name": "Old Dominion",
+      "primary": "#97c5eb",
+      "secondary": "#01345e",
+      "file": "079-old-dominion.png",
+      "width": 381,
+      "height": 299,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "OLD DOMINION"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "80",
+      "assetId": "2147485607",
+      "name": "Ole Miss",
+      "primary": "#cc092f",
+      "secondary": "#162b48",
+      "file": "080-ole-miss.png",
+      "width": 371,
+      "height": 323,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "OLE MISS",
+        "MISSISSIPPI"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "81",
+      "assetId": "2147485608",
+      "name": "Oregon",
+      "primary": "#036936",
+      "secondary": "#fee11a",
+      "file": "081-oregon.png",
+      "width": 393,
+      "height": 310,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "OREGON"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "82",
+      "assetId": "2147485609",
+      "name": "Oregon State",
+      "primary": "#c06b1e",
+      "secondary": "#000000",
+      "file": "082-oregon-state.png",
+      "width": 434,
+      "height": 234,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "OREGON STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "83",
+      "assetId": "2147485613",
+      "name": "Penn State",
+      "primary": "#093162",
+      "secondary": "#ffffff",
+      "file": "083-penn-state.png",
+      "width": 429,
+      "height": 284,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "PENN STATE",
+        "PENN ST"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "84",
+      "assetId": "2147485616",
+      "name": "Pittsburgh",
+      "primary": "#203e64",
+      "secondary": "#cdb97e",
+      "file": "084-pittsburgh.png",
+      "width": 422,
+      "height": 230,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "PITTSBURGH",
+        "PITT"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "85",
+      "assetId": "2147485619",
+      "name": "Purdue",
+      "primary": "#988741",
+      "secondary": "#000000",
+      "file": "085-purdue.png",
+      "width": 421,
+      "height": 222,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "PURDUE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "86",
+      "assetId": "2147485623",
+      "name": "Rice",
+      "primary": "#2d4283",
+      "secondary": "#ffffff",
+      "file": "086-rice.png",
+      "width": 310,
+      "height": 352,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "RICE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "87",
+      "assetId": "2147485627",
+      "name": "Rutgers",
+      "primary": "#960c0c",
+      "secondary": "#ffffff",
+      "file": "087-rutgers.png",
+      "width": 357,
+      "height": 301,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "RUTGERS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "88",
+      "assetId": "2147485632",
+      "name": "San Diego State",
+      "primary": "#ae0d2f",
+      "secondary": "#c2aa1b",
+      "file": "088-san-diego-state.png",
+      "width": 457,
+      "height": 305,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "SAN DIEGO STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "89",
+      "assetId": "2147485639",
+      "name": "San Jose State",
+      "primary": "#1e56a1",
+      "secondary": "#c2a544",
+      "file": "089-san-jose-state.png",
+      "width": 361,
+      "height": 351,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "SAN JOSE STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "90",
+      "assetId": "2147485647",
+      "name": "SMU",
+      "primary": "#032b66",
+      "secondary": "#b20000",
+      "file": "090-smu.png",
+      "width": 426,
+      "height": 209,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "SMU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "91",
+      "assetId": "2147542714",
+      "name": "South Alabama",
+      "primary": "#001346",
+      "secondary": "#b41516",
+      "file": "091-south-alabama.png",
+      "width": 385,
+      "height": 291,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "SOUTH ALABAMA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "92",
+      "assetId": "2147485649",
+      "name": "South Carolina",
+      "primary": "#a80331",
+      "secondary": "#000000",
+      "file": "092-south-carolina.png",
+      "width": 343,
+      "height": 358,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "SOUTH CAROLINA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "93",
+      "assetId": "2147485653",
+      "name": "Southern Miss",
+      "primary": "#bb930e",
+      "secondary": "#000000",
+      "file": "093-southern-miss.png",
+      "width": 436,
+      "height": 230,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "SOUTHERN MISS",
+        "SOUTHERN MISSISSIPPI"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "94",
+      "assetId": "2147485662",
+      "name": "Stanford",
+      "primary": "#a20032",
+      "secondary": "#ffffff",
+      "file": "094-stanford.png",
+      "width": 264,
+      "height": 372,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "STANFORD"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "95",
+      "assetId": "2147485668",
+      "name": "Syracuse",
+      "primary": "#a25b24",
+      "secondary": "#1a3e86",
+      "file": "095-syracuse.png",
+      "width": 283,
+      "height": 355,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "SYRACUSE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "96",
+      "assetId": "2147485671",
+      "name": "TCU",
+      "primary": "#4d1979",
+      "secondary": "#a4bdad",
+      "file": "096-tcu.png",
+      "width": 429,
+      "height": 198,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TCU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "97",
+      "assetId": "2147485672",
+      "name": "Temple",
+      "primary": "#a20032",
+      "secondary": "#ffffff",
+      "file": "097-temple.png",
+      "width": 357,
+      "height": 338,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TEMPLE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "98",
+      "assetId": "2147485675",
+      "name": "Tennessee",
+      "primary": "#aa740c",
+      "secondary": "#ffffff",
+      "file": "098-tennessee.png",
+      "width": 353,
+      "height": 334,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TENNESSEE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "99",
+      "assetId": "2147485678",
+      "name": "Texas",
+      "primary": "#ac5f0f",
+      "secondary": "#ffffff",
+      "file": "099-texas.png",
+      "width": 430,
+      "height": 210,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TEXAS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "100",
+      "assetId": "2147485679",
+      "name": "Texas A&M",
+      "primary": "#5d2d2f",
+      "secondary": "#b1b8be",
+      "file": "100-texas-a-and-m.png",
+      "width": 460,
+      "height": 378,
+      "source": "storyline-500-tight-crop",
+      "aliases": [
+        "TEXAS A AND M"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "101",
+      "assetId": "2147485681",
+      "name": "Texas State",
+      "primary": "#4e1113",
+      "secondary": "#c8b385",
+      "file": "101-texas-state.png",
+      "width": 326,
+      "height": 359,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TEXAS STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "102",
+      "assetId": "2147485682",
+      "name": "Texas Tech",
+      "primary": "#cc0000",
+      "secondary": "#000000",
+      "file": "102-texas-tech.png",
+      "width": 331,
+      "height": 364,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TEXAS TECH"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "103",
+      "assetId": "2147485684",
+      "name": "Toledo",
+      "primary": "#2a3a6c",
+      "secondary": "#ffd51e",
+      "file": "103-toledo.png",
+      "width": 428,
+      "height": 241,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TOLEDO"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "104",
+      "assetId": "2147485687",
+      "name": "Troy",
+      "primary": "#800a18",
+      "secondary": "#87898c",
+      "file": "104-troy.png",
+      "width": 319,
+      "height": 342,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TROY"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "105",
+      "assetId": "2147485689",
+      "name": "Tulane",
+      "primary": "#006747",
+      "secondary": "#418fde",
+      "file": "105-tulane.png",
+      "width": 422,
+      "height": 290,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TULANE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "106",
+      "assetId": "2147485690",
+      "name": "Tulsa",
+      "primary": "#283c83",
+      "secondary": "#c3bd00",
+      "file": "106-tulsa.png",
+      "width": 417,
+      "height": 300,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "TULSA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "107",
+      "assetId": "2147485693",
+      "name": "UAB",
+      "primary": "#008061",
+      "secondary": "#b29800",
+      "file": "107-uab.png",
+      "width": 427,
+      "height": 345,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UAB"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "108",
+      "assetId": "2147485694",
+      "name": "UCF",
+      "primary": "#988741",
+      "secondary": "#000000",
+      "file": "108-ucf.png",
+      "width": 393,
+      "height": 286,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UCF"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "109",
+      "assetId": "2147485695",
+      "name": "UCLA",
+      "primary": "#0060aa",
+      "secondary": "#c6991d",
+      "file": "109-ucla.png",
+      "width": 447,
+      "height": 213,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UCLA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "110",
+      "assetId": "2147485697",
+      "name": "UL Monroe",
+      "primary": "#910029",
+      "secondary": "#dbd270",
+      "file": "110-ul-monroe.png",
+      "width": 460,
+      "height": 323,
+      "source": "storyline-500-tight-crop",
+      "aliases": [
+        "UL MONROE",
+        "LOUISIANA MONROE",
+        "ULM"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "111",
+      "assetId": "2147485541",
+      "name": "Massachusetts",
+      "primary": "#530008",
+      "secondary": "#000000",
+      "file": "111-massachusetts.png",
+      "width": 460,
+      "height": 376,
+      "source": "storyline-500-tight-crop",
+      "aliases": [
+        "MASSACHUSETTS",
+        "UMASS"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "112",
+      "assetId": "2147485698",
+      "name": "UNLV",
+      "primary": "#b22632",
+      "secondary": "#acacac",
+      "file": "112-unlv.png",
+      "width": 419,
+      "height": 230,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UNLV"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "113",
+      "assetId": "2147485699",
+      "name": "USC",
+      "primary": "#991b1e",
+      "secondary": "#ffcc50",
+      "file": "113-usc.png",
+      "width": 280,
+      "height": 372,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "USC"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "114",
+      "assetId": "2147485700",
+      "name": "USF",
+      "primary": "#106753",
+      "secondary": "#cdb77d",
+      "file": "114-usf.png",
+      "width": 400,
+      "height": 305,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "USF"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "115",
+      "assetId": "2147485701",
+      "name": "Utah",
+      "primary": "#c40040",
+      "secondary": "#ffffff",
+      "file": "115-utah.png",
+      "width": 349,
+      "height": 306,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UTAH"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "116",
+      "assetId": "2147485702",
+      "name": "Utah State",
+      "primary": "#28466d",
+      "secondary": "#ffffff",
+      "file": "116-utah-state.png",
+      "width": 401,
+      "height": 290,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UTAH STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "117",
+      "assetId": "2147485703",
+      "name": "UTEP",
+      "primary": "#2d3a66",
+      "secondary": "#f5783e",
+      "file": "117-utep.png",
+      "width": 411,
+      "height": 287,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UTEP"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "118",
+      "assetId": "2147491410",
+      "name": "UTSA",
+      "primary": "#265183",
+      "secondary": "#b27d2a",
+      "file": "118-utsa.png",
+      "width": 418,
+      "height": 294,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "UTSA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "119",
+      "assetId": "2147485708",
+      "name": "Vanderbilt",
+      "primary": "#c0b17a",
+      "secondary": "#000000",
+      "file": "119-vanderbilt.png",
+      "width": 436,
+      "height": 288,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "VANDERBILT"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "120",
+      "assetId": "2147485710",
+      "name": "Virginia",
+      "primary": "#b9672e",
+      "secondary": "#14214e",
+      "file": "120-virginia.png",
+      "width": 410,
+      "height": 310,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "VIRGINIA"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "121",
+      "assetId": "2147485711",
+      "name": "Virginia Tech",
+      "primary": "#9f3155",
+      "secondary": "#f78127",
+      "file": "121-virginia-tech.png",
+      "width": 415,
+      "height": 191,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "VIRGINIA TECH"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "122",
+      "assetId": "2147485721",
+      "name": "Wake Forest",
+      "primary": "#a58a07",
+      "secondary": "#000000",
+      "file": "122-wake-forest.png",
+      "width": 438,
+      "height": 292,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "WAKE FOREST"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "123",
+      "assetId": "2147485725",
+      "name": "Washington",
+      "primary": "#33006f",
+      "secondary": "#e8d3a2",
+      "file": "123-washington.png",
+      "width": 388,
+      "height": 254,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "WASHINGTON"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "124",
+      "assetId": "2147485723",
+      "name": "Washington State",
+      "primary": "#a80532",
+      "secondary": "#5e6a71",
+      "file": "124-washington-state.png",
+      "width": 361,
+      "height": 341,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "WASHINGTON STATE"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "125",
+      "assetId": "2147485729",
+      "name": "West Virginia",
+      "primary": "#105383",
+      "secondary": "#b89324",
+      "file": "125-west-virginia.png",
+      "width": 361,
+      "height": 330,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "WEST VIRGINIA",
+        "WVU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "126",
+      "assetId": "2147485716",
+      "name": "W. Kentucky",
+      "primary": "#b01e24",
+      "secondary": "#333333",
+      "file": "126-w-kentucky.png",
+      "width": 460,
+      "height": 338,
+      "source": "storyline-500-tight-crop",
+      "aliases": [
+        "W KENTUCKY",
+        "WESTERN KENTUCKY",
+        "WKU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "127",
+      "assetId": "2147485717",
+      "name": "Western Michigan",
+      "primary": "#ae964c",
+      "secondary": "#000000",
+      "file": "127-w-michigan.png",
+      "width": 460,
+      "height": 196,
+      "source": "storyline-500-tight-crop",
+      "aliases": [
+        "W MICHIGAN",
+        "WESTERN MICHIGAN",
+        "WMU"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "128",
+      "assetId": "2147485740",
+      "name": "Wisconsin",
+      "primary": "#c40040",
+      "secondary": "#ffffff",
+      "file": "128-wisconsin.png",
+      "width": 383,
+      "height": 362,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "WISCONSIN"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "129",
+      "assetId": "2147485743",
+      "name": "Wyoming",
+      "primary": "#5b4a3d",
+      "secondary": "#e8d2ab",
+      "file": "129-wyoming.png",
+      "width": 239,
+      "height": 378,
+      "source": "schedule-generator-512-tight-crop",
+      "aliases": [
+        "WYOMING"
+      ],
+      "preCropped": true,
+      "cropProfile": "tight-visible-alpha-v1"
+    }
+  ],
+  "aliases": {
+    "AIR FORCE": "0",
+    "AKRON": "1",
+    "ALABAMA": "2",
+    "APP STATE": "3",
+    "APPALACHIAN STATE": "3",
+    "ARIZONA": "4",
+    "ARIZONA STATE": "5",
+    "ARKANSAS": "6",
+    "ARKANSAS STATE": "7",
+    "ARMY": "8",
+    "AUBURN": "9",
+    "BALL STATE": "10",
+    "BAYLOR": "11",
+    "BGSU": "14",
+    "BOISE STATE": "12",
+    "BOSTON COLLEGE": "13",
+    "BOWLING GREEN": "14",
+    "BOWLING GREEN STATE": "14",
+    "BUFFALO": "15",
+    "BYU": "16",
+    "CALIFORNIA": "17",
+    "CENTRAL MICHIGAN": "18",
+    "CHARLOTTE": "19",
+    "CINCINNATI": "20",
+    "CLEMSON": "21",
+    "COASTAL CAROLINA": "22",
+    "COLORADO": "23",
+    "COLORADO STATE": "24",
+    "CONNECTICUT": "25",
+    "DUKE": "26",
+    "EAST CAROLINA": "28",
+    "EASTERN MICHIGAN": "27",
+    "FAU": "31",
+    "FIU": "29",
+    "FLORIDA": "30",
+    "FLORIDA ATLANTIC": "31",
+    "FLORIDA STATE": "32",
+    "FRESNO STATE": "33",
+    "GEORGIA": "34",
+    "GEORGIA SOUTHERN": "35",
+    "GEORGIA STATE": "36",
+    "GEORGIA TECH": "37",
+    "HAWAII": "38",
+    "HOUSTON": "39",
+    "ILLINOIS": "40",
+    "INDIANA": "41",
+    "IOWA": "42",
+    "IOWA STATE": "43",
+    "KANSAS": "44",
+    "KANSAS STATE": "45",
+    "KENT STATE": "46",
+    "KENTUCKY": "47",
+    "LA TECH": "50",
+    "LIBERTY": "48",
+    "LOUISIANA": "49",
+    "LOUISIANA MONROE": "110",
+    "LOUISIANA TECH": "50",
+    "LOUISVILLE": "51",
+    "LSU": "52",
+    "MARSHALL": "53",
+    "MARYLAND": "54",
+    "MASSACHUSETTS": "111",
+    "MEMPHIS": "55",
+    "MIAMI": "56",
+    "MIAMI OF OHIO": "57",
+    "MIAMI OH": "57",
+    "MIAMI OHIO": "57",
+    "MICHIGAN": "58",
+    "MICHIGAN STATE": "59",
+    "MIDDLE TENNESSEE": "60",
+    "MIDDLE TENNESSEE STATE": "60",
+    "MINNESOTA": "61",
+    "MISSISSIPPI": "80",
+    "MISSISSIPPI STATE": "62",
+    "MISSOURI": "63",
+    "MTSU": "60",
+    "N C STATE": "65",
+    "NAVY": "64",
+    "NC STATE": "65",
+    "NEBRASKA": "66",
+    "NEVADA": "67",
+    "NEW MEXICO": "68",
+    "NEW MEXICO STATE": "69",
+    "NMSU": "69",
+    "NORTH CAROLINA": "70",
+    "NORTH TEXAS": "71",
+    "NORTHERN ILLINOIS": "72",
+    "NORTHWESTERN": "73",
+    "NOTRE DAME": "74",
+    "OHIO": "75",
+    "OHIO STATE": "76",
+    "OKLAHOMA": "77",
+    "OKLAHOMA STATE": "78",
+    "OLD DOMINION": "79",
+    "OLE MISS": "80",
+    "OREGON": "81",
+    "OREGON STATE": "82",
+    "PENN ST": "83",
+    "PENN STATE": "83",
+    "PITT": "84",
+    "PITTSBURGH": "84",
+    "PURDUE": "85",
+    "RICE": "86",
+    "RUTGERS": "87",
+    "SAN DIEGO STATE": "88",
+    "SAN JOSE STATE": "89",
+    "SMU": "90",
+    "SOUTH ALABAMA": "91",
+    "SOUTH CAROLINA": "92",
+    "SOUTHERN MISS": "93",
+    "SOUTHERN MISSISSIPPI": "93",
+    "STANFORD": "94",
+    "SYRACUSE": "95",
+    "TCU": "96",
+    "TEMPLE": "97",
+    "TENNESSEE": "98",
+    "TEXAS": "99",
+    "TEXAS A AND M": "100",
+    "TEXAS STATE": "101",
+    "TEXAS TECH": "102",
+    "TOLEDO": "103",
+    "TROY": "104",
+    "TULANE": "105",
+    "TULSA": "106",
+    "UAB": "107",
+    "UCF": "108",
+    "UCLA": "109",
+    "UCONN": "25",
+    "UL LAFAYETTE": "49",
+    "UL MONROE": "110",
+    "ULL": "49",
+    "ULM": "110",
+    "UMASS": "111",
+    "UNLV": "112",
+    "USC": "113",
+    "USF": "114",
+    "UTAH": "115",
+    "UTAH STATE": "116",
+    "UTEP": "117",
+    "UTSA": "118",
+    "VANDERBILT": "119",
+    "VIRGINIA": "120",
+    "VIRGINIA TECH": "121",
+    "W KENTUCKY": "126",
+    "W MICHIGAN": "127",
+    "WAKE FOREST": "122",
+    "WASHINGTON": "123",
+    "WASHINGTON STATE": "124",
+    "WEST VIRGINIA": "125",
+    "WESTERN KENTUCKY": "126",
+    "WESTERN MICHIGAN": "127",
+    "WISCONSIN": "128",
+    "WKU": "126",
+    "WMU": "127",
+    "WVU": "125",
+    "WYOMING": "129"
+  }
+}

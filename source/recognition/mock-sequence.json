@@ -1,0 +1,79 @@
+{
+  "options": { "intervalMs": 350, "loop": true },
+  "frames": [
+    {
+      "anchor": { "present": false, "confidence": 0.05 },
+      "fields": {}
+    },
+    {
+      "anchor": { "present": true, "confidence": 0.94 },
+      "fields": {
+        "away.name": { "value": "PENN STATE", "confidence": 0.96 },
+        "away.score": { "value": 0, "confidence": 0.98 },
+        "away.timeouts": { "value": 3, "confidence": 0.9 },
+        "home.name": { "value": "PITTSBURGH", "confidence": 0.96 },
+        "home.score": { "value": 0, "confidence": 0.98 },
+        "home.timeouts": { "value": 3, "confidence": 0.9 },
+        "home.possession": { "value": true, "confidence": 0.95 },
+        "game.quarter": { "value": "1st", "confidence": 0.96 },
+        "game.clock": { "value": "15:00", "confidence": 0.98 },
+        "game.playClock": { "value": 25, "confidence": 0.93 },
+        "game.downDistance": { "value": "1st & 10", "confidence": 0.96 }
+      }
+    },
+    {
+      "anchor": { "present": true, "confidence": 0.95 },
+      "fields": {
+        "away.name": { "value": "PENN STATE", "confidence": 0.96 },
+        "away.score": { "value": 0, "confidence": 0.98 },
+        "away.timeouts": { "value": 3, "confidence": 0.9 },
+        "home.name": { "value": "PITTSBURGH", "confidence": 0.96 },
+        "home.score": { "value": 0, "confidence": 0.98 },
+        "home.timeouts": { "value": 3, "confidence": 0.9 },
+        "home.possession": { "value": true, "confidence": 0.95 },
+        "game.quarter": { "value": "1st", "confidence": 0.96 },
+        "game.clock": { "value": "15:00", "confidence": 0.98 },
+        "game.playClock": { "value": 25, "confidence": 0.93 },
+        "game.downDistance": { "value": "1st & 10", "confidence": 0.96 }
+      }
+    },
+    {
+      "anchor": { "present": true, "confidence": 0.96 },
+      "fields": {
+        "away.name": { "value": "PENN STATE", "confidence": 0.96 },
+        "home.name": { "value": "PITTSBURGH", "confidence": 0.96 },
+        "away.score": { "value": 0, "confidence": 0.99 },
+        "home.score": { "value": 0, "confidence": 0.99 },
+        "game.quarter": { "value": "1st", "confidence": 0.96 },
+        "game.clock": { "value": "14:58", "confidence": 0.98 },
+        "game.playClock": { "value": 23, "confidence": 0.94 },
+        "game.downDistance": { "value": "1st & 10", "confidence": 0.96 }
+      }
+    },
+    {
+      "anchor": { "present": true, "confidence": 0.96 },
+      "fields": {
+        "away.name": { "value": "PENN STATE", "confidence": 0.96 },
+        "home.name": { "value": "PITTSBURGH", "confidence": 0.96 },
+        "away.score": { "value": 0, "confidence": 0.99 },
+        "home.score": { "value": 0, "confidence": 0.99 },
+        "game.quarter": { "value": "1st", "confidence": 0.96 },
+        "game.clock": { "value": "14:58", "confidence": 0.98 },
+        "game.playClock": { "value": 23, "confidence": 0.94 },
+        "game.downDistance": { "value": "1st & 10", "confidence": 0.96 }
+      }
+    },
+    {
+      "anchor": { "present": false, "confidence": 0.08 },
+      "fields": {}
+    },
+    {
+      "anchor": { "present": false, "confidence": 0.06 },
+      "fields": {}
+    },
+    {
+      "anchor": { "present": false, "confidence": 0.04 },
+      "fields": {}
+    }
+  ]
+}

@@ -1,0 +1,696 @@
+{
+  "schema": "cfb27-team-nicknames/1",
+  "generatedAt": "2026-08-08",
+  "teams": [
+    {
+      "id": "0",
+      "name": "Air Force",
+      "nickname": "Falcons"
+    },
+    {
+      "id": "1",
+      "name": "Akron",
+      "nickname": "Zips"
+    },
+    {
+      "id": "2",
+      "name": "Alabama",
+      "nickname": "Crimson Tide"
+    },
+    {
+      "id": "3",
+      "name": "Appalachian State",
+      "nickname": "Mountaineers"
+    },
+    {
+      "id": "4",
+      "name": "Arizona",
+      "nickname": "Wildcats"
+    },
+    {
+      "id": "5",
+      "name": "Arizona State",
+      "nickname": "Sun Devils"
+    },
+    {
+      "id": "6",
+      "name": "Arkansas",
+      "nickname": "Razorbacks"
+    },
+    {
+      "id": "7",
+      "name": "Arkansas State",
+      "nickname": "Red Wolves"
+    },
+    {
+      "id": "8",
+      "name": "Army",
+      "nickname": "Black Knights"
+    },
+    {
+      "id": "9",
+      "name": "Auburn",
+      "nickname": "Tigers"
+    },
+    {
+      "id": "10",
+      "name": "Ball State",
+      "nickname": "Cardinals"
+    },
+    {
+      "id": "11",
+      "name": "Baylor",
+      "nickname": "Bears"
+    },
+    {
+      "id": "12",
+      "name": "Boise State",
+      "nickname": "Broncos"
+    },
+    {
+      "id": "13",
+      "name": "Boston College",
+      "nickname": "Eagles"
+    },
+    {
+      "id": "14",
+      "name": "Bowling Green State",
+      "nickname": "Falcons"
+    },
+    {
+      "id": "15",
+      "name": "Buffalo",
+      "nickname": "Bulls"
+    },
+    {
+      "id": "16",
+      "name": "BYU",
+      "nickname": "Cougars"
+    },
+    {
+      "id": "17",
+      "name": "California",
+      "nickname": "Golden Bears"
+    },
+    {
+      "id": "18",
+      "name": "Central Michigan",
+      "nickname": "Chippewas"
+    },
+    {
+      "id": "19",
+      "name": "Charlotte",
+      "nickname": "49ers"
+    },
+    {
+      "id": "20",
+      "name": "Cincinnati",
+      "nickname": "Bearcats"
+    },
+    {
+      "id": "21",
+      "name": "Clemson",
+      "nickname": "Tigers"
+    },
+    {
+      "id": "22",
+      "name": "Coastal Carolina",
+      "nickname": "Chanticleers"
+    },
+    {
+      "id": "23",
+      "name": "Colorado",
+      "nickname": "Buffaloes"
+    },
+    {
+      "id": "24",
+      "name": "Colorado State",
+      "nickname": "Rams"
+    },
+    {
+      "id": "25",
+      "name": "Connecticut",
+      "nickname": "Huskies"
+    },
+    {
+      "id": "26",
+      "name": "Duke",
+      "nickname": "Blue Devils"
+    },
+    {
+      "id": "27",
+      "name": "Eastern Michigan",
+      "nickname": "Eagles"
+    },
+    {
+      "id": "28",
+      "name": "East Carolina",
+      "nickname": "Pirates"
+    },
+    {
+      "id": "29",
+      "name": "FIU",
+      "nickname": "Panthers"
+    },
+    {
+      "id": "30",
+      "name": "Florida",
+      "nickname": "Gators"
+    },
+    {
+      "id": "31",
+      "name": "FAU",
+      "nickname": "Owls"
+    },
+    {
+      "id": "32",
+      "name": "Florida State",
+      "nickname": "Seminoles"
+    },
+    {
+      "id": "33",
+      "name": "Fresno State",
+      "nickname": "Bulldogs"
+    },
+    {
+      "id": "34",
+      "name": "Georgia",
+      "nickname": "Bulldogs"
+    },
+    {
+      "id": "35",
+      "name": "Georgia Southern",
+      "nickname": "Eagles"
+    },
+    {
+      "id": "36",
+      "name": "Georgia State",
+      "nickname": "Panthers"
+    },
+    {
+      "id": "37",
+      "name": "Georgia Tech",
+      "nickname": "Yellow Jackets"
+    },
+    {
+      "id": "38",
+      "name": "Hawaii",
+      "nickname": "Rainbow Warriors"
+    },
+    {
+      "id": "39",
+      "name": "Houston",
+      "nickname": "Cougars"
+    },
+    {
+      "id": "40",
+      "name": "Illinois",
+      "nickname": "Fighting Illini"
+    },
+    {
+      "id": "41",
+      "name": "Indiana",
+      "nickname": "Hoosiers"
+    },
+    {
+      "id": "42",
+      "name": "Iowa",
+      "nickname": "Hawkeyes"
+    },
+    {
+      "id": "43",
+      "name": "Iowa State",
+      "nickname": "Cyclones"
+    },
+    {
+      "id": "44",
+      "name": "Kansas",
+      "nickname": "Jayhawks"
+    },
+    {
+      "id": "45",
+      "name": "Kansas State",
+      "nickname": "Wildcats"
+    },
+    {
+      "id": "46",
+      "name": "Kent State",
+      "nickname": "Golden Flashes"
+    },
+    {
+      "id": "47",
+      "name": "Kentucky",
+      "nickname": "Wildcats"
+    },
+    {
+      "id": "48",
+      "name": "Liberty",
+      "nickname": "Flames"
+    },
+    {
+      "id": "49",
+      "name": "UL Lafayette",
+      "nickname": "Ragin' Cajuns"
+    },
+    {
+      "id": "50",
+      "name": "LA. Tech",
+      "nickname": "Bulldogs"
+    },
+    {
+      "id": "51",
+      "name": "Louisville",
+      "nickname": "Cardinals"
+    },
+    {
+      "id": "52",
+      "name": "LSU",
+      "nickname": "Tigers"
+    },
+    {
+      "id": "53",
+      "name": "Marshall",
+      "nickname": "Thundering Herd"
+    },
+    {
+      "id": "54",
+      "name": "Maryland",
+      "nickname": "Terrapins"
+    },
+    {
+      "id": "55",
+      "name": "Memphis",
+      "nickname": "Tigers"
+    },
+    {
+      "id": "56",
+      "name": "Miami",
+      "nickname": "Hurricanes"
+    },
+    {
+      "id": "57",
+      "name": "Miami of Ohio",
+      "nickname": "RedHawks"
+    },
+    {
+      "id": "58",
+      "name": "Michigan",
+      "nickname": "Wolverines"
+    },
+    {
+      "id": "59",
+      "name": "Michigan State",
+      "nickname": "Spartans"
+    },
+    {
+      "id": "60",
+      "name": "Middle Tennessee State",
+      "nickname": "Blue Raiders"
+    },
+    {
+      "id": "61",
+      "name": "Minnesota",
+      "nickname": "Golden Gophers"
+    },
+    {
+      "id": "62",
+      "name": "Mississippi State",
+      "nickname": "Bulldogs"
+    },
+    {
+      "id": "63",
+      "name": "Missouri",
+      "nickname": "Tigers"
+    },
+    {
+      "id": "64",
+      "name": "Navy",
+      "nickname": "Midshipmen"
+    },
+    {
+      "id": "65",
+      "name": "N.C. State",
+      "nickname": "Wolfpack"
+    },
+    {
+      "id": "66",
+      "name": "Nebraska",
+      "nickname": "Cornhuskers"
+    },
+    {
+      "id": "67",
+      "name": "Nevada",
+      "nickname": "Wolf Pack"
+    },
+    {
+      "id": "68",
+      "name": "New Mexico",
+      "nickname": "Lobos"
+    },
+    {
+      "id": "69",
+      "name": "New Mexico State",
+      "nickname": "Aggies"
+    },
+    {
+      "id": "70",
+      "name": "North Carolina",
+      "nickname": "Tar Heels"
+    },
+    {
+      "id": "71",
+      "name": "North Texas",
+      "nickname": "Mean Green"
+    },
+    {
+      "id": "72",
+      "name": "Northern Illinois",
+      "nickname": "Huskies"
+    },
+    {
+      "id": "73",
+      "name": "Northwestern",
+      "nickname": "Wildcats"
+    },
+    {
+      "id": "74",
+      "name": "Notre Dame",
+      "nickname": "Fighting Irish"
+    },
+    {
+      "id": "75",
+      "name": "Ohio",
+      "nickname": "Bobcats"
+    },
+    {
+      "id": "76",
+      "name": "Ohio State",
+      "nickname": "Buckeyes"
+    },
+    {
+      "id": "77",
+      "name": "Oklahoma",
+      "nickname": "Sooners"
+    },
+    {
+      "id": "78",
+      "name": "Oklahoma State",
+      "nickname": "Cowboys"
+    },
+    {
+      "id": "79",
+      "name": "Old Dominion",
+      "nickname": "Monarchs"
+    },
+    {
+      "id": "80",
+      "name": "Ole Miss",
+      "nickname": "Rebels"
+    },
+    {
+      "id": "81",
+      "name": "Oregon",
+      "nickname": "Ducks"
+    },
+    {
+      "id": "82",
+      "name": "Oregon State",
+      "nickname": "Beavers"
+    },
+    {
+      "id": "83",
+      "name": "Penn State",
+      "nickname": "Nittany Lions"
+    },
+    {
+      "id": "84",
+      "name": "Pittsburgh",
+      "nickname": "Panthers"
+    },
+    {
+      "id": "85",
+      "name": "Purdue",
+      "nickname": "Boilermakers"
+    },
+    {
+      "id": "86",
+      "name": "Rice",
+      "nickname": "Owls"
+    },
+    {
+      "id": "87",
+      "name": "Rutgers",
+      "nickname": "Scarlet Knights"
+    },
+    {
+      "id": "88",
+      "name": "San Diego State",
+      "nickname": "Aztecs"
+    },
+    {
+      "id": "89",
+      "name": "San Jose State",
+      "nickname": "Spartans"
+    },
+    {
+      "id": "90",
+      "name": "SMU",
+      "nickname": "Mustangs"
+    },
+    {
+      "id": "91",
+      "name": "South Alabama",
+      "nickname": "Jaguars"
+    },
+    {
+      "id": "92",
+      "name": "South Carolina",
+      "nickname": "Gamecocks"
+    },
+    {
+      "id": "93",
+      "name": "Southern Miss",
+      "nickname": "Golden Eagles"
+    },
+    {
+      "id": "94",
+      "name": "Stanford",
+      "nickname": "Cardinal"
+    },
+    {
+      "id": "95",
+      "name": "Syracuse",
+      "nickname": "Orange"
+    },
+    {
+      "id": "96",
+      "name": "TCU",
+      "nickname": "Horned Frogs"
+    },
+    {
+      "id": "97",
+      "name": "Temple",
+      "nickname": "Owls"
+    },
+    {
+      "id": "98",
+      "name": "Tennessee",
+      "nickname": "Volunteers"
+    },
+    {
+      "id": "99",
+      "name": "Texas",
+      "nickname": "Longhorns"
+    },
+    {
+      "id": "100",
+      "name": "Texas A&M",
+      "nickname": "Aggies"
+    },
+    {
+      "id": "101",
+      "name": "Texas State",
+      "nickname": "Bobcats"
+    },
+    {
+      "id": "102",
+      "name": "Texas Tech",
+      "nickname": "Red Raiders"
+    },
+    {
+      "id": "103",
+      "name": "Toledo",
+      "nickname": "Rockets"
+    },
+    {
+      "id": "104",
+      "name": "Troy",
+      "nickname": "Trojans"
+    },
+    {
+      "id": "105",
+      "name": "Tulane",
+      "nickname": "Green Wave"
+    },
+    {
+      "id": "106",
+      "name": "Tulsa",
+      "nickname": "Golden Hurricane"
+    },
+    {
+      "id": "107",
+      "name": "UAB",
+      "nickname": "Blazers"
+    },
+    {
+      "id": "108",
+      "name": "UCF",
+      "nickname": "Knights"
+    },
+    {
+      "id": "109",
+      "name": "UCLA",
+      "nickname": "Bruins"
+    },
+    {
+      "id": "110",
+      "name": "UL Monroe",
+      "nickname": "Warhawks"
+    },
+    {
+      "id": "111",
+      "name": "Massachusetts",
+      "nickname": "Minutemen"
+    },
+    {
+      "id": "112",
+      "name": "UNLV",
+      "nickname": "Rebels"
+    },
+    {
+      "id": "113",
+      "name": "USC",
+      "nickname": "Trojans"
+    },
+    {
+      "id": "114",
+      "name": "USF",
+      "nickname": "Bulls"
+    },
+    {
+      "id": "115",
+      "name": "Utah",
+      "nickname": "Utes"
+    },
+    {
+      "id": "116",
+      "name": "Utah State",
+      "nickname": "Aggies"
+    },
+    {
+      "id": "117",
+      "name": "UTEP",
+      "nickname": "Miners"
+    },
+    {
+      "id": "118",
+      "name": "UTSA",
+      "nickname": "Roadrunners"
+    },
+    {
+      "id": "119",
+      "name": "Vanderbilt",
+      "nickname": "Commodores"
+    },
+    {
+      "id": "120",
+      "name": "Virginia",
+      "nickname": "Cavaliers"
+    },
+    {
+      "id": "121",
+      "name": "Virginia Tech",
+      "nickname": "Hokies"
+    },
+    {
+      "id": "122",
+      "name": "Wake Forest",
+      "nickname": "Demon Deacons"
+    },
+    {
+      "id": "123",
+      "name": "Washington",
+      "nickname": "Huskies"
+    },
+    {
+      "id": "124",
+      "name": "Washington State",
+      "nickname": "Cougars"
+    },
+    {
+      "id": "125",
+      "name": "West Virginia",
+      "nickname": "Mountaineers"
+    },
+    {
+      "id": "126",
+      "name": "W. Kentucky",
+      "nickname": "Hilltoppers"
+    },
+    {
+      "id": "127",
+      "name": "Western Michigan",
+      "nickname": "Broncos"
+    },
+    {
+      "id": "128",
+      "name": "Wisconsin",
+      "nickname": "Badgers"
+    },
+    {
+      "id": "129",
+      "name": "Wyoming",
+      "nickname": "Cowboys"
+    },
+    {
+      "id": "cfb27-james-madison",
+      "name": "James Madison",
+      "nickname": "Dukes"
+    },
+    {
+      "id": "cfb27-jacksonville-state",
+      "name": "Jacksonville State",
+      "nickname": "Gamecocks"
+    },
+    {
+      "id": "cfb27-delaware",
+      "name": "Delaware",
+      "nickname": "Fightin' Blue Hens"
+    },
+    {
+      "id": "cfb27-kennesaw-state",
+      "name": "Kennesaw State",
+      "nickname": "Owls"
+    },
+    {
+      "id": "cfb27-north-dakota-state",
+      "name": "North Dakota State",
+      "nickname": "Bison"
+    },
+    {
+      "id": "cfb27-missouri-state",
+      "name": "Missouri State",
+      "nickname": "Bears"
+    },
+    {
+      "id": "cfb27-sacramento-state",
+      "name": "Sacramento State",
+      "nickname": "Hornets"
+    },
+    {
+      "id": "cfb27-sam-houston",
+      "name": "Sam Houston",
+      "nickname": "Bearkats"
+    }
+  ]
+}

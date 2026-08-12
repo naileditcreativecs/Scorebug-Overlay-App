@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob: file:; img-src 'self' data: blob: file:; frame-src 'self' data: blob: file:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';">
+  <title>CFB27 Scoreboard Overlay Version 1.0</title>
+  <link rel="stylesheet" href="control.css">
+</head>
+<body>
+  <header class="app-header">
+    <div>
+      <p class="eyebrow">COLLEGE FOOTBALL 27</p>
+      <h1>Scoreboard Overlay</h1>
+      <p class="header-subtitle">Every overlay tool has its own tab. The proven reader and calibration stay unchanged.</p>
+    </div>
+    <span id="app-version" class="version">v1.3.40 FOX RAW TRANSPARENT LOGOS</span>
+  </header>
+
+  <section class="status-strip" aria-label="Runtime status">
+    <div class="status-item"><span id="dot-game" class="dot"></span><div><small>GAME</small><strong id="status-game">Not detected</strong></div></div>
+    <div class="status-item"><span id="dot-capture" class="dot"></span><div><small>CAPTURE</small><strong id="status-capture">Stopped</strong><span id="status-capture-detail" class="status-detail">Waiting to start</span></div></div>
+    <div class="status-item"><span id="dot-reader" class="dot"></span><div><small>LIVE READER</small><strong id="status-reader">Waiting</strong><span id="status-reader-detail" class="status-detail"></span></div></div>
+    <div id="overlay-status-item" class="status-item overlay-status" data-state="stopped"><span id="dot-overlay" class="dot"></span><div><small>ON-SCREEN OVERLAY</small><strong id="status-overlay">STOPPED</strong><span id="status-overlay-detail" class="status-detail">Reader is not running</span></div></div>
+  </section>
+
+  <nav class="tabs" aria-label="Overlay sections">
+    <button class="tab active" data-tab="dashboard">Home</button>
+    <button class="tab" data-tab="library">HTML library <span id="theme-library-tab-count" class="tab-count">0</span></button>
+    <button class="tab" data-tab="data">Reader &amp; live data</button>
+    <button class="tab" data-tab="reading-profiles">Reading profiles</button>
+    <button class="tab" data-tab="calibration">Reading areas</button>
+    <button class="tab" data-tab="theme">Theme &amp; placement</button>
+    <button class="tab" data-tab="green-screen">Green screen</button>
+    <button class="tab" data-tab="settings">Settings</button>
+    <button class="tab" data-tab="diagnostics">Diagnostics</button>
+  </nav>
+
+  <main>
+    <section class="panel active" data-panel="dashboard">
+      <article class="setup-wizard-callout" aria-labelledby="setup-wizard-callout-title">
+        <div>
+          <p class="eyebrow">FIRST-TIME SETUP</p>
+          <h2 id="setup-wizard-callout-title">Get a reliable live read in five steps</h2>
+          <p>Choose the game window, let the app find the scorebug, verify the values, and position the overlay.</p>
+        </div>
+        <button id="btn-run-setup-wizard" class="primary" type="button">Run setup wizard</button>
+      </article>
+
+      <div class="simple-dashboard" aria-label="Simple overlay controls">
+        <article class="card quick-card runtime-card">
+          <div class="step-heading">
+            <span class="step-number">1</span>
+            <div><p class="eyebrow">RUN THE READER</p><h2 id="simple-runtime-status">Reader is stopped</h2></div>
+          </div>
+          <p>Start once before entering a game. Stop when you are finished.</p>
+          <div class="button-row">
+            <button id="btn-start" class="primary action-button">Start reader</button>
+            <button id="btn-fresh-read" class="action-button">Fresh read now</button>
+            <button id="btn-stop" class="danger action-button">Stop reader</button>
+          </div>
+        </article>
+
+        <article class="card quick-card visibility-card">
+          <div class="step-heading">
+            <span class="step-number">2</span>
+            <div><p class="eyebrow">SHOW OR HIDE IT</p><h2 id="simple-visibility-state">Overlay is off</h2></div>
+          </div>
+          <p id="simple-automatic-help">Automatic visibility is on.</p>
+          <div class="button-row">
+            <button id="btn-toggle" class="primary action-button">Show overlay now</button>
+            <button id="btn-auto" class="action-button state-on" aria-pressed="true">Automatic visibility: ON</button>
+          </div>
+        </article>
+
+        <article class="card quick-card placement-card">
+          <div class="step-heading">
+            <span class="step-number">3</span>
+            <div><p class="eyebrow">PLACE IT ONCE</p><h2>Position <span id="placement-mode" class="badge">Follow game</span></h2></div>
+          </div>
+          <p id="simple-position-help">Choose Move, drag the green header to place it, and drag any green edge or corner to resize it. Choose Crop in the overlay toolbar to trim empty edges.</p>
+          <div class="button-row placement-controls">
+            <button id="btn-edit" class="primary action-button">Move overlay</button>
+            <button id="btn-lock-position" class="action-button">Save current position</button>
+            <button id="btn-follow-game" class="quiet-button">Reset to follow game</button>
+          </div>
+        </article>
+
+        <article class="card quick-card setup-card">
+          <div class="step-heading">
+            <span class="step-number">4</span>
+            <div><p class="eyebrow">SCREEN SETUP</p><h2>Overlay size preset</h2></div>
+          </div>
+          <label class="compact-label">Resolution
+            <select id="output-resolution">
+              <option value="2160p">3840 × 2160 (4K)</option>
+              <option value="1600p-ultrawide">3840 × 1600 (Ultrawide)</option>
+              <option value="1440p-super-ultrawide">5120 × 1440 (Super ultrawide)</option>
+              <option value="1440p-ultrawide">3440 × 1440 (Ultrawide)</option>
+              <option value="1440p">2560 × 1440</option>
+              <option value="1080p-ultrawide">2560 × 1080 (Ultrawide)</option>
+              <option value="1080p">1920 × 1080</option>
+              <option value="720p">1280 × 720</option>
+            </select>
+          </label>
+          <p class="profile-scope-warning"><strong>Choose the game resolution:</strong> Standard, ultrawide, and super-ultrawide sizes each keep their own reader calibration.</p>
+          <div class="button-row profile-actions">
+            <button id="btn-save-resolution" class="primary">Use this size</button>
+            <button id="btn-calibrate-profile" data-tab="calibration">Inspect game reader</button>
+          </div>
+          <div class="button-row scoreboard-choice-row">
+            <button id="btn-open-library">Choose scoreboard</button>
+          </div>
+          <p class="profile-theme-summary">Current scoreboard: <strong id="simple-theme-name">Built-in scoreboard</strong></p>
+        </article>
+      </div>
+
+      <article class="card state-preview">
+        <div class="card-heading"><div><p class="eyebrow">WHAT THE OVERLAY IS RECEIVING</p><h2 id="state-matchup">Notre Dame at Miami</h2></div><span id="state-confidence" class="badge neutral">No live read</span></div>
+        <div class="score-line">
+          <div><small id="away-rank">3</small><strong id="away-name">NOTRE DAME</strong></div><b id="away-score">0</b>
+          <span>—</span>
+          <b id="home-score">7</b><div><small id="home-rank">7</small><strong id="home-name">MIAMI</strong></div>
+        </div>
+        <div class="game-line"><span id="quarter">1st</span><span id="clock">3:23</span><span id="play-clock">Play 14</span><strong id="down-distance">3rd &amp; 6</strong></div>
+      </article>
+
+      <div class="dashboard-help">
+        <span>Need to adjust the reader or live values?</span>
+        <button id="btn-open-advanced" class="link-button">Open reader tools</button>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="data">
+      <div class="advanced-page-heading"><div><p class="eyebrow">READER</p><h2>Reader &amp; live data</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <div class="grid two">
+        <article class="card">
+          <div class="card-heading"><div><p class="eyebrow">DATA SOURCE</p><h2>Live scoreboard values</h2></div><span id="mode-badge" class="badge">Automatic</span></div>
+          <label>Use values from
+            <select id="scoreboard-data-source">
+              <option value="auto">Automatic — RAM with screen fallback</option>
+              <option value="ram">RAM reader only</option>
+              <option value="screen">Screen reader only</option>
+            </select>
+          </label>
+          <p id="scoreboard-data-source-help" class="hint">RAM is preferred. If it is unavailable, the screen reader keeps the scoreboard working.</p>
+          <label>Screen reader / test mode
+            <select id="reader-mode">
+              <option value="local-ocr">Automatic local reader</option>
+              <option value="manual">Manual test controls</option>
+              <option value="mock">Animated mock game</option>
+            </select>
+          </label>
+          <label>Native scorebug
+            <select id="donor-profile">
+              <option value="auto">Auto-detect (recommended)</option>
+              <option value="optical-reader-donor-exp-v0.1">Automatic Reader Boxes / Optical Donor</option>
+              <option value="standard">Standard high-contrast scorebug</option>
+            </select>
+          </label>
+          <p class="hint">The screen reader still detects whether the native scorebug is visible. Choose the game window if auto-detection needs help.</p>
+        </article>
+
+        <article class="card">
+          <div class="card-heading"><div><p class="eyebrow">RECOGNITION</p><h2>Validation</h2></div></div>
+          <label>Minimum OCR confidence <output id="confidence-output">20%</output><input id="minimum-confidence" type="range" min="20" max="95" value="20"></label>
+          <label>Stable frames <input id="stable-frames" type="number" min="1" max="10" value="2"></label>
+          <label>Live clock correction (seconds) <input id="clock-offset-seconds" type="number" min="-5" max="5" step="1" value="0"></label>
+          <button id="btn-save-reader" class="primary full">Save reader settings</button>
+        </article>
+      </div>
+
+      <article class="card advanced-card">
+        <div class="card-heading"><div><p class="eyebrow">MANUAL / FALLBACK</p><h2>Scoreboard values</h2></div><button id="btn-apply-state" class="primary">Send these values</button></div>
+        <div class="form-grid four">
+          <label>Away name<input id="input-away-name" value="Notre Dame"></label>
+          <label>Away score<input id="input-away-score" type="number" min="0" max="199" value="0"></label>
+          <label>Away rank<input id="input-away-rank" type="number" min="0" max="25" value="3"></label>
+          <label>Away record<input id="input-away-record" value="8-1"></label>
+          <label>Away timeouts<input id="input-away-timeouts" type="number" min="0" max="3" value="3"></label>
+          <label>Home name<input id="input-home-name" value="Miami"></label>
+          <label>Home score<input id="input-home-score" type="number" min="0" max="199" value="7"></label>
+          <label>Home rank<input id="input-home-rank" type="number" min="0" max="25" value="7"></label>
+          <label>Home record<input id="input-home-record" value="8-0"></label>
+          <label>Home timeouts<input id="input-home-timeouts" type="number" min="0" max="3" value="3"></label>
+          <label>Quarter<input id="input-quarter" value="1st"></label>
+          <label>Game clock<input id="input-clock" value="3:23"></label>
+          <label>Play clock<input id="input-play-clock" value="14"></label>
+          <label>Down &amp; distance<input id="input-down-distance" value="3rd & 6"></label>
+          <label>Possession<select id="input-possession"><option value="away">Away</option><option value="home">Home</option><option value="">None</option></select></label>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" data-panel="reading-profiles">
+      <div class="advanced-page-heading"><div><p class="eyebrow">READER BEHAVIOR</p><h2>Reading profiles</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <article class="card reading-profile-intro">
+        <div class="card-heading"><div><p class="eyebrow">ACTIVE PROFILE</p><h2 id="active-reading-profile">Safe</h2></div><span id="active-reading-profile-badge" class="badge">CURRENT</span></div>
+        <p>Reading profiles change how quickly a valid read is accepted. They never change your calibration boxes, scoreboard HTML, placement, or saved resolution.</p>
+      </article>
+      <div class="reading-profile-grid" role="radiogroup" aria-label="Reading behavior profile">
+        <button class="reading-profile-option" type="button" data-reading-profile="safe" role="radio" aria-checked="true">
+          <span class="reading-profile-heading"><strong>Safe</strong><em>Recommended</em></span>
+          <span class="reading-profile-summary">The exact reader behavior saved from v1.3.26.</span>
+          <span class="reading-profile-details">Two-read score confirmation, your current confidence, visibility, and capture settings, plus the same proven clock presentation.</span>
+          <span class="reading-profile-action">Use Safe</span>
+        </button>
+        <button class="reading-profile-option aggressive" type="button" data-reading-profile="aggressive" role="radio" aria-checked="false">
+          <span class="reading-profile-heading"><strong>Aggressive</strong><em>Experimental</em></span>
+          <span class="reading-profile-summary">Publishes strong, plausible changes as quickly as possible.</span>
+          <span class="reading-profile-details">One-read score and team confirmation, faster static-field checks, at least a six-frame capture target, and lower acceptance thresholds. A higher existing capture target is kept. Football score guards and the current clock countdown remain enabled.</span>
+          <span class="reading-profile-action">Use Aggressive</span>
+        </button>
+      </div>
+      <p class="profile-scope-warning"><strong>Safe is frozen:</strong> selecting Aggressive does not rewrite or replace Safe. You can switch back at any time and immediately restore the exact reading behavior you are using today.</p>
+    </section>
+
+    <section class="panel" data-panel="calibration">
+      <div class="advanced-page-heading"><div><p class="eyebrow">OPTIONAL TUNING</p><h2>Inspect the live reader boxes</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <article class="card">
+        <div id="calibration-profile-summary" class="calibration-profile-summary" aria-live="polite">
+          <div><p class="eyebrow">ACTIVE HEIGHT PRESET</p><h3 id="calibration-profile-name">3840 × 2160 (4K)</h3></div>
+          <span id="calibration-profile-status" class="badge neutral">Recommended setup</span>
+        </div>
+        <p class="profile-scope-warning calibration-profile-help"><strong>Each resolution is calibrated separately:</strong> Fit all four amber edges around the complete scorebug in the fresh game picture. <strong>Use</strong> applies this setup locally. <strong>Save &amp; export</strong> applies the same setup and writes a portable reader file. Both affect only the selected resolution. The proven legacy OCR reader remains unchanged.</p>
+        <div class="capture-source-setup">
+          <label>Game window
+            <div class="inline"><select id="capture-source"><option value="">Auto-detect CFB27</option></select><button id="btn-refresh-sources">Refresh windows</button></div>
+          </label>
+          <p class="hint">Use Borderless display mode. If the game was opened after this app, refresh the list and select it here.</p>
+        </div>
+        <div class="card-heading"><div><p class="eyebrow">LIVE CAPTURE CHECK</p><h2>Capture, inspect, tune</h2></div><div class="button-row"><button id="btn-snapshot">Refresh game picture</button><button id="btn-place-box-corners" disabled>Adjust outer box</button><button id="btn-reset-preset-box" disabled>Reset outer box</button><button id="btn-use-reader-calibration" class="primary" disabled>Use</button><button id="btn-save-export-reader-file" disabled>Save &amp; export reader file</button><button id="btn-import-reader-file">Import reader file</button></div></div>
+        <div class="preset-box-summary" aria-live="polite">
+          <span id="preset-box-size" class="badge neutral">Live box is waiting for a game picture</span>
+          <span id="preset-box-status">Start the reader with the scorebug visible, then refresh to inspect the exact pixels and boxes being used.</span>
+        </div>
+        <p id="capture-dimensions-warning" class="capture-warning" hidden></p>
+        <p class="hint">While the in-game scorebug is visible, use the game-capture shortcut configured in <strong>Settings</strong>. Adjust the amber outer box from any edge, then use <strong>Adjust individual boxes</strong> for any field that needs a tighter crop. Picture zoom never changes the saved coordinates.</p>
+        <div class="calibration-zoom-toolbar">
+          <span><strong>Picture zoom</strong><small>100%–400%. View only — saved box coordinates do not change.</small></span>
+          <div class="calibration-zoom-controls" role="group" aria-label="Calibration picture zoom">
+            <button id="btn-calibration-zoom-out" type="button" aria-label="Zoom out calibration picture" disabled>−</button>
+            <output id="calibration-zoom-output" aria-live="polite">100%</output>
+            <button id="btn-calibration-zoom-in" type="button" aria-label="Zoom in calibration picture" disabled>+</button>
+            <button id="btn-calibration-zoom-reset" type="button" disabled>Reset zoom</button>
+          </div>
+        </div>
+        <div class="optical-reader-preview-controls" hidden>
+          <label class="check"><input id="show-optical-reader-boxes" type="checkbox" checked disabled><span>Show automatic reader boxes</span></label>
+          <span id="optical-reader-box-status" class="status-detail" aria-live="polite">Automatic boxes: start the reader and refresh while the in-game scorebug is visible.</span>
+          <small>View only — these guides never appear over the game and are never saved into a reader file.</small>
+        </div>
+        <div id="calibration-stage" class="calibration-stage" tabindex="0" aria-label="Calibration picture. Arrow keys move the reader box one pixel; hold Shift for ten.">
+          <canvas id="calibration-canvas" width="1280" height="720"></canvas>
+          <div id="calibration-empty"><strong>No game picture yet</strong><span>Start CFB27 yourself, enter a game, then click Refresh game picture.</span></div>
+        </div>
+        <details id="advanced-calibration" class="advanced-calibration">
+          <summary>Precise box position and size</summary>
+          <p class="hint">The outer amber box can be adjusted from any edge. Individual text boxes should sit directly over the correct word or number. For visual timeouts and possession, place the full fixed area. Arrows nudge 1 px, Shift is 10, Ctrl+Arrows resize.</p>
+          <div class="button-row"><button id="btn-adjust-roi-boxes" disabled>Adjust individual boxes</button><select id="roi-picker" hidden aria-label="Choose a reading box to adjust"><option value="">Choose a box…</option></select><button id="btn-reset-selected-roi" hidden>Reset this box</button><button id="btn-reset-resolution">Reset reader setup</button></div>
+          <div id="roi-box-list" class="roi-box-list" hidden>
+            <div class="roi-box-list-heading">
+              <span><strong>Individual reading boxes</strong><small>Text boxes are smart seeds; timeout and possession boxes are fixed. Select a box, then lock it when its placement is finished.</small></span>
+              <button id="btn-toggle-all-roi-locks" type="button">Lock all</button>
+            </div>
+            <div id="roi-box-list-items" class="roi-box-list-items" role="list" aria-label="Individual reading boxes"></div>
+          </div>
+          <div class="calibration-toolbar">
+            <span id="roi-count" class="badge neutral">13 built-in reading areas</span>
+          </div>
+          <div class="read-region-controls" aria-label="Read region coordinates">
+            <div class="read-region-grid">
+              <label>Left X (%)<input id="read-region-x" type="number" min="0" max="99.5" step="0.01"></label>
+              <label>Top Y (%)<input id="read-region-y" type="number" min="0" max="99.5" step="0.01"></label>
+              <label>Width (%)<input id="read-region-width" type="number" min="0.5" max="100" step="0.01"></label>
+              <label>Height (%)<input id="read-region-height" type="number" min="0.5" max="100" step="0.01"></label>
+            </div>
+            <button id="btn-apply-read-region">Apply exact box</button>
+          </div>
+        </details>
+      </article>
+    </section>
+
+    <section class="panel" data-panel="theme">
+      <div class="advanced-page-heading"><div><p class="eyebrow">OVERLAY</p><h2>Theme &amp; exact placement</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <div class="grid two">
+        <article class="card">
+          <div class="card-heading"><div><p class="eyebrow">DROP-IN HTML</p><h2>Theme</h2></div><button id="btn-browse-theme">Browse…</button></div>
+          <label>Standalone HTML file<input id="theme-path" spellcheck="false"></label>
+          <div class="form-grid">
+            <label>Authored width (px)<input id="theme-canvas-width" type="number" min="160" max="5000" step="1" value="371"></label>
+            <label>Authored height (px)<input id="theme-canvas-height" type="number" min="32" max="3000" step="1" value="433"></label>
+          </div>
+          <div class="button-row"><button id="btn-load-theme" class="primary">Load theme</button><button id="btn-reload">Reload current HTML</button><button id="btn-fallback-theme">Use ESPN 2013</button></div>
+          <p class="hint">Enter the HTML theme's real authored size so wide or short scoreboards fill the overlay correctly. The built-in ESPN 2013 theme uses 371 × 433.</p>
+        </article>
+        <article class="card">
+          <div class="card-heading"><div><p class="eyebrow">PLACEMENT</p><h2>Fine tuning</h2></div></div>
+          <div class="button-row placement-controls">
+            <button id="btn-edit-theme">Move overlay</button>
+            <button id="btn-lock-theme">Save current position</button>
+            <button id="btn-follow-theme">Reset to follow game</button>
+          </div>
+          <p class="hint">Move pauses automatic positioning. Drag the green header to move the scoreboard, then drag a green edge or corner to resize it. Choose Crop in the overlay toolbar and drag the orange edges inward to remove dead space.</p>
+          <input id="overlay-scale" type="hidden" value="72"><output id="scale-output" hidden>72%</output>
+          <div class="drag-resize-callout"><strong>Drag to resize</strong><span>The scoreboard keeps its correct shape while you resize it.</span></div>
+          <div class="form-grid">
+            <label>Anchor<select id="overlay-anchor"><option value="bottom-center">Bottom center</option><option value="bottom-right">Bottom right</option><option value="bottom-left">Bottom left</option><option value="top-center">Top center</option><option value="top-right">Top right</option><option value="top-left">Top left</option></select></label>
+            <label>Side margin / center offset<input id="margin-x" type="number" min="-500" max="500" value="0"></label>
+            <label>Top/bottom margin<input id="margin-y" type="number" min="0" max="500" value="28"></label>
+          </div>
+          <button id="btn-save-placement" class="primary full">Apply fine-tuned placement</button>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="green-screen">
+      <div class="advanced-page-heading"><div><p class="eyebrow">BACKGROUND REMOVAL</p><h2>Green screen</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <article class="card">
+        <div class="card-heading"><div><p class="eyebrow">GREEN CANVAS</p><h2>Remove the green background</h2></div></div>
+        <div class="chroma-key-settings">
+          <label class="check"><input id="green-screen-enabled" type="checkbox"><span>Remove green canvas background</span></label>
+          <details id="green-screen-fine-tune">
+            <summary>Fine tune green-screen edges</summary>
+            <div class="form-grid chroma-key-controls">
+              <label>Key color<input id="green-screen-color" type="color" value="#00ff00"></label>
+              <label>Tolerance <output id="green-screen-tolerance-output">6%</output><input id="green-screen-tolerance" type="range" min="0" max="30" step="1" value="6"></label>
+              <label>Edge softness <output id="green-screen-softness-output">4%</output><input id="green-screen-softness" type="range" min="0.5" max="20" step="0.5" value="4"></label>
+            </div>
+          </details>
+          <p class="hint">Use a solid <strong>#00FF00</strong> canvas. Increase tolerance only until the square edge disappears; high values can also remove intentional green artwork.</p>
+          <button id="btn-save-green-screen" class="primary full">Apply green-screen filter</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" data-panel="settings">
+      <div class="advanced-page-heading"><div><p class="eyebrow">APP PREFERENCES</p><h2>Settings</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <div class="grid two">
+        <article class="card">
+          <div class="card-heading"><div><p class="eyebrow">IN-GAME SHORTCUTS</p><h2>Control the overlay without Alt-Tab</h2></div></div>
+          <p>Clear a field to disable that shortcut. Use a different key combination for each action.</p>
+          <div class="form-grid">
+            <label>Show or hide overlay<input id="toggle-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+S"></label>
+            <label>Move and resize overlay<input id="edit-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+E"></label>
+            <label>Reload scoreboard HTML<input id="reload-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+R"></label>
+            <label>Toggle automatic visibility<input id="automatic-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+A"></label>
+            <label>Capture calibration picture<input id="calibration-capture-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+C"></label>
+            <label>Open scorebug resizer<input id="quick-settings-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+O"></label>
+            <label>Force a fresh read<input id="fresh-read-hotkey" spellcheck="false" placeholder="CommandOrControl+Alt+F"></label>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-heading"><div><p class="eyebrow">OVERLAY BEHAVIOR</p><h2>How the app behaves in-game</h2></div></div>
+          <label class="check"><input id="auto-hide" type="checkbox" checked><span>Hide when the donor scoreboard is absent</span></label>
+          <label class="check"><input id="hide-unfocused" type="checkbox" checked><span>Hide when CFB27 is not focused</span></label>
+          <label class="check"><input id="overlay-click-through" type="checkbox" checked><span>Let mouse clicks pass through the overlay when it is locked</span></label>
+          <label class="check"><input id="overlay-always-on-top" type="checkbox" checked><span>Keep the overlay above the game and other windows</span></label>
+          <p class="hint">The scorebug resizer opens without taking keyboard focus from the game. It only moves, resizes, or crops the scorebug; adjust reader boxes from the Reading Areas tab.</p>
+        </article>
+      </div>
+      <article class="card advanced-card">
+        <div class="button-row">
+          <button id="btn-save-app-settings" class="primary">Save app settings</button>
+          <button id="btn-reset-app-shortcuts">Reset shortcut fields</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" data-panel="library">
+      <article class="card theme-library-card">
+        <div class="card-heading">
+          <div><p class="eyebrow">SAVED HTML THEMES</p><h2>Your scoreboard library <span id="theme-library-heading-count" class="badge neutral">0 saved</span></h2></div>
+          <button id="btn-import-theme-library" class="primary">Import HTML to library</button>
+        </div>
+        <div class="library-format-callout">
+          <strong>In Claude, download “Standalone HTML.”</strong>
+          <span>Choose one self-contained <code>.html</code> file. Do not choose Project HTML, a ZIP, or a <code>.dc.html</code> file that needs <code>support.js</code>.</span>
+        </div>
+        <details class="html-requirements">
+          <summary>Exact HTML requirements for live game data</summary>
+          <p>Keep CSS, JavaScript, SVG, fonts, and images inside the one HTML file. Put <code>data-cfb27-scorebug</code> on the visible scorebug root. For reliable updates, mark fields with <code>data-cfb27-bind</code>.</p>
+          <p class="binding-list"><code>away.name</code> <code>away.nickname</code> <code>away.rank</code> <code>away.record</code> <code>away.score</code> <code>away.timeouts</code> <code>away.possession</code> <code>away.logo</code> <code>home.name</code> <code>home.nickname</code> <code>home.rank</code> <code>home.record</code> <code>home.score</code> <code>home.timeouts</code> <code>home.possession</code> <code>home.logo</code> <code>game.quarter</code> <code>game.clock</code> <code>game.playClock</code> <code>game.downDistance</code></p>
+          <p>Each standalone HTML can declare its own canvas shape. The game-reading boxes stay independent from the selected scoreboard design.</p>
+        </details>
+        <p class="hint">Importing saves a copy; it does not change your current overlay. Choose <strong>Use this theme</strong> on a compatible card when you are ready.</p>
+        <div id="theme-library-grid" class="theme-library-grid" aria-live="polite">
+          <div class="theme-library-empty">No imported HTML themes yet.</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" data-panel="diagnostics">
+      <div class="advanced-page-heading"><div><p class="eyebrow">SUPPORT</p><h2>Diagnostics</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <article class="card">
+        <div class="card-heading"><div><p class="eyebrow">AUTOMATIC DATA EXTRACTION</p><h2>CSV, events, text, and screenshots</h2></div><div class="button-row"><button id="btn-open-data-export" class="primary">Open data folder</button></div></div>
+        <p class="status-detail">The test build writes validated scorebug changes to <strong>scoreboard.csv</strong> and saves discovered touchdown, penalty, and statistics text while the reader runs.</p>
+        <p id="ram-reader-status" class="status-detail">Read-only RAM reader is starting inside this app.</p>
+      </article>
+      <article class="card">
+        <div class="card-heading"><div><p class="eyebrow">LIVE READER EVIDENCE</p><h2>Field reads</h2></div><div class="button-row"><button id="btn-save-debug-crops">Save reader debug images</button></div></div>
+        <p id="field-diagnostics-summary" class="status-detail">No local reader data yet. Start the reader with the game scorebug visible.</p>
+        <table id="field-diagnostics" class="field-diagnostics" hidden>
+          <thead><tr><th>Field</th><th>Last read</th><th>Team diagnosis</th><th>Accepted</th><th>Confidence</th></tr></thead>
+          <tbody id="field-diagnostics-body"></tbody>
+        </table>
+      </article>
+      <article class="card">
+        <div class="card-heading"><div><p class="eyebrow">LOCAL LOG</p><h2>Activity log</h2></div><div class="button-row"><button id="btn-open-logs">Open log folder</button><button id="btn-copy-diagnostics">Copy report</button><button id="btn-clear-log">Clear view</button></div></div>
+        <pre id="log-output">Application ready. The game has not been launched by this app.</pre>
+      </article>
+    </section>
+  </main>
+
+  <section id="setup-wizard" class="setup-wizard" role="dialog" aria-modal="true" aria-labelledby="setup-wizard-title" aria-describedby="setup-wizard-detail" hidden>
+    <div id="setup-wizard-dialog" class="setup-wizard-dialog" tabindex="-1">
+      <header class="setup-wizard-header">
+        <div>
+          <p class="eyebrow">GUIDED SETUP</p>
+          <h1 id="setup-wizard-title">Set up the live scoreboard reader</h1>
+        </div>
+        <span id="setup-wizard-progress" class="badge neutral" aria-live="polite">Step 1 of 5</span>
+      </header>
+
+      <nav class="setup-wizard-progress" aria-label="Setup progress">
+        <ol id="setup-wizard-progress-list">
+          <li id="setup-wizard-progress-step-1" data-wizard-progress-step="1" aria-current="step"><span>1</span><strong>Window</strong></li>
+          <li id="setup-wizard-progress-step-2" data-wizard-progress-step="2"><span>2</span><strong>Capture</strong></li>
+          <li id="setup-wizard-progress-step-3" data-wizard-progress-step="3"><span>3</span><strong>Auto-detect</strong></li>
+          <li id="setup-wizard-progress-step-4" data-wizard-progress-step="4"><span>4</span><strong>Live reads</strong></li>
+          <li id="setup-wizard-progress-step-5" data-wizard-progress-step="5"><span>5</span><strong>Overlay</strong></li>
+        </ol>
+      </nav>
+
+      <div class="setup-wizard-body">
+        <section id="setup-wizard-step-1" class="setup-wizard-step" data-wizard-step="1" aria-labelledby="setup-wizard-step-1-title">
+          <p class="eyebrow">WELCOME &amp; GAME WINDOW</p>
+          <h2 id="setup-wizard-step-1-title">Start with the correct game window</h2>
+          <p>Open College Football 27 in Borderless mode, enter a game, and select its window underneath this guide. Keep the supported native scorebug visible while you set up the reader.</p>
+          <ul class="setup-wizard-checklist">
+            <li>Use the same supported scorebug layout as the reader profile.</li>
+            <li>Keep the game visible and choose its window, not a launcher.</li>
+          </ul>
+        </section>
+
+        <section id="setup-wizard-step-2" class="setup-wizard-step" data-wizard-step="2" aria-labelledby="setup-wizard-step-2-title" hidden>
+          <p class="eyebrow">CAPTURE GEOMETRY</p>
+          <h2 id="setup-wizard-step-2-title">Confirm the native game-window shape</h2>
+          <p>The app reads the game window at its real aspect ratio and chooses the closest height preset. A 3440 x 1440 ultrawide window uses the 1440p size preset without being stretched to 16:9.</p>
+          <ul class="setup-wizard-checklist">
+            <li>Use the game render height, not only the monitor label.</li>
+            <li>Ultrawide, widescreen, and custom window widths are supported.</li>
+          </ul>
+        </section>
+
+        <section id="setup-wizard-step-3" class="setup-wizard-step" data-wizard-step="3" aria-labelledby="setup-wizard-step-3-title" hidden>
+          <p class="eyebrow">AUTOMATIC SCOREBUG DETECTION</p>
+          <h2 id="setup-wizard-step-3-title">Confirm the app found the scorebug</h2>
+          <p>The amber box shows the outer crop measured from the current game pixels. No manual placement or reader-file export is required for normal use.</p>
+          <ul class="setup-wizard-checklist">
+            <li>The complete scorebug should sit inside the amber outline.</li>
+            <li>Use optional tuning only if an individual inner field box needs adjustment.</li>
+          </ul>
+        </section>
+
+        <section id="setup-wizard-step-4" class="setup-wizard-step" data-wizard-step="4" aria-labelledby="setup-wizard-step-4-title" hidden>
+          <p class="eyebrow">VERIFY LIVE READS</p>
+          <h2 id="setup-wizard-step-4-title">Confirm the reader sees the scoreboard</h2>
+          <p>With the scorebug visible, confirm both teams and scores, quarter, game clock, and down-and-distance appear in the Home preview.</p>
+          <ul class="setup-wizard-checklist">
+            <li>Wait for several complete reads on a slower computer.</li>
+            <li>If values stay blank, check the CAPTURE tile and refresh the live reader view.</li>
+          </ul>
+        </section>
+
+        <section id="setup-wizard-step-5" class="setup-wizard-step" data-wizard-step="5" aria-labelledby="setup-wizard-step-5-title" hidden>
+          <p class="eyebrow">PLACE OVERLAY &amp; FINISH</p>
+          <h2 id="setup-wizard-step-5-title">Put the overlay where you want it</h2>
+          <p>Show the overlay, choose Move overlay, drag it into position, and save that position. Turn Automatic visibility back on if you want it to follow the native scorebug.</p>
+          <ul class="setup-wizard-checklist">
+            <li>Verify the overlay appears on the same display as the game.</li>
+            <li>Finish only after its position and live values look correct.</li>
+          </ul>
+        </section>
+      </div>
+
+      <div id="setup-wizard-feedback" class="setup-wizard-feedback" role="status" aria-live="polite" aria-atomic="true">
+        <span class="dot warn" aria-hidden="true"></span>
+        <div>
+          <strong id="setup-wizard-status">Ready to begin</strong>
+          <p id="setup-wizard-detail">Open the game in Borderless mode and keep its live scorebug visible.</p>
+        </div>
+      </div>
+
+      <footer class="setup-wizard-actions">
+        <button id="btn-setup-wizard-skip" class="quiet-button" type="button">Skip setup</button>
+        <div class="button-row">
+          <button id="btn-setup-wizard-back" type="button" disabled>Back</button>
+          <button id="btn-setup-wizard-next" class="primary" type="button">Next</button>
+          <button id="btn-setup-wizard-finish" class="primary" type="button" hidden>Finish</button>
+        </div>
+      </footer>
+    </div>
+  </section>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="read-region.js"></script>
+  <script src="roi-auto-fit.js"></script>
+  <script src="preset-read-region.js"></script>
+  <script src="resolution-profile.js"></script>
+  <script src="chroma-key.js"></script>
+  <script src="wizard-verification.js"></script>
+  <script src="control.js"></script>
+</body>
+</html>

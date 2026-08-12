@@ -1,0 +1,24 @@
+{
+  "away": {
+    "name": "Georgia",
+    "score": 0,
+    "timeouts": 3,
+    "possession": false
+  },
+  "home": {
+    "name": "USC",
+    "score": 0,
+    "timeouts": 3,
+    "possession": true
+  },
+  "game": {
+    "quarter": "1st",
+    "clock": "5:00",
+    "playClock": 0,
+    "down": 0,
+    "distance": 0
+  },
+  "meta": {
+    "updatedAt": "2026-08-09T22:58:30-04:00"
+  }
+}

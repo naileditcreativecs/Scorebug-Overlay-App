@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob: file:; img-src 'self' data: blob: file:; frame-src 'self' data: blob: file:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';">
+  <title>HTML Scoreboard Library</title>
+  <link rel="stylesheet" href="library.css">
+</head>
+<body>
+  <header>
+    <div>
+      <p class="eyebrow">CFB27 SCOREBOARD OVERLAY</p>
+      <h1>HTML Scoreboard Library</h1>
+      <p class="subtitle">This window is separate from game capture and the overlay controls.</p>
+    </div>
+    <div class="actions">
+      <button id="refresh-library">Refresh</button>
+      <button id="import-theme" class="primary">Import Standalone HTML</button>
+      <button id="close-library">Close library</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="original-status" class="original-status checking">
+      <strong>Original ESPN 2013</strong>
+      <span>Verifying the saved original…</span>
+    </section>
+
+    <section class="format-note">
+      <strong>Correct Claude download: Standalone HTML</strong>
+      <span>One self-contained <code>.html</code> file—no Project ZIP, <code>.dc.html</code>, <code>support.js</code>, asset folders, or CDN files.</span>
+    </section>
+
+    <div class="library-heading">
+      <div><p class="eyebrow">SAVED SCOREBOARDS</p><h2><span id="theme-count">0</span> in your library</h2></div>
+      <span id="library-message" role="status">Loading…</span>
+    </div>
+    <section id="theme-grid" class="theme-grid" aria-live="polite"></section>
+  </main>
+
+  <script src="library.js"></script>
+</body>
+</html>

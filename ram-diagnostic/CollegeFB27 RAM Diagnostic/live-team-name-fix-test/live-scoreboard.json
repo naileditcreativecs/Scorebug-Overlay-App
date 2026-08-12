@@ -1,0 +1,42 @@
+{
+  "away": {
+    "rank": null,
+    "name": null,
+    "nickname": null,
+    "record": null,
+    "score": 0,
+    "timeouts": 3,
+    "possession": true,
+    "color": null
+  },
+  "home": {
+    "rank": null,
+    "name": null,
+    "nickname": null,
+    "record": null,
+    "score": 8,
+    "timeouts": 2,
+    "possession": false,
+    "color": null
+  },
+  "game": {
+    "quarter": "1st",
+    "clock": "2:38",
+    "playClock": 39,
+    "downDistance": "3rd & 13",
+    "down": 3,
+    "distance": 13,
+    "ballOn": null,
+    "status": null
+  },
+  "meta": {
+    "source": "ram+screen",
+    "visible": false,
+    "confidence": 0.175,
+    "updatedAt": "2026-08-09T16:20:57.893Z",
+    "timestampMs": 1786292560488,
+    "ramProcessId": 46408,
+    "ramProfileScope": "automatic-read-only-signatures",
+    "ramUpdatedAt": "2026-08-09T16:20:57.8938549Z"
+  }
+}

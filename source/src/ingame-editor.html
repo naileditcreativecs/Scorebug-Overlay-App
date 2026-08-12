@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CFB27 In-Game Overlay Controls</title>
+  <link rel="stylesheet" href="ingame-editor.css">
+</head>
+<body>
+  <main id="editor" class="editor">
+    <header class="toolbar">
+      <div class="heading">
+        <strong>IN-GAME OVERLAY CONTROLS</strong>
+        <span id="game-status">Opening without taking game focus...</span>
+      </div>
+      <nav class="view-tabs" aria-label="In-game control page">
+        <button id="view-resize" type="button" aria-pressed="true">Resize</button>
+        <button id="view-teams" type="button" aria-pressed="false">Teams, ranks &amp; logos</button>
+      </nav>
+      <div class="actions">
+        <span class="resize-actions">
+          <button id="crop-toggle" type="button" aria-pressed="false">Crop edges: OFF</button>
+          <button id="reset-crop" type="button">Reset crop</button>
+        </span>
+        <button id="save-close" class="primary" type="button">Done</button>
+      </div>
+    </header>
+
+    <section class="stage" aria-label="Scorebug resize surface">
+      <div id="no-game" class="notice hidden">Game window not detected. The resizer is aligned to the primary display.</div>
+      <div id="output-box" class="output-box">
+        <span class="box-label">DRAG TO MOVE - HANDLES RESIZE</span>
+        <span class="resize-handle" data-handle="n"></span>
+        <span class="resize-handle" data-handle="s"></span>
+        <span class="resize-handle" data-handle="e"></span>
+        <span class="resize-handle" data-handle="w"></span>
+        <span class="resize-handle" data-handle="ne"></span>
+        <span class="resize-handle" data-handle="nw"></span>
+        <span class="resize-handle" data-handle="se"></span>
+        <span class="resize-handle" data-handle="sw"></span>
+      </div>
+      <div id="away-logo-direct-editor" class="logo-direct-editor hidden" data-side="away" aria-label="Edit the away logo on the live scorebug">
+        <img id="away-logo-direct-image" class="logo-direct-image" alt="" draggable="false">
+        <span class="logo-direct-label">AWAY LOGO · DRAG TO MOVE</span>
+        <span class="logo-direct-handle handle-nw" data-logo-action="resize" aria-hidden="true"></span>
+        <span class="logo-direct-handle handle-ne" data-logo-action="resize" aria-hidden="true"></span>
+        <span class="logo-direct-handle handle-se" data-logo-action="resize" aria-hidden="true"></span>
+        <span class="logo-direct-handle handle-sw" data-logo-action="resize" aria-hidden="true"></span>
+        <span class="logo-rotate-stem" aria-hidden="true"></span>
+        <span class="logo-rotate-handle" data-logo-action="rotate" title="Drag to rotate" aria-hidden="true"></span>
+      </div>
+      <div id="home-logo-direct-editor" class="logo-direct-editor hidden" data-side="home" aria-label="Edit the home logo on the live scorebug">
+        <img id="home-logo-direct-image" class="logo-direct-image" alt="" draggable="false">
+        <span class="logo-direct-label">HOME LOGO · DRAG TO MOVE</span>
+        <span class="logo-direct-handle handle-nw" data-logo-action="resize" aria-hidden="true"></span>
+        <span class="logo-direct-handle handle-ne" data-logo-action="resize" aria-hidden="true"></span>
+        <span class="logo-direct-handle handle-se" data-logo-action="resize" aria-hidden="true"></span>
+        <span class="logo-direct-handle handle-sw" data-logo-action="resize" aria-hidden="true"></span>
+        <span class="logo-rotate-stem" aria-hidden="true"></span>
+        <span class="logo-rotate-handle" data-logo-action="rotate" title="Drag to rotate" aria-hidden="true"></span>
+      </div>
+      <section id="team-panel" class="team-panel hidden" aria-label="Manual team and rank overrides">
+        <header class="team-panel-heading">
+          <div>
+            <strong>TEAM, RANK &amp; LOGO OVERRIDES</strong>
+            <p>OCR keeps reading every field. Logo choices are filtered to the team that was detected.</p>
+          </div>
+          <span id="reader-mode" class="reader-mode">Reader: automatic</span>
+        </header>
+        <div class="team-grid">
+          <article class="team-card" data-side="away">
+            <div class="side-heading"><strong>AWAY</strong><span id="away-output">Output: waiting</span></div>
+            <label>Team<button id="away-team" class="picker-trigger" type="button" aria-label="Choose away team override">Auto (OCR)</button></label>
+            <label>Rank<button id="away-rank" class="picker-trigger" type="button" aria-label="Choose away rank override">Auto (OCR)</button></label>
+            <label>Logo<div class="current-logo-choice"><img id="away-current-logo" alt="" draggable="false"><button id="away-logo" class="picker-trigger" type="button" aria-label="Choose the away team's logo">Waiting for team</button></div></label>
+            <div class="logo-actions">
+              <button id="away-import-logo" type="button">Import logo</button>
+              <button id="away-delete-logo" class="danger hidden" type="button">Delete imported</button>
+              <button id="away-restore-logo-defaults" class="restore-defaults" type="button">Restore default logo &amp; placement</button>
+            </div>
+            <section class="logo-transform" data-side="away" aria-label="Adjust away logo">
+              <div class="logo-transform-heading"><strong>LOGO PLACEMENT</strong><span id="away-logo-trim-info">Saved for this HTML</span></div>
+              <div id="away-logo-preview" class="logo-live-preview" data-side="away">
+                <img id="away-logo-capture" class="logo-scorebug-capture" alt="Captured scorebug placement reference" draggable="false">
+                <span id="away-logo-capture-marker" class="logo-capture-marker" aria-hidden="true"></span>
+                <span class="preview-crosshair" aria-hidden="true"></span>
+                <img id="away-logo-preview-image" alt="Away logo live position preview" draggable="false">
+                <span class="preview-help">DRAG LOGO TO MOVE</span>
+              </div>
+              <div class="logo-capture-row"><span id="away-logo-geometry">Waiting for live logo position</span><button id="away-capture-logo" type="button">Capture scorebug view</button></div>
+              <label><span>Left / right</span><input id="away-logo-x" data-logo-control="x" type="range" min="-500" max="500" step="1" tabindex="-1"><span class="logo-number-field"><input id="away-logo-x-number" data-logo-number="x" type="number" min="-500" max="500" step="1"><i>px</i></span><output id="away-logo-x-value"></output></label>
+              <label><span>Up / down</span><input id="away-logo-y" data-logo-control="y" type="range" min="-500" max="500" step="1" tabindex="-1"><span class="logo-number-field"><input id="away-logo-y-number" data-logo-number="y" type="number" min="-500" max="500" step="1"><i>px</i></span><output id="away-logo-y-value"></output></label>
+              <label><span>Size</span><input id="away-logo-scale" data-logo-control="scale" type="range" min="10" max="500" step="1" tabindex="-1"><span class="logo-number-field"><input id="away-logo-scale-number" data-logo-number="scale" type="number" min="10" max="500" step="1"><i>%</i></span><output id="away-logo-scale-value"></output></label>
+              <label><span>Rotation</span><input id="away-logo-rotation" data-logo-control="rotation" type="range" min="-180" max="180" step="1" tabindex="-1"><span class="logo-number-field"><input id="away-logo-rotation-number" data-logo-number="rotation" type="number" min="-180" max="180" step="1"><i>&deg;</i></span><output id="away-logo-rotation-value"></output></label>
+              <button id="away-reset-logo-transform" class="reset-logo-transform" type="button">Reset position, size &amp; rotation</button>
+            </section>
+            <p id="away-reader" class="reader-value">OCR currently: waiting</p>
+          </article>
+          <article class="team-card" data-side="home">
+            <div class="side-heading"><strong>HOME</strong><span id="home-output">Output: waiting</span></div>
+            <label>Team<button id="home-team" class="picker-trigger" type="button" aria-label="Choose home team override">Auto (OCR)</button></label>
+            <label>Rank<button id="home-rank" class="picker-trigger" type="button" aria-label="Choose home rank override">Auto (OCR)</button></label>
+            <label>Logo<div class="current-logo-choice"><img id="home-current-logo" alt="" draggable="false"><button id="home-logo" class="picker-trigger" type="button" aria-label="Choose the home team's logo">Waiting for team</button></div></label>
+            <div class="logo-actions">
+              <button id="home-import-logo" type="button">Import logo</button>
+              <button id="home-delete-logo" class="danger hidden" type="button">Delete imported</button>
+              <button id="home-restore-logo-defaults" class="restore-defaults" type="button">Restore default logo &amp; placement</button>
+            </div>
+            <section class="logo-transform" data-side="home" aria-label="Adjust home logo">
+              <div class="logo-transform-heading"><strong>LOGO PLACEMENT</strong><span id="home-logo-trim-info">Saved for this HTML</span></div>
+              <div id="home-logo-preview" class="logo-live-preview" data-side="home">
+                <img id="home-logo-capture" class="logo-scorebug-capture" alt="Captured scorebug placement reference" draggable="false">
+                <span id="home-logo-capture-marker" class="logo-capture-marker" aria-hidden="true"></span>
+                <span class="preview-crosshair" aria-hidden="true"></span>
+                <img id="home-logo-preview-image" alt="Home logo live position preview" draggable="false">
+                <span class="preview-help">DRAG LOGO TO MOVE</span>
+              </div>
+              <div class="logo-capture-row"><span id="home-logo-geometry">Waiting for live logo position</span><button id="home-capture-logo" type="button">Capture scorebug view</button></div>
+              <label><span>Left / right</span><input id="home-logo-x" data-logo-control="x" type="range" min="-500" max="500" step="1" tabindex="-1"><span class="logo-number-field"><input id="home-logo-x-number" data-logo-number="x" type="number" min="-500" max="500" step="1"><i>px</i></span><output id="home-logo-x-value"></output></label>
+              <label><span>Up / down</span><input id="home-logo-y" data-logo-control="y" type="range" min="-500" max="500" step="1" tabindex="-1"><span class="logo-number-field"><input id="home-logo-y-number" data-logo-number="y" type="number" min="-500" max="500" step="1"><i>px</i></span><output id="home-logo-y-value"></output></label>
+              <label><span>Size</span><input id="home-logo-scale" data-logo-control="scale" type="range" min="10" max="500" step="1" tabindex="-1"><span class="logo-number-field"><input id="home-logo-scale-number" data-logo-number="scale" type="number" min="10" max="500" step="1"><i>%</i></span><output id="home-logo-scale-value"></output></label>
+              <label><span>Rotation</span><input id="home-logo-rotation" data-logo-control="rotation" type="range" min="-180" max="180" step="1" tabindex="-1"><span class="logo-number-field"><input id="home-logo-rotation-number" data-logo-number="rotation" type="number" min="-180" max="180" step="1"><i>&deg;</i></span><output id="home-logo-rotation-value"></output></label>
+              <button id="home-reset-logo-transform" class="reset-logo-transform" type="button">Reset position, size &amp; rotation</button>
+            </section>
+            <p id="home-reader" class="reader-value">OCR currently: waiting</p>
+          </article>
+        </div>
+        <aside id="choice-picker" class="choice-picker hidden" aria-label="Override choices">
+          <header><strong id="choice-picker-title">Choose override</strong><button id="close-choice-picker" type="button">Close</button></header>
+          <div id="choice-picker-list" class="choice-picker-list"></div>
+        </aside>
+        <aside id="logo-number-pad" class="logo-number-pad hidden" aria-label="Enter an exact logo placement value">
+          <header><strong id="logo-number-pad-title">Enter exact value</strong><button id="close-logo-number-pad" type="button">Close</button></header>
+          <output id="logo-number-pad-display">0</output>
+          <div class="logo-number-pad-grid">
+            <button type="button" data-logo-digit="1">1</button><button type="button" data-logo-digit="2">2</button><button type="button" data-logo-digit="3">3</button>
+            <button type="button" data-logo-digit="4">4</button><button type="button" data-logo-digit="5">5</button><button type="button" data-logo-digit="6">6</button>
+            <button type="button" data-logo-digit="7">7</button><button type="button" data-logo-digit="8">8</button><button type="button" data-logo-digit="9">9</button>
+            <button type="button" data-logo-number-action="sign">+/-</button><button type="button" data-logo-digit="0">0</button><button type="button" data-logo-number-action="backspace">&#9003;</button>
+          </div>
+          <footer><button id="clear-logo-number" type="button">Clear</button><button id="apply-logo-number" class="primary" type="button">Apply value</button></footer>
+        </aside>
+        <footer class="team-panel-footer">
+          <span>Team/rank overrides last for this session. Imported logos and placement are remembered without changing OCR.</span>
+          <button id="clear-team-overrides" type="button">Return both teams to Auto</button>
+        </footer>
+      </section>
+      <div id="instructions" class="instructions">The game keeps focus. Drag the blue box to move it, or drag an edge/corner to resize. Press Ctrl+Alt+O again to close.</div>
+    </section>
+    <output id="toast" class="toast" aria-live="polite"></output>
+  </main>
+  <script src="ingame-editor.js"></script>
+</body>
+</html>

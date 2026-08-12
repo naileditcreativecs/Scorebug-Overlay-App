@@ -1,0 +1,7 @@
+node_modules/
+tester-builds/
+build-tools/
+win-unpacked/
+*.zip
+UserData/
+data-export/

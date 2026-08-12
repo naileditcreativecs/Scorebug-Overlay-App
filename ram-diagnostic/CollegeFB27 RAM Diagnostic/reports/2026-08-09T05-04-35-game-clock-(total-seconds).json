@@ -1,0 +1,1 @@
+{"createdAt":"2026-08-09T05:04:35.5023243Z","process":"CollegeFB27","processId":54644,"field":"Game clock (total seconds)","expectedValue":100,"candidateCount":1,"savedCandidateCount":1,"candidates":[{"address":"0x00000000709828F8","value":101,"moduleOffset":"heap/private"}]}

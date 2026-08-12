@@ -1,0 +1,108 @@
+A test for this
+===============
+
+This folder is a separate copy. The original CFB27 Scoreboard Overlay project
+and release are not edited by this test.
+
+Run:
+  win-unpacked\A test for this.exe
+
+What happens automatically:
+  1. Validated scorebug changes are appended to scoreboard.csv.
+     A complete future-proof copy is also written to scoreboard.jsonl, while
+     latest-scoreboard.json always contains the newest accepted values.
+  2. Score changes create event records in events.jsonl.
+  3. The game window is periodically checked for touchdown, penalty, and
+     player-statistics text.
+  4. Matching OCR text is saved to screen-text.jsonl.
+  5. Event screenshots are saved in the session's screenshots folder.
+  6. The app starts its bundled read-only RAM reader invisibly and writes the
+     confirmed live values to data-export\live-game-data.json.
+  7. Confirmed RAM values feed the visible scorebug automatically. Screen reads
+     remain the fallback and still determine when the scorebug is visible.
+
+Choose the live data source:
+  Open "Reader & live data" in the app, then choose one:
+    - Automatic: RAM first, screen reader if RAM is unavailable.
+    - RAM reader only: confirmed RAM values only.
+    - Screen reader only: OCR values only; the hidden RAM reader turns off.
+
+  Team rankings are planned for a later build and are not yet read from RAM.
+
+Find the output:
+  Open the app's Diagnostics tab and click "Open data folder".
+
+Important first test:
+  Play or replay one game containing a touchdown and a penalty. At the end,
+  leave the Passing and Rushing statistics screens visible for at least five
+  seconds each. That first real-game output will show which exact graphic
+  regions and row formats need tighter parsing.
+
+Files named *.original.* in win-unpacked are the untouched copied release
+artifacts retained as a local backup.
+LIVE SCOREBOARD EXPORT
+======================
+
+While the app is reading a game, the newest accepted values are always written to:
+
+  win-unpacked\UserData\data-export\live-scoreboard.json
+
+This predictable file contains the team names, scores, quarter, game clock,
+play clock, possession, and timeout counts. Another local app can watch or poll
+this file for live updates. The timestamped folders keep the full session history.
+
+READ-ONLY RAM DIAGNOSTIC
+========================
+
+The normal scorebug app now starts the read-only RAM reader automatically. You
+do not need to open the separate diagnostic for ordinary use. The separate app
+below remains available only for manual discovery and troubleshooting.
+
+The visible scorebug uses RAM team names, score, quarter, game clock, play
+clock, possession, timeouts, and down/distance whenever the RAM export is live.
+
+Run:
+  ram-diagnostic\CollegeFB27 RAM Diagnostic\CollegeFB27 RAM Diagnostic.exe
+
+Keep CollegeFB27.exe and "A test for this.exe" running together. The diagnostic
+uses live-scoreboard.json as its answer key and asks Windows only for permission
+to read the game's private memory.
+
+First guided scan:
+  1. Enter an offline game and pause with a readable scorebug visible.
+  2. In the diagnostic, select "Game clock (total seconds)".
+  3. Click "First scan" and wait for it to finish.
+  4. Resume for several seconds, pause again, and wait for the JSON value to catch up.
+  5. Click "Next: live value". Repeat until the candidate count is small.
+  6. Click "Save candidates".
+
+Repeat for score, quarter, play clock, timeouts, and possession. Values that do
+not change during the session cannot be uniquely identified in one pass. A RAM
+address is not considered stable until it is found again after restarting the game.
+
+If the live reader is wrong, use the diagnostic's Manual box. Enter clocks as
+M:SS, click "Use once", and the correction will apply to the next exact scan
+only before automatically returning to live-reader values.
+
+COMBINED RAM + SCREEN EXPORT
+============================
+
+The RAM diagnostic now automatically writes:
+
+  win-unpacked\UserData\data-export\live-game-data.json
+
+That file uses confirmed RAM values for team names, score, quarter, game clock,
+play clock, down, distance, possession, and both teams' timeouts. Team-name
+buffers can be temporary during matchup loading, so the RAM diagnostic retains
+the most recent names captured directly from the game. The screen snapshot is
+included for comparison but is not the primary source.
+
+The diagnostic now relocates the confirmed RAM structures automatically after
+CollegeFB27.exe restarts. It finds the self-referencing scoreboard block, two
+timeout copies, the game's team catalog, and the active matchup names without
+reusing addresses from an earlier process. In live-game-data.json, check
+discovery.automaticLocator for the result; a successful run reports one active
+scoreboard candidate and names the two RAM-resolved teams.
+
+If CollegeFB27.exe is closed and reopened while the diagnostic stays open, the
+diagnostic automatically attaches to the new process and runs the locator again.

@@ -1,0 +1,131 @@
+﻿{
+    "createdAt":  "2026-08-09T07:37:34.0444289Z",
+    "processId":  48728,
+    "moduleBase":  "0x140000000",
+    "moduleSize":  299429888,
+    "confirmedAddresses":  {
+                               "quarter":  "0x26CC8EC",
+                               "gameClock":  "0x26CC8F4",
+                               "playClock":  "0x26CC8F8",
+                               "homeScore":  "0x26CC8FC",
+                               "awayScore":  "0x26CC900",
+                               "possession":  "0x26CC908",
+                               "down":  "0x26CC90C",
+                               "distance":  "0x26CC910",
+                               "homeTimeouts":  [
+                                                    "0x7FAE40D4",
+                                                    "0x7FAE43A4",
+                                                    "0x8942054C",
+                                                    "0x29E897DE4",
+                                                    "0x36F752B00"
+                                                ],
+                               "awayTimeoutOffset":  4,
+                               "homeTeamNames":  [
+                                                     "0x4EF590F0",
+                                                     "0x4F784480"
+                                                 ],
+                               "awayAssetPoolBase":  "0x4EE00000",
+                               "awayAssetPoolLength":  2097152
+                           },
+    "fingerprints":  {
+                         "scoreboardBlock":  {
+                                                 "address":  "0x26CC800",
+                                                 "length":  512,
+                                                 "regionBase":  "0x26CC000",
+                                                 "allocationBase":  "0x26C0000",
+                                                 "regionSize":  16384,
+                                                 "protect":  4,
+                                                 "type":  131072,
+                                                 "sha256":  "B3055C6A691A0787D180003001B37B63084C86C654A3BF5F07FE850CFB814E77",
+                                                 "bytesBase64":  "/wAAAP////8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/////AAAAAP////8AAAAA////////////AAAA/////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP////8AAAAA/////wAAAAD/////AAAAAP////8AAAAA/////wAAAAD/////AAAAAP////8AAAAA/////wAAAAD/////AAAAAP////8AAAAAAAAAAAAAAAAAT19LAQAAAMCpKUsBAAAAAAAAAEAAAADsyGwCAAAAAAAB//8DAAAA/////8cAAAAZAAAACgAAAAYAAAABAAAAAAAAAAIAAAAPAAAA4v///+f///8BAAAAAAAAAAAAAAAAAAAAAAAAAADupUsBAAAA4HPghwAAAABwGHIPHAAAAAACAAABAAAAAAAAAAAAAABIbtsCAAAAAAAAAAAAAAAAoQEAAAAAAAAAAAAAAAAAAAAAAAIAAAAAEMtsAgAAAACw0GwCAAAAAFDWbAIAAAAA8NtsAgAAAACQ4WwCAAAAADDnbAIAAAAA0OxsAgAAAABw8mwCAAAAABD4bAIAAAAAkKUNxwMAAAAwqw3HAwAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                                             },
+                         "homeTimeoutCopy1":  {
+                                                  "address":  "0x7FAE4090",
+                                                  "length":  128,
+                                                  "regionBase":  "0x7FAE4000",
+                                                  "allocationBase":  "0x7F5C0000",
+                                                  "regionSize":  5095424,
+                                                  "protect":  4,
+                                                  "type":  131072,
+                                                  "sha256":  "2F82159BC379FF0A80A1A814600125F661B634986DAAE5866ABC3B591E0083AC",
+                                                  "bytesBase64":  "AAAAAP7///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8PAAAAAAADAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAQABAAAAAAAAAAAAAAAAAAAAAAAAAAAAgEE="
+                                              },
+                         "homeTimeoutCopy2":  {
+                                                  "address":  "0x7FAE4360",
+                                                  "length":  128,
+                                                  "regionBase":  "0x7FAE4000",
+                                                  "allocationBase":  "0x7F5C0000",
+                                                  "regionSize":  5095424,
+                                                  "protect":  4,
+                                                  "type":  131072,
+                                                  "sha256":  "2F82159BC379FF0A80A1A814600125F661B634986DAAE5866ABC3B591E0083AC",
+                                                  "bytesBase64":  "AAAAAP7///8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//8PAAAAAAADAAAAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAQABAAAAAAAAAAAAAAAAAAAAAAAAAAAAgEE="
+                                              },
+                         "homeTimeoutCopy3":  {
+                                                  "address":  "0xFFFFFFFF89420508",
+                                                  "length":  0,
+                                                  "regionBase":  null,
+                                                  "allocationBase":  null,
+                                                  "regionSize":  0,
+                                                  "protect":  0,
+                                                  "type":  0,
+                                                  "sha256":  null,
+                                                  "bytesBase64":  ""
+                                              },
+                         "homeTimeoutCopy4":  {
+                                                  "address":  "0x29E897DA0",
+                                                  "length":  128,
+                                                  "regionBase":  "0x29E897000",
+                                                  "allocationBase":  "0x29E890000",
+                                                  "regionSize":  167936,
+                                                  "protect":  4,
+                                                  "type":  131072,
+                                                  "sha256":  "38723A2E5E8A17AA7950DC008209944E898F69A7BD10A23C839D341E935FD5CA",
+                                                  "bytesBase64":  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                                              },
+                         "homeTimeoutCopy5":  {
+                                                  "address":  "0x36F752AC0",
+                                                  "length":  128,
+                                                  "regionBase":  "0x36F752000",
+                                                  "allocationBase":  "0x36F6E0000",
+                                                  "regionSize":  1630208,
+                                                  "protect":  4,
+                                                  "type":  131072,
+                                                  "sha256":  "A8CC0A90238528554F21E4092DF8F75A2435B2D1FCC2033C612C5BD4DDEB8E55",
+                                                  "bytesBase64":  "YAEAAAAAAABBAQAAAAAAANhSW0sBAAAAAE9fSwEAAADwRllLAQAAAAAAAAD8AAAA+Cp1bwMAAAAAAIA/AACAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+                                              },
+                         "homeTeamName1":  {
+                                               "address":  "0x4EF590C0",
+                                               "length":  128,
+                                               "regionBase":  "0x4EF59000",
+                                               "allocationBase":  "0x4E9C0000",
+                                               "regionSize":  9269248,
+                                               "protect":  4,
+                                               "type":  131072,
+                                               "sha256":  "CD74833705044070DCF697BA9AE3AD7A4B3E6651FDF606960154BE7FB6729CE6",
+                                               "bytesBase64":  "sPvudQAAAACwoMlOAAAAADBReE8AAAAAAAAAAAAAAAAQp/VOAAAAAAAAAAAAAAAATm90cmUgRGFtZQBpYQAAALDqaU8AAAAAAAAAAAAAAAAQpMlOAAAAAAAAAAAAAAAAYGJdTwAAAAAAAAAAAAAAAPD5d08AAAAAAAAAAAAAAAA="
+                                           },
+                         "homeTeamName2":  {
+                                               "address":  "0x4F784450",
+                                               "length":  128,
+                                               "regionBase":  "0x4F784000",
+                                               "allocationBase":  "0x4E9C0000",
+                                               "regionSize":  704512,
+                                               "protect":  4,
+                                               "type":  131072,
+                                               "sha256":  "505FA492BB77711AD054EC4630D6131B521AFC80C43BB6B8A072F186E1209705",
+                                               "bytesBase64":  "wLT1TgAAAAAAAAAAAAAAAOC4+28DAAAAAAAAAAAAAABAHHhPAAAAAAAAAAAAAAAATm90cmUgRGFtZQBpYQAAAMBIeE8AAAAAAAAAAAAAAAAwSnhPAAAAAAAAAAAAAAAAQEKQfAAAAAAAAAAAAAAAAECc5PMDAAAAAAAAAAAAAAA="
+                                           },
+                         "awayAssetPath":  {
+                                               "address":  "0x4EE95570",
+                                               "length":  256,
+                                               "regionBase":  "0x4EE95000",
+                                               "allocationBase":  "0x4E9C0000",
+                                               "regionSize":  10072064,
+                                               "protect":  4,
+                                               "type":  131072,
+                                               "sha256":  "01D11758CAADD13AB555B4952EC04929D9B4F5B9AB46B50D1D4BB73998D51B67",
+                                               "bytesBase64":  "bC9zb2Nrc19oaWdoL3NvY2tzX2hpZ2hfaF9sYXVuY2hfcGxheWVybGVnc19icnQAY29udGVudC90cmFkaXRpb25zL3RlYW1zL3RleGFzL21hc2NvdF9jb3N0dW1lL2c1L2luaXQvdGV4X21hc2NvdF9jb3N0dW1lX2luaXRkYXRhX21hc2NvdF9icnQAAAAAY29udGVudC9jaGFyYWN0ZXJzL2hzL2hzX3BsYXllcnJlY2lwZS91bmlxdWUvdW5pcXVlX2dyZWF0aG91c2VqYWRlbl8yMTQwNF9wbGF5ZXJoZWFkX2JydAAAAAAAAAAAY29udGVudC9jaGFyYWN0ZQ=="
+                                           }
+                     }
+}

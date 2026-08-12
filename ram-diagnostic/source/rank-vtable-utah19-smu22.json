@@ -1,0 +1,1 @@
+{"passed":false,"error":"System.ComponentModel.Win32Exception (0x80004005): Could not read the selected memory range.\r\n   at CollegeFootballRamDiagnostic.MemoryScanner.ReadBytes(Int64 address, Int32 length)\r\n   at CollegeFootballRamDiagnostic.RankVtableProbe.Run(String outputPath, String moduleOffsetText)"}

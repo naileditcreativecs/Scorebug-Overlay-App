@@ -1,0 +1,39 @@
+CFB27 SCOREBOARD TEST BUILD
+===========================
+
+START
+  1. Extract the entire ZIP before opening anything.
+  2. Start College Football 27 and enter an offline game.
+  3. Double-click "A test for this.exe".
+
+DO NOT OPEN
+  Do not open CollegeFB27RamReader.exe. The scorebug app starts it invisibly
+  whenever Automatic or RAM reader is selected.
+
+CHOOSE THE LIVE DATA SOURCE
+  In the app, open "Reader & live data" and use "Use values from":
+
+  Automatic (recommended)
+    Uses RAM when connected and falls back to screen-reader values.
+
+  RAM reader only
+    Publishes confirmed RAM values only. The screen reader still determines
+    whether the game's native scorebug is visible.
+
+  Screen reader only
+    Publishes screen-reader/OCR values only and turns off the hidden RAM reader.
+
+WHAT TO TEST
+  During a game, compare team names, scores, quarter, game clock, play clock,
+  possession, timeouts, and down/distance in each source mode.
+
+REPORT A PROBLEM
+  Open Diagnostics, click "Copy report", and send the copied report with a
+  screenshot of the in-game scorebug.
+
+KNOWN FOLLOW-UP
+  Team rankings are not yet read from RAM. They will be added later.
+
+PRIVACY / SAFETY
+  This build reads the College Football 27 process with read-only permission.
+  It does not write to or patch game memory. Use it only in offline/modded play.

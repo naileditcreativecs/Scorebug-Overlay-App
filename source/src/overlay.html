@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: blob:; frame-src cfb27-theme:; child-src cfb27-theme:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>CFB27 Scoreboard Overlay Version 1.0</title>
+    <link rel="stylesheet" href="overlay.css">
+  </head>
+  <body>
+    <svg class="chroma-filter-definitions" width="0" height="0" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id="cfb27-chroma-key-filter" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+          <feFlood id="cfb27-chroma-key-color" flood-color="#00ff00" result="key-color"></feFlood>
+          <feBlend in="SourceGraphic" in2="key-color" mode="difference" result="key-difference"></feBlend>
+          <feColorMatrix id="cfb27-chroma-key-matrix" in="key-difference" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 8.333333 8.333333 8.333333 0 -1.5" result="key-mask"></feColorMatrix>
+          <feComposite in="SourceGraphic" in2="key-mask" operator="in"></feComposite>
+        </filter>
+      </defs>
+    </svg>
+    <main id="overlay" class="overlay is-loading" aria-label="CFB27 scoreboard overlay">
+      <div class="native-cover" aria-hidden="true"></div>
+      <webview
+        id="theme-view"
+        class="theme-view"
+        title="Custom scoreboard HTML"
+        partition="cfb27-theme"
+        webpreferences="contextIsolation=yes, nodeIntegration=no, sandbox=yes"
+        tabindex="-1"
+      ></webview>
+
+      <section id="mock-scoreboard" class="mock-scoreboard" aria-label="Mock scoreboard">
+        <div class="mock-team mock-away">
+          <div class="team-heading"><span data-mock="away.rank">18</span><strong data-mock="away.name">SYRACUSE</strong><span data-mock="away.record">5-1</span></div>
+          <div class="timeouts" data-mock-timeouts="away"><i></i><i></i><i></i></div>
+          <div class="team-score"><strong data-mock="away.score">14</strong><span class="possession is-active" data-mock-possession="away">&#9654;</span><span class="helmet-mark">S</span></div>
+        </div>
+        <div class="mock-team mock-home">
+          <div class="team-heading"><span data-mock="home.rank">7</span><strong data-mock="home.name">MIAMI</strong><span data-mock="home.record">6-0</span></div>
+          <div class="timeouts" data-mock-timeouts="home"><i></i><i></i><i class="is-used"></i></div>
+          <div class="team-score"><strong data-mock="home.score">10</strong><span class="possession" data-mock-possession="home">&#9654;</span><span class="helmet-mark">M</span></div>
+        </div>
+        <div class="mock-game-row">
+          <strong data-mock="game.quarter">2ND</strong>
+          <strong data-mock="game.clock">8:42</strong>
+          <strong class="play-clock" data-mock="game.playClock">25</strong>
+        </div>
+        <div class="mock-down-row"><strong data-mock="game.downDistance">3RD &amp; 7</strong></div>
+      </section>
+
+      <div class="edit-outline" aria-hidden="true"></div>
+      <div class="resize-handle resize-nw" data-resize-handle="nw" aria-label="Resize from top left"></div>
+      <div class="resize-handle resize-n" data-resize-handle="n" aria-label="Resize from top"></div>
+      <div class="resize-handle resize-ne" data-resize-handle="ne" aria-label="Resize from top right"></div>
+      <div class="resize-handle resize-e" data-resize-handle="e" aria-label="Resize from right"></div>
+      <div class="resize-handle resize-se" data-resize-handle="se" aria-label="Resize from bottom right"></div>
+      <div class="resize-handle resize-s" data-resize-handle="s" aria-label="Resize from bottom"></div>
+      <div class="resize-handle resize-sw" data-resize-handle="sw" aria-label="Resize from bottom left"></div>
+      <div class="resize-handle resize-w" data-resize-handle="w" aria-label="Resize from left"></div>
+      <nav class="edit-toolbar" aria-label="Overlay controls">
+        <span class="drag-handle" title="Drag this header to move the overlay">DRAG TO MOVE</span>
+        <button id="toggle-crop" type="button" aria-pressed="false">Crop</button>
+        <button id="reset-crop" type="button">Reset crop</button>
+        <button id="finish-edit" type="button">Lock</button>
+      </nav>
+      <aside id="quick-settings" class="quick-settings" aria-label="In-game overlay settings">
+        <div class="quick-settings-heading"><strong>OVERLAY CONTROLS</strong><span id="edit-mode-help">Drag the green border to resize</span></div>
+        <button id="quick-crop" type="button" aria-pressed="false">Crop edges: OFF</button>
+        <button id="quick-reset-crop" type="button">Reset crop</button>
+        <button id="quick-fresh-read" type="button">Fresh read</button>
+        <button id="quick-green-screen" type="button" aria-pressed="false">Green screen: OFF</button>
+        <button id="quick-follow-game" type="button">Reset to game position</button>
+        <button id="quick-finish" class="quick-primary" type="button">Save &amp; close</button>
+      </aside>
+      <output id="status" class="status" aria-live="polite">Starting overlay…</output>
+    </main>
+    <script src="logo-source.js"></script>
+    <script src="claude-dc-bridge.js"></script>
+    <script src="theme-fit.js"></script>
+    <script src="chroma-key.js"></script>
+    <script src="overlay.js"></script>
+  </body>
+</html>

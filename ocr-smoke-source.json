@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "version": "1.3.48-test.1",
+  "packaged": false,
+  "portable": false,
+  "userDataMode": "app-data",
+  "readerProfiles": {
+    "1080p": {
+      "captureWidth": 1920,
+      "captureHeight": 1080,
+      "roiCount": 13
+    },
+    "1440p": {
+      "captureWidth": 2560,
+      "captureHeight": 1440,
+      "roiCount": 13
+    },
+    "2160p": {
+      "captureWidth": 3840,
+      "captureHeight": 2160,
+      "roiCount": 13
+    }
+  },
+  "workerPhysical": false,
+  "languagePhysical": false,
+  "corePhysical": false,
+  "teamAssets": {
+    "PENN STATE": {
+      "name": "Penn State",
+      "width": 429,
+      "height": 284,
+      "logoBytes": 117582,
+      "passed": true
+    },
+    "PITTSBURGH": {
+      "name": "Pittsburgh",
+      "width": 422,
+      "height": 230,
+      "logoBytes": 117836,
+      "passed": true
+    }
+  },
+  "progress": [
+    "loading tesseract core",
+    "initializing tesseract",
+    "loading language traineddata",
+    "initializing api"
+  ]
+}

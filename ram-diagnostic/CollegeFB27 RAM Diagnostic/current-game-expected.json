@@ -1,0 +1,6 @@
+{
+  "away": { "name": "Marshall", "score": 11, "timeouts": 3, "possession": false },
+  "home": { "name": "TCU", "score": 14, "timeouts": 3, "possession": true },
+  "game": { "quarter": "4th", "clock": "2:38", "playClock": 19, "down": 1, "distance": 15 },
+  "meta": { "updatedAt": "2026-08-09T17:04:00.000Z" }
+}

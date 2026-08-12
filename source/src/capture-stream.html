@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; media-src 'self' blob:">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CFB27 capture worker</title>
+  <style>
+    html, body { margin: 0; width: 1px; height: 1px; overflow: hidden; background: transparent; }
+    video, canvas { position: fixed; left: -100000px; top: -100000px; width: 1px; height: 1px; }
+  </style>
+</head>
+<body>
+  <video id="capture-video" autoplay muted playsinline></video>
+  <canvas id="capture-canvas" width="1" height="1"></canvas>
+  <script src="capture-stream-geometry.js"></script>
+  <script src="capture-stream-renderer.js"></script>
+</body>
+</html>

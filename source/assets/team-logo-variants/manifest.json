@@ -1,0 +1,1967 @@
+{
+  "schema": "cfb27-team-logo-variants/1",
+  "source": {
+    "description": "Bundled alternate team logos, including the original uncropped game canvases",
+    "redistribution": "local-personal-test-only"
+  },
+  "teams": [
+    {
+      "teamId": "0",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-000-air-force.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "1",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-001-akron.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "2",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-002-alabama.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "3",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-003-appalachian-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "4",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-004-arizona.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "5",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-005-arizona-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "6",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-006-arkansas.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "7",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-007-arkansas-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "8",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-008-army.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "9",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-009-auburn.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "10",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-010-ball-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "11",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-011-baylor.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "12",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-012-boise-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "13",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-013-boston-college.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "14",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-014-bowling-green-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "15",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-015-buffalo.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "16",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-016-byu.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "17",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-017-california.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "18",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-018-central-michigan.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "19",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-019-charlotte.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "20",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-020-cincinnati.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "21",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-021-clemson.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "22",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-022-coastal-carolina.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "23",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-023-colorado.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "24",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-024-colorado-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "25",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-025-connecticut.png",
+          "width": 500,
+          "height": 500,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "26",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-026-duke.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "27",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-027-eastern-michigan.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "28",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-028-east-carolina.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "29",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-029-fiu.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "30",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-030-florida.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "31",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-031-fau.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "32",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-032-florida-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "33",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-033-fresno-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "34",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-034-georgia.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "35",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-035-georgia-southern.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "36",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-036-georgia-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "37",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-037-georgia-tech.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "38",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-038-hawaii.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "39",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-039-houston.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "40",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-040-illinois.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "41",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-041-indiana.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "42",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-042-iowa.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "43",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-043-iowa-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "44",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-044-kansas.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "45",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-045-kansas-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "46",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-046-kent-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "47",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-047-kentucky.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "48",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-048-liberty.png",
+          "width": 500,
+          "height": 500,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "49",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-049-ul-lafayette.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "50",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-050-la-tech.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "51",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-051-louisville.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "52",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-052-lsu.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "53",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-053-marshall.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "54",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-054-maryland.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "55",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-055-memphis.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "56",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-056-miami.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "57",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-057-miami-of-ohio.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "58",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-058-michigan.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "59",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-059-michigan-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "60",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-060-middle-tennessee-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "61",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-061-minnesota.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "62",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-062-mississippi-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "63",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-063-missouri.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "64",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-064-navy.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "65",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-065-n-c-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "66",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-066-nebraska.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "67",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-067-nevada.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "68",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-068-new-mexico.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "69",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-069-new-mexico-state.png",
+          "width": 500,
+          "height": 500,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "70",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-070-north-carolina.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "71",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-071-north-texas.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "72",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-072-northern-illinois.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "73",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-073-northwestern.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "74",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-074-notre-dame.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "75",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-075-ohio.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "76",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-076-ohio-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "77",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-077-oklahoma.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "78",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-078-oklahoma-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "79",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-079-old-dominion.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "80",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-080-ole-miss.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "81",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-081-oregon.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "82",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-082-oregon-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "83",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-083-penn-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "84",
+      "defaultLabel": "Tight cropped logo",
+      "variants": [
+        {
+          "id": "panther-head",
+          "label": "Panther Pitt",
+          "file": "084-pittsburgh-panther-head.png",
+          "width": 1254,
+          "height": 1254,
+          "source": "official-guide-reference-test"
+        },
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-084-pittsburgh.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ]
+    },
+    {
+      "teamId": "85",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-085-purdue.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "86",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-086-rice.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "87",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-087-rutgers.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "88",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-088-san-diego-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "89",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-089-san-jose-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "90",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-090-smu.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "91",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-091-south-alabama.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "92",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-092-south-carolina.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "93",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-093-southern-miss.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "94",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-094-stanford.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "95",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-095-syracuse.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "96",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-096-tcu.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "97",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-097-temple.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "98",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-098-tennessee.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "99",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-099-texas.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "100",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-100-texas-a-and-m.png",
+          "width": 500,
+          "height": 500,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "101",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-101-texas-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "102",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-102-texas-tech.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "103",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-103-toledo.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "104",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-104-troy.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "105",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-105-tulane.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "106",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-106-tulsa.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "107",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-107-uab.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "108",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-108-ucf.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "109",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-109-ucla.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "110",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-110-ul-monroe.png",
+          "width": 500,
+          "height": 500,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "111",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-111-massachusetts.png",
+          "width": 500,
+          "height": 500,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "112",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-112-unlv.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "113",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-113-usc.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "114",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-114-usf.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "115",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-115-utah.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "116",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-116-utah-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "117",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-117-utep.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "118",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-118-utsa.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "119",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-119-vanderbilt.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "120",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-120-virginia.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "121",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-121-virginia-tech.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "122",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-122-wake-forest.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "123",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-123-washington.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "124",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-124-washington-state.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "125",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-125-west-virginia.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "126",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-126-w-kentucky.png",
+          "width": 500,
+          "height": 500,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "127",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-127-w-michigan.png",
+          "width": 500,
+          "height": 500,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "128",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-128-wisconsin.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    },
+    {
+      "teamId": "129",
+      "variants": [
+        {
+          "id": "original",
+          "label": "Original game logo",
+          "file": "original-129-wyoming.png",
+          "width": 512,
+          "height": 512,
+          "source": "ea-cfb27-original",
+          "preserveCanvas": true
+        }
+      ],
+      "defaultLabel": "Tight cropped logo"
+    }
+  ]
+}
