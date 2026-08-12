@@ -694,6 +694,7 @@ namespace CollegeFootballRamDiagnostic
                 { "timeoutInstall", timeoutInstallDiagnostic },
                 { "timeoutCatalog", catalogTimeoutDiagnostic },
                 { "rankBind", rankBindDiagnostic },
+                { "teamIdNames", teamIdNamesDiagnostic },
                 { "possessionBind", possessionBindDiagnostic },
                 { "scoreboardCandidates", scoreboardCandidateCount },
                 { "scoreHudDownDistanceCandidates", scoreHudDownDistanceCandidateCount },
@@ -1775,6 +1776,7 @@ namespace CollegeFootballRamDiagnostic
         // had no diagnostic at all, so a silent early return was
         // indistinguishable from the game simply having no ranked teams.
         private string rankBindDiagnostic = "never called";
+        private string teamIdNamesDiagnostic = "never called";
 
         // DIAGNOSTIC. Why possession had no address on the last discovery.
         private string possessionBindDiagnostic = "not evaluated";
@@ -3012,9 +3014,63 @@ namespace CollegeFootballRamDiagnostic
                 : RamReadResult.Missing(HasConfiguredField(fieldName) ? 1 : 0);
         }
 
+        // The team catalog is a fixed-stride table: one 0xD8-byte record per
+        // team, short key at +0, display name at +32. Every ScoreHud team
+        // object carries a TeamId. If that id is the record index, then team
+        // names are available from the very same object that already supplies
+        // rank, record, score and timeouts - no role markers, no tradition
+        // slugs, no pointer chase, and none of the name deadlock that
+        // currently blocks all three of those fields.
+        //
+        // This only observes and reports. Nothing is published from it until
+        // the mapping is confirmed against a game whose teams are known. The
+        // anchor is the record at index 0, which should read AIRFOR/Air Force:
+        // if the anchor is right the base and stride are right, and only the
+        // id-to-index assumption is in question.
+        private string DescribeTeamIdCatalogNames(List<ScoreHudTeamCandidate> teams)
+        {
+            long catalogBase = SingleConfiguredAddress("teamCatalogBase");
+            if (catalogBase == 0) return "catalog address not configured";
+            if (teams == null || teams.Count == 0) return "no ScoreHud team objects";
+            string anchor;
+            try
+            {
+                anchor = scanner.ReadAsciiString(catalogBase, 16) + "/"
+                    + scanner.ReadAsciiString(catalogBase + 32, 31);
+            }
+            catch { anchor = "unreadable"; }
+            List<int> reported = new List<int>();
+            List<string> seen = new List<string>();
+            for (int i = 0; i < teams.Count && reported.Count < 6; i++)
+            {
+                ScoreHudTeamCandidate team = teams[i];
+                if (reported.Contains(team.TeamId)) continue;
+                reported.Add(team.TeamId);
+                string entry = team.TeamId.ToString(CultureInfo.InvariantCulture)
+                    + " r" + team.Rank.ToString(CultureInfo.InvariantCulture)
+                    + " s" + team.Score.ToString(CultureInfo.InvariantCulture) + "=";
+                try
+                {
+                    long record = catalogBase + (long)team.TeamId * 0xD8;
+                    string key = scanner.ReadAsciiString(record, 16);
+                    string name = scanner.ReadAsciiString(record + 32, 31);
+                    entry += (String.IsNullOrWhiteSpace(key) ? "?" : key)
+                        + "/" + (String.IsNullOrWhiteSpace(name) ? "?" : name);
+                }
+                catch { entry += "unreadable"; }
+                seen.Add(entry);
+            }
+            return "anchor0=" + anchor + " | " + String.Join("  ", seen.ToArray());
+        }
+
         private void ApplyScoreHudRankCandidates(List<ScoreHudTeamCandidate> teams)
         {
             scoreHudTeamCandidateCount = teams.Count;
+            // Reported before any early return: the name deadlock means the
+            // returns below fire in exactly the games we most need to see this
+            // in, and a diagnostic that only prints on the happy path is no
+            // use for diagnosing the unhappy one.
+            teamIdNamesDiagnostic = DescribeTeamIdCatalogNames(teams);
             // Team names are deliberately NOT required here.
             //
             // This method decides which ScoreHud team object is home and which
