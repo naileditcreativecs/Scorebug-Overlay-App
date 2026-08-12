@@ -332,10 +332,27 @@ namespace CollegeFootballRamDiagnostic
             }
             bool processNeedsDiscovery = resolvedProcessId != scanner.Process.Id;
             bool matchupNeedsDiscovery = !processNeedsDiscovery && TeamNamesDifferFromScreen(screen);
+            // The timeout clones come and go between sweeps: the standalone
+            // locator finds them on most scans while a single foreground sweep
+            // can report none. Discovery previously ran only on a process or
+            // matchup change, so one unlucky sweep meant timeouts stayed
+            // unbound for the whole session. Retry on a slow cadence while
+            // they are missing - a sweep costs seconds, so 20s not 2s.
+            bool timeoutsNeedDiscovery = !processNeedsDiscovery && !matchupNeedsDiscovery
+                && !HasConfiguredField("timeoutSlotTeamIdZero")
+                && DateTime.UtcNow >= nextTimeoutRecoveryDiscoveryUtc;
+            if (timeoutsNeedDiscovery)
+                nextTimeoutRecoveryDiscoveryUtc = DateTime.UtcNow.AddSeconds(20);
             // A full memory sweep can take several seconds. Never run that
             // sweep repeatedly just because an optional team-name object has
             // not appeared; doing so freezes the clock export. Missing names
             // remain pending while the already-confirmed live scoreboard runs.
+            if (timeoutsNeedDiscovery)
+            {
+                // Recovery only: do not clear published output or begin a
+                // matchup transition. Nothing about the current game changed.
+                RunAutomaticDiscovery(screen);
+            }
             if ((processNeedsDiscovery || matchupNeedsDiscovery)
                 && DateTime.UtcNow >= nextAutoDiscoveryUtc)
             {
@@ -651,6 +668,7 @@ namespace CollegeFootballRamDiagnostic
                 { "automaticLocator", autoDiscoverySummary },
                 { "timeoutBind", timeoutBindDiagnostic },
                 { "timeoutInstall", timeoutInstallDiagnostic },
+                { "timeoutCatalog", catalogTimeoutDiagnostic },
                 { "possessionBind", possessionBindDiagnostic },
                 { "scoreboardCandidates", scoreboardCandidateCount },
                 { "scoreHudDownDistanceCandidates", scoreHudDownDistanceCandidateCount },
@@ -1723,6 +1741,11 @@ namespace CollegeFootballRamDiagnostic
         private string timeoutBindDiagnostic = "not attempted";
         // DIAGNOSTIC: whether the slot install ran at all, and why it declined.
         private string timeoutInstallDiagnostic = "never called";
+        // Timeout copies are not always present in a single sweep. When they
+        // are missing, keep re-running discovery on a slow cadence instead of
+        // giving up until the process or matchup changes.
+        private DateTime nextTimeoutRecoveryDiscoveryUtc = DateTime.MinValue;
+        private string catalogTimeoutDiagnostic = "not checked";
 
         // DIAGNOSTIC. Why possession had no address on the last discovery.
         private string possessionBindDiagnostic = "not evaluated";
@@ -2203,7 +2226,13 @@ namespace CollegeFootballRamDiagnostic
                 && !String.Equals(result.AwayTeamName, result.HomeTeamName, StringComparison.OrdinalIgnoreCase)
                 && result.AwayTeamNameAddresses != null && result.AwayTeamNameAddresses.Count > 0
                 && result.HomeTeamNameAddresses != null && result.HomeTeamNameAddresses.Count > 0
-                && result.HasLabeledTeamRoleBinding;
+                // A labelled role binding is the strongest evidence, but it is
+                // absent in modes without tradition slugs. A fallback pair is
+                // accepted here and still has to survive AdvanceMatchupConfirmation
+                // - the same pair twice, with matching address signatures - before
+                // anything is published, which is the protection the original
+                // fallback lacked.
+                && (result.HasLabeledTeamRoleBinding || result.TeamNamesFromFallback);
         }
 
         internal static bool BackgroundResultMatchesGeneration(int resultGeneration, int currentGeneration)
@@ -3208,11 +3237,37 @@ namespace CollegeFootballRamDiagnostic
                 int firstAway = scanner.ReadInt32(awayAddress);
                 int secondHome = scanner.ReadInt32(homeAddress);
                 int secondAway = scanner.ReadInt32(awayAddress);
+                catalogTimeoutDiagnostic = "catalog reads " + firstHome + "/" + firstAway
+                    + " then " + secondHome + "/" + secondAway
+                    + " vs clones " + cloneHome + "/" + cloneAway;
+
+                // A catalog counter outside 0-3 is not a disagreement, it is
+                // an unreadable corroborator - this offset does not hold
+                // timeout counts in every mode. Letting it veto is how two
+                // clones that agree with each other, read twice each, get
+                // thrown away: observed as "catalog-counters-mismatch (clone
+                // home=3 away=3)" on a live game where the clones were right.
+                //
+                // A catalog value that IS in range and disagrees is still a
+                // real conflict and still rejects.
+                bool firstUsable = firstHome >= 0 && firstHome <= 3
+                    && firstAway >= 0 && firstAway <= 3;
+                bool secondUsable = secondHome >= 0 && secondHome <= 3
+                    && secondAway >= 0 && secondAway <= 3;
+                if (!firstUsable || !secondUsable)
+                {
+                    catalogTimeoutDiagnostic += " (catalog not usable here; check skipped)";
+                    return true;
+                }
                 return RuntimeCatalogTimeoutReadsAreSafe(
                     true, cloneHome, cloneAway,
                     firstHome, firstAway, secondHome, secondAway);
             }
-            catch { return false; }
+            catch
+            {
+                catalogTimeoutDiagnostic = "catalog unreadable; check skipped";
+                return true;
+            }
         }
 
         internal static bool RuntimeCatalogTimeoutReadsAreSafe(

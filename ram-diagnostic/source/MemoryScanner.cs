@@ -90,6 +90,11 @@ namespace CollegeFootballRamDiagnostic
         public int RegionsScanned;
         public long BytesScanned;
 
+        // Set when the team names came from the older pool analysis instead
+        // of the labelled role vectors. Kept separate so the exporter can
+        // apply the extra confirmation these addresses need.
+        public bool TeamNamesFromFallback;
+
         public bool HasCoreScoreboard { get { return ScoreboardBlock != 0; } }
         public bool HasLabeledTeamRoleBinding
         {
@@ -3448,8 +3453,32 @@ namespace CollegeFootballRamDiagnostic
             if (labeledResolution == LabeledVectorRoleResolution.Unique) return;
             if (labeledResolution == LabeledVectorRoleResolution.IncompleteOrAmbiguous)
             {
+                // The labelled route could not decide - in Play Now the
+                // tradition slugs it needs are simply absent. Rather than
+                // publish nothing, fall back to the older pool analysis and
+                // mark the result so the exporter knows these names came from
+                // raw text addresses and must be confirmed before use.
+                //
+                // This path used to return empty-handed, which is why builds
+                // with the labelled-vector rework stopped reading names that
+                // older builds read every time.
                 result.TeamRoleEvidenceAmbiguous = true;
-                result.TeamRoleDiagnostics.Add("labeled-vector evidence ambiguous; legacy fallback blocked");
+                ChooseActiveTeams(result, homeMarkers, traditions, catalogNames);
+                bool recovered = !String.IsNullOrWhiteSpace(result.AwayTeamName)
+                    && !String.IsNullOrWhiteSpace(result.HomeTeamName)
+                    && !String.Equals(result.AwayTeamName, result.HomeTeamName,
+                        StringComparison.OrdinalIgnoreCase);
+                result.TeamNamesFromFallback = recovered;
+                result.TeamRoleDiagnostics.Add(recovered
+                    ? "labeled-vector ambiguous; recovered names from pool fallback"
+                    : "labeled-vector ambiguous; pool fallback found no usable pair");
+                if (!recovered)
+                {
+                    result.HomeTeamName = null;
+                    result.AwayTeamName = null;
+                    result.HomeTeamNameAddresses.Clear();
+                    result.AwayTeamNameAddresses.Clear();
+                }
                 return;
             }
 
