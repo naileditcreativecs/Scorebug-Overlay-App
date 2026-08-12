@@ -404,7 +404,18 @@ namespace CollegeFootballRamDiagnostic
                 }
             }
 
+            // Only a pair that came from a labelled binding can be checked
+            // against one. A pool-fallback pair has no role label, reference,
+            // descriptor or vector - those fields are all zero - so
+            // ConfiguredTeamRoleBindingIsValid always returns false for it. Left
+            // ungated, that reads as "the roles changed" on every single tick:
+            // the profile is invalidated, output is cleared, the matchup is
+            // relocated, and the reader publishes nothing while cycling through
+            // "team roles changed; locating the new matchup" forever.
+            //
+            // Absence of a labelled binding is not evidence that one broke.
             if (!matchupTransitionPending
+                && !lastMatchupFromFallback
                 && !String.IsNullOrWhiteSpace(lastAwayTeamName)
                 && !String.IsNullOrWhiteSpace(lastHomeTeamName)
                 && !ConfiguredTeamRoleBindingIsValid())
@@ -1791,6 +1802,10 @@ namespace CollegeFootballRamDiagnostic
         private string teamIdNamesDiagnostic = "never called";
         private string teamRoleDiagnostic = "never called";
         private string matchupBindDiagnostic = "never called";
+        // How the currently published pair was obtained. A fallback pair has
+        // no labelled role binding to validate against, so checks that assume
+        // one must be skipped for it rather than treated as a failure.
+        private bool lastMatchupFromFallback;
 
         // DIAGNOSTIC. Why possession had no address on the last discovery.
         private string possessionBindDiagnostic = "not evaluated";
@@ -2478,13 +2493,27 @@ namespace CollegeFootballRamDiagnostic
                 nextTeamNameDiscoveryUtc = DateTime.UtcNow.AddSeconds(5);
                 return;
             }
+            // "Is this still the same game as the one already published?"
+            //
+            // For a labelled pair the addresses are stable and part of the
+            // answer. For a pool-fallback pair they are not: the same two names
+            // are found through whichever duplicate copies turn up on that
+            // sweep, so the signature moves constantly. Comparing it here meant
+            // an already-published matchup looked like a brand new one on the
+            // very next pass, which sent the reader round a loop of
+            // "team roles changed; locating the new matchup" and it published
+            // nothing at all - worse than before the names were fixed.
+            //
+            // The teams are the identity of a matchup. Compare those.
             bool publishedPairMatches = !matchupTransitionPending
                 && String.Equals(lastAwayTeamName, result.AwayTeamName, StringComparison.OrdinalIgnoreCase)
                 && String.Equals(lastHomeTeamName, result.HomeTeamName, StringComparison.OrdinalIgnoreCase)
-                && String.Equals(AddressSignature(CopyConfiguredAddresses("awayTeamNameAscii")), awaySignature, StringComparison.Ordinal)
-                && String.Equals(AddressSignature(CopyConfiguredAddresses("homeTeamNameAscii")), homeSignature, StringComparison.Ordinal);
+                && (result.TeamNamesFromFallback
+                    || (String.Equals(AddressSignature(CopyConfiguredAddresses("awayTeamNameAscii")), awaySignature, StringComparison.Ordinal)
+                        && String.Equals(AddressSignature(CopyConfiguredAddresses("homeTeamNameAscii")), homeSignature, StringComparison.Ordinal)));
             if (publishedPairMatches)
             {
+                lastMatchupFromFallback = result.TeamNamesFromFallback;
                 SetField("awayTeamNameAscii", result.AwayTeamNameAddresses);
                 SetField("homeTeamNameAscii", result.HomeTeamNameAddresses);
                 InstallTeamRoleBinding(result, true);
@@ -2520,6 +2549,7 @@ namespace CollegeFootballRamDiagnostic
             // twice. Commit all side-bound state as one matchup epoch.
             lastAwayTeamName = result.AwayTeamName;
             lastHomeTeamName = result.HomeTeamName;
+            lastMatchupFromFallback = result.TeamNamesFromFallback;
             SetField("awayTeamNameAscii", result.AwayTeamNameAddresses);
             SetField("homeTeamNameAscii", result.HomeTeamNameAddresses);
             InstallTeamRoleBinding(result, true);
@@ -4964,5 +4994,6 @@ namespace CollegeFootballRamDiagnostic
         }
     }
 }
+
 
 
