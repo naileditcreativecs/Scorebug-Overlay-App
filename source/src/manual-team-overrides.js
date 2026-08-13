@@ -1,9 +1,13 @@
 'use strict';
 
+// "W-L" or "W-L-T" - the same shape the RAM reader publishes, so a manual
+// record is indistinguishable from a read one downstream.
+const RECORD_PATTERN = /^\d{1,2}-\d{1,2}(?:-\d{1,2})?$/;
+
 function emptyManualTeamOverrides() {
   return {
-    away: { teamId: null, rankMode: 'auto', rank: null },
-    home: { teamId: null, rankMode: 'auto', rank: null },
+    away: { teamId: null, rankMode: 'auto', rank: null, recordMode: 'auto', record: null },
+    home: { teamId: null, rankMode: 'auto', rank: null, recordMode: 'auto', record: null },
   };
 }
 
@@ -26,7 +30,19 @@ function normalizeManualTeamOverride(resolver, payload = {}) {
       throw new Error('Manual rankings must be from 1 through 25.');
     }
   }
-  return { teamId, rankMode, rank };
+
+  const recordMode = String(payload.recordMode || 'auto').toLowerCase();
+  if (!['auto', 'custom'].includes(recordMode)) {
+    throw new Error('The record override must be Auto or a typed record.');
+  }
+  let record = null;
+  if (recordMode === 'custom') {
+    record = String(payload.record || '').trim();
+    if (!RECORD_PATTERN.test(record)) {
+      throw new Error('Records look like 5-2 or 5-2-1.');
+    }
+  }
+  return { teamId, rankMode, rank, recordMode, record };
 }
 
 function applyManualTeamOverrides(sourceState, overrides, resolver) {
@@ -60,6 +76,10 @@ function applyManualTeamOverrides(sourceState, overrides, resolver) {
     } else if (override.rankMode === 'ranked') {
       payload[side].rank = override.rank;
       applied[side] = { ...(applied[side] || {}), rank: override.rank };
+    }
+    if (override.recordMode === 'custom' && RECORD_PATTERN.test(String(override.record || ''))) {
+      payload[side].record = override.record;
+      applied[side] = { ...(applied[side] || {}), record: override.record };
     }
   }
 

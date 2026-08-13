@@ -74,6 +74,13 @@
             <div class="side-heading"><strong>AWAY</strong><span id="away-output">Output: waiting</span></div>
             <label>Team<button id="away-team" class="picker-trigger" type="button" aria-label="Choose away team override">Auto (OCR)</button></label>
             <label>Rank<button id="away-rank" class="picker-trigger" type="button" aria-label="Choose away rank override">Auto (OCR)</button></label>
+            <label>Record
+              <span class="record-row">
+                <input id="away-record-input" type="text" inputmode="numeric" maxlength="8" placeholder="Auto" aria-label="Away record, like 5-2 or 5-2-1">
+                <button id="away-record-apply" type="button">Set</button>
+                <button id="away-record-auto" type="button">Auto</button>
+              </span>
+            </label>
             <label>Scorebug color
               <span class="color-row" data-side="away">
                 <button id="away-color-auto" class="color-swatch color-auto" type="button" title="Team's 1st color (automatic)">1st</button>
@@ -111,6 +118,13 @@
             <div class="side-heading"><strong>HOME</strong><span id="home-output">Output: waiting</span></div>
             <label>Team<button id="home-team" class="picker-trigger" type="button" aria-label="Choose home team override">Auto (OCR)</button></label>
             <label>Rank<button id="home-rank" class="picker-trigger" type="button" aria-label="Choose home rank override">Auto (OCR)</button></label>
+            <label>Record
+              <span class="record-row">
+                <input id="home-record-input" type="text" inputmode="numeric" maxlength="8" placeholder="Auto" aria-label="Home record, like 5-2 or 5-2-1">
+                <button id="home-record-apply" type="button">Set</button>
+                <button id="home-record-auto" type="button">Auto</button>
+              </span>
+            </label>
             <label>Scorebug color
               <span class="color-row" data-side="home">
                 <button id="home-color-auto" class="color-swatch color-auto" type="button" title="Team's 1st color (automatic)">1st</button>

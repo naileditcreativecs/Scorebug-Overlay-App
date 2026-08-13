@@ -1855,10 +1855,12 @@ function inGameEditorState() {
       away: {
         name: runtime.scoreboardState.away?.name || null,
         rank: runtime.scoreboardState.away?.rank ?? null,
+        record: runtime.scoreboardState.away?.record || null,
       },
       home: {
         name: runtime.scoreboardState.home?.name || null,
         rank: runtime.scoreboardState.home?.rank ?? null,
+        record: runtime.scoreboardState.home?.record || null,
       },
     },
     readerScoreboard: {

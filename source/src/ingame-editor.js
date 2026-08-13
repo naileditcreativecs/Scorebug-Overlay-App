@@ -232,9 +232,17 @@ function renderTeamControls() {
     const activeChoice = activeLogoChoice(side);
     if (activeChoice?.logo) currentLogo.setAttribute('src', activeChoice.logo);
     else currentLogo.removeAttribute('src');
+    const recordInput = document.getElementById(`${side}-record-input`);
+    if (recordInput && document.activeElement !== recordInput) {
+      recordInput.value = override.recordMode === 'custom' ? (override.record || '') : '';
+      recordInput.placeholder = appState?.scoreboard?.[side]?.record
+        ? `Auto (${appState.scoreboard[side].record})`
+        : 'Auto';
+    }
     const overridden = Boolean(
       override.teamId
       || (override.rankMode && override.rankMode !== 'auto')
+      || override.recordMode === 'custom'
       || logoState.selectedVariantId,
     );
     document.querySelector(`.team-card[data-side="${side}"]`).classList.toggle('overridden', overridden);
@@ -326,6 +334,34 @@ async function runColorCommand(command, successText) {
   }
 }
 
+function wireRecordControls() {
+  for (const side of ['away', 'home']) {
+    const sideLabel = side === 'away' ? 'Away' : 'Home';
+    const input = document.getElementById(`${side}-record-input`);
+    const applyRecord = () => {
+      const text = input.value.trim();
+      if (!text) {
+        applyPickerChoice(side, { recordMode: 'auto', record: null });
+        return;
+      }
+      if (!/^\d{1,2}-\d{1,2}(?:-\d{1,2})?$/.test(text)) {
+        setToast('Records look like 5-2 or 5-2-1', true);
+        return;
+      }
+      applyPickerChoice(side, { recordMode: 'custom', record: text });
+    };
+    document.getElementById(`${side}-record-apply`)?.addEventListener('click', applyRecord);
+    input?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') { event.preventDefault(); applyRecord(); }
+    });
+    document.getElementById(`${side}-record-auto`)?.addEventListener('click', () => {
+      input.value = '';
+      applyPickerChoice(side, { recordMode: 'auto', record: null });
+      setToast(`${sideLabel} record returned to automatic.`);
+    });
+  }
+}
+
 function wireScorebugColorControls() {
   for (const side of ['away', 'home']) {
     const sideLabel = side === 'away' ? 'Away' : 'Home';
@@ -404,6 +440,8 @@ async function applyPickerChoice(side, changes) {
       teamId: Object.hasOwn(changes, 'teamId') ? changes.teamId : (current.teamId || null),
       rankMode: Object.hasOwn(changes, 'rankMode') ? changes.rankMode : (current.rankMode || 'auto'),
       rank: Object.hasOwn(changes, 'rank') ? changes.rank : (current.rank || null),
+      recordMode: Object.hasOwn(changes, 'recordMode') ? changes.recordMode : (current.recordMode || 'auto'),
+      record: Object.hasOwn(changes, 'record') ? changes.record : (current.record || null),
     });
     acceptState(next);
     closeChoicePicker();
@@ -1341,6 +1379,7 @@ document.getElementById('center-vertical').addEventListener('click', async () =>
   } catch (error) { reportError(error); }
 });
 wireScorebugColorControls();
+wireRecordControls();
 
 api.onInGameEditorState(acceptState);
 api.onTeamLogoGeometry((update) => {

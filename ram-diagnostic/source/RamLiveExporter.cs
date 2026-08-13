@@ -571,6 +571,10 @@ namespace CollegeFootballRamDiagnostic
                 return "RAM export: game state reset detected; locating again";
             }
 
+            WriteResearchProbes(screenJsonPath, rawPossession, possession,
+                quarter, gameClock, awayScore, homeScore,
+                stableDownRead, stableDistanceRead, scoreHudDownDistance);
+
             Dictionary<string, object> root = new Dictionary<string, object>();
             root["schemaVersion"] = 1;
             root["status"] = "live";
@@ -776,6 +780,7 @@ namespace CollegeFootballRamDiagnostic
                 { "teamRole", teamRoleDiagnostic },
                 { "matchupBind", matchupBindDiagnostic },
                 { "possessionBind", possessionBindDiagnostic },
+                { "possessionProbe", possessionProbeSummary },
                 { "scoreboardCandidates", scoreboardCandidateCount },
                 { "scoreHudDownDistanceCandidates", scoreHudDownDistanceCandidateCount },
                 { "ramScoreMatchesScreenSnapshot", screen != null && awayScore.Available && homeScore.Available
@@ -796,6 +801,184 @@ namespace CollegeFootballRamDiagnostic
                 awayTimeouts.Available ? awayTimeouts.Value.ToString(CultureInfo.InvariantCulture) : "?",
                 homeTimeouts.Available ? homeTimeouts.Value.ToString(CultureInfo.InvariantCulture) : "?",
                 outputPath);
+        }
+
+        private void WriteResearchProbes(string screenJsonPath,
+            RamReadResult rawPossession, RamReadResult verifiedPossession,
+            RamReadResult quarter, RamReadResult gameClock,
+            RamReadResult awayScore, RamReadResult homeScore,
+            RamReadResult down, RamReadResult distance,
+            ScoreHudDownDistanceCandidate scoreHudDownDistance)
+        {
+            try
+            {
+                WritePossessionProbe(screenJsonPath, rawPossession, verifiedPossession,
+                    quarter, gameClock, awayScore, homeScore, down, distance);
+            }
+            catch { possessionProbeSummary = "probe failed"; }
+            try
+            {
+                WriteBallSpotProbe(screenJsonPath, quarter, gameClock,
+                    down, distance, scoreHudDownDistance);
+            }
+            catch { }
+        }
+
+        private void WritePossessionProbe(string screenJsonPath,
+            RamReadResult rawPossession, RamReadResult verifiedPossession,
+            RamReadResult quarter, RamReadResult gameClock,
+            RamReadResult awayScore, RamReadResult homeScore,
+            RamReadResult down, RamReadResult distance)
+        {
+            // Source 1: the legacy record's possession word, raw and verified.
+            object legacyRaw = rawPossession.Available ? (object)rawPossession.Value : null;
+            bool legacyVerified = verifiedPossession.Available;
+
+            // Source 2: the timeout-clone byte. Each verified clone context
+            // carries it at (home counter - 0x13); the layout invariant is
+            // asserted by TimeoutClonePossessionAddressLayoutIsSafe.
+            List<long> homeSlots = CopyConfiguredAddresses("timeoutSlotTeamIdZero");
+            homeSlots.Sort();
+            List<object> cloneFlags = new List<object>();
+            for (int index = 0; index < homeSlots.Count; index++)
+            {
+                try
+                {
+                    int value = ReadSingleByte(homeSlots[index] - 0x13);
+                    cloneFlags.Add(value >= 0 && value <= 1 ? (object)value : "out-of-range:" + value);
+                }
+                catch { cloneFlags.Add("unreadable"); }
+            }
+
+            // Source 3: the ScoreHud team objects' +72 possession flag, read
+            // from the same oriented objects that carry rank and record.
+            ScoreHudTeamCandidate awayTeam;
+            ScoreHudTeamCandidate homeTeam;
+            object hudAway = TryReadConfiguredRankObject("awayRank", out awayTeam)
+                ? (object)awayTeam.HasPossession : null;
+            object hudHome = TryReadConfiguredRankObject("homeRank", out homeTeam)
+                ? (object)homeTeam.HasPossession : null;
+
+            string signature = (legacyRaw ?? "-") + "|" + legacyVerified
+                + "|" + String.Join(",", ConvertProbeValues(cloneFlags))
+                + "|" + (hudAway ?? "-") + "|" + (hudHome ?? "-");
+            possessionProbeSummary = "legacy=" + (legacyRaw ?? "?")
+                + (legacyVerified ? "(verified)" : "(unverified)")
+                + " clone=[" + String.Join(",", ConvertProbeValues(cloneFlags)) + "]"
+                + " hud=" + (hudAway ?? "?") + "/" + (hudHome ?? "?");
+            if (String.Equals(signature, possessionProbeSignature, StringComparison.Ordinal)) return;
+            possessionProbeSignature = signature;
+
+            Dictionary<string, object> entry = new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "quarter", quarter.Available ? (object)quarter.Value : null },
+                { "clock", gameClock.Available ? (object)gameClock.Value : null },
+                { "awayScore", awayScore.Available ? (object)awayScore.Value : null },
+                { "homeScore", homeScore.Available ? (object)homeScore.Value : null },
+                { "down", down.Available ? (object)down.Value : null },
+                { "distance", distance.Available ? (object)distance.Value : null },
+                { "legacyRaw", legacyRaw },
+                { "legacyVerified", legacyVerified },
+                { "cloneHomeFlags", cloneFlags },
+                { "hudAwayPossession", hudAway },
+                { "hudHomePossession", hudHome }
+            };
+            AppendProbeLine(screenJsonPath, "possession-probe.jsonl", entry);
+        }
+
+        private static string[] ConvertProbeValues(List<object> values)
+        {
+            string[] result = new string[values.Count];
+            for (int index = 0; index < values.Count; index++)
+                result[index] = Convert.ToString(values[index], CultureInfo.InvariantCulture);
+            return result;
+        }
+
+        private void WriteBallSpotProbe(string screenJsonPath,
+            RamReadResult quarter, RamReadResult gameClock,
+            RamReadResult down, RamReadResult distance,
+            ScoreHudDownDistanceCandidate scoreHudDownDistance)
+        {
+            if (!down.Available || !distance.Available) return;
+            string signature = down.Value + "|" + distance.Value;
+            if (String.Equals(signature, ballSpotProbeSignature, StringComparison.Ordinal)) return;
+            ballSpotProbeSignature = signature;
+
+            // Candidate window: the unidentified slots around the two known
+            // catalog-relative game-state values. Only values that could be a
+            // yardline (0..120) are recorded, keyed by their offset, so one
+            // game of downs shows which offset tracks the ball.
+            long catalogBase = SingleConfiguredAddress("teamCatalogBase");
+            Dictionary<string, object> catalogWindow = new Dictionary<string, object>();
+            if (catalogBase != 0)
+            {
+                try
+                {
+                    byte[] bytes = scanner.ReadBytes(catalogBase + 0x67780, 0x100);
+                    for (int offset = 0; offset + 4 <= bytes.Length; offset += 4)
+                    {
+                        int value = BitConverter.ToInt32(bytes, offset);
+                        if (value >= 0 && value <= 120)
+                            catalogWindow["0x" + (0x67780 + offset).ToString("X", CultureInfo.InvariantCulture)] = value;
+                    }
+                }
+                catch { catalogWindow["error"] = "unreadable"; }
+            }
+
+            // The wide core block has documented slots at 0x90..0x180; record
+            // the ones nothing reads yet, same plausibility filter.
+            Dictionary<string, object> wideWindow = new Dictionary<string, object>();
+            List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
+            string coreSignature = ConfiguredCoreSignature();
+            if (quarterAddresses.Count == 1 && coreSignature.EndsWith(":W", StringComparison.Ordinal))
+            {
+                try
+                {
+                    long block = quarterAddresses[0] - 0xC8;
+                    byte[] bytes = scanner.ReadBytes(block + 0x80, 0x110);
+                    for (int offset = 0; offset + 4 <= bytes.Length; offset += 8)
+                    {
+                        int value = BitConverter.ToInt32(bytes, offset);
+                        if (value >= 0 && value <= 120)
+                            wideWindow["0x" + (0x80 + offset).ToString("X", CultureInfo.InvariantCulture)] = value;
+                    }
+                }
+                catch { wideWindow["error"] = "unreadable"; }
+            }
+            if (catalogWindow.Count == 0 && wideWindow.Count == 0) return;
+
+            Dictionary<string, object> entry = new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "quarter", quarter.Available ? (object)quarter.Value : null },
+                { "clock", gameClock.Available ? (object)gameClock.Value : null },
+                { "down", down.Value },
+                { "distance", distance.Value },
+                { "scoreHudDisplay", scoreHudDownDistance == null ? null : scoreHudDownDistance.Display },
+                { "catalog", catalogWindow },
+                { "wide", wideWindow }
+            };
+            AppendProbeLine(screenJsonPath, "ballspot-probe.jsonl", entry);
+        }
+
+        private static void AppendProbeLine(string screenJsonPath, string fileName,
+            Dictionary<string, object> entry)
+        {
+            string folder = !String.IsNullOrWhiteSpace(screenJsonPath)
+                ? Path.GetDirectoryName(screenJsonPath) : null;
+            if (String.IsNullOrWhiteSpace(folder)) folder = AppDomain.CurrentDomain.BaseDirectory;
+            string path = Path.Combine(folder, fileName);
+            try
+            {
+                FileInfo info = new FileInfo(path);
+                if (info.Exists && info.Length > MaximumProbeLogBytes) return;
+                string line = new JavaScriptSerializer().Serialize(entry);
+                using (FileStream stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read))
+                using (StreamWriter writer = new StreamWriter(stream))
+                    writer.WriteLine(line);
+            }
+            catch { }
         }
 
         private bool HasCachedCoreFields()
@@ -2041,6 +2224,29 @@ namespace CollegeFootballRamDiagnostic
 
         // DIAGNOSTIC. Why possession had no address on the last discovery.
         private string possessionBindDiagnostic = "not evaluated";
+
+        // PROBES. Two append-only logs that cost nothing on screen and decide
+        // two open questions with one game of ordinary play:
+        //
+        // possession-probe.jsonl records all three candidate possession sources
+        // side by side (the legacy record, the timeout-clone byte at slot-0x13,
+        // and the ScoreHud team objects' +72 flag) every time any of them
+        // changes. Whichever source tracks the truth through kickoffs,
+        // turnovers and punts is the one SelectVerifiedPossession learns to
+        // trust in the next build.
+        //
+        // ballspot-probe.jsonl records the unidentified numeric slots near the
+        // two known catalog-relative game-state values (live down +0x677F8,
+        // timeouts +0x67850) on every down/distance change. One of them is
+        // expected to be the ball position, which is the missing input for
+        // calling Goal vs Inches when the numeric distance reads 0.
+        //
+        // Both logs are capped, change-driven, and wrapped so no failure can
+        // reach the live export path.
+        private string possessionProbeSignature;
+        private string ballSpotProbeSignature;
+        private string possessionProbeSummary = "not sampled";
+        private const long MaximumProbeLogBytes = 5 * 1024 * 1024;
 
         private void RetryRequestedScoreHudDiscovery()
         {

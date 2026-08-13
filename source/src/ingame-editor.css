@@ -609,3 +609,9 @@ button { font: inherit; }
 .color-preset-apply i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); }
 .color-preset-delete { border: none; border-left: 1px solid #3a4356; background: #151c29; color: #8fa0b8; width: 24px; cursor: pointer; }
 .color-preset-delete:hover { color: #ff8f9c; }
+
+/* Manual record override row. */
+.record-row { display: flex; gap: 6px; }
+.record-row input { flex: 1; min-width: 0; border: 1px solid #3a4356; border-radius: 7px; background: #0d1320; color: #e8eef7; padding: 7px 9px; font-variant-numeric: tabular-nums; }
+.record-row button { min-height: 30px; padding: 0 10px; border: 1px solid #3a4356; border-radius: 7px; background: #1b2433; color: #e8eef7; cursor: pointer; font-size: 11px; }
+.record-row button:hover { border-color: #5c6f8e; }
