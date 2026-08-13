@@ -3870,6 +3870,18 @@ namespace CollegeFootballRamDiagnostic
                     || !RamLiveExporter.RuntimeCatalogTimeoutReadsAreSafe(
                         false, 2, 3, 4, 4, 4, 4))
                     throw new Exception("Runtime catalog timeout corroboration gate failed.");
+                // The catalog word may only veto the dormant 0/0 signature.
+                // A self-verified non-zero pair survives catalog disagreement
+                // (the observed live false veto was a correct 3/3), clones
+                // without internal consensus are still discarded, and a live
+                // 0/0 the catalog agrees with still publishes.
+                if (MemoryScanner.TimeoutCatalogVetoApplies(true, 3, 3, false)
+                    || MemoryScanner.TimeoutCatalogVetoApplies(true, 2, 3, false)
+                    || MemoryScanner.TimeoutCatalogVetoApplies(true, 0, 1, false)
+                    || !MemoryScanner.TimeoutCatalogVetoApplies(true, 0, 0, false)
+                    || MemoryScanner.TimeoutCatalogVetoApplies(true, 0, 0, true)
+                    || !MemoryScanner.TimeoutCatalogVetoApplies(false, 3, 3, true))
+                    throw new Exception("The timeout catalog veto is not limited to the dormant 0/0 pair.");
                 if (!RamLiveExporter.TimeoutClonePossessionAddressLayoutIsSafe(
                         new long[] { 0x1044, 0x1314 },
                         new long[] { 0x1048, 0x1318 },

@@ -409,6 +409,12 @@ namespace CollegeFootballRamDiagnostic
             // every new matchup, so the next game gets a fresh set of tries.
             bool scoreHudFieldsUnbound = !HasConfiguredField("timeoutSlotTeamIdZero")
                 || !HasConfiguredField("awayRank");
+            RamReadResult recoveryQuarter = Read("quarter", 1, 20);
+            if (recoveryQuarter.Available && recoveryQuarter.Value != scoreHudRecoveryQuarter)
+            {
+                scoreHudRecoveryQuarter = recoveryQuarter.Value;
+                scoreHudRecoveryAttempts = 0;
+            }
             bool timeoutsNeedDiscovery = !processNeedsDiscovery && !matchupNeedsDiscovery
                 && lastPublishedProcessId == scanner.Process.Id
                 && scoreHudFieldsUnbound
@@ -2202,9 +2208,15 @@ namespace CollegeFootballRamDiagnostic
         // are missing, keep re-running discovery on a slow cadence instead of
         // giving up until the process or matchup changes.
         private DateTime nextTimeoutRecoveryDiscoveryUtc = DateTime.MinValue;
-        // Bounded retries for the ScoreHud-derived fields, reset per matchup.
+        // Bounded retries for the ScoreHud-derived fields, reset per matchup
+        // AND per quarter. The per-matchup reset alone meant a budget burned
+        // in the 1st quarter left timeouts unrecoverable for the remaining
+        // three - observed as a 23-minute timeout blackout in a live Dynasty
+        // game. A quarter is a natural bound: at most 18 sweeps 10s apart per
+        // quarter, and a loss in any quarter gets a fresh chance in the next.
         private const int MaximumScoreHudRecoveryAttempts = 18;
         private int scoreHudRecoveryAttempts;
+        private int scoreHudRecoveryQuarter = -1;
         // Consecutive sweeps where the bound sides stopped matching their
         // scores. Enough of them means the orientation is wrong, not that a
         // score was caught mid-update.
@@ -2994,6 +3006,7 @@ namespace CollegeFootballRamDiagnostic
             // and never re-bind its timeouts, ranks or records - which is
             // exactly what loading game two looked like.
             scoreHudRecoveryAttempts = 0;
+            scoreHudRecoveryQuarter = -1;
             nextTimeoutRecoveryDiscoveryUtc = DateTime.MinValue;
             SetField("awayTeamNameAscii", result.AwayTeamNameAddresses);
             SetField("homeTeamNameAscii", result.HomeTeamNameAddresses);
@@ -4120,9 +4133,19 @@ namespace CollegeFootballRamDiagnostic
                     catalogTimeoutDiagnostic += " (catalog not usable here; check skipped)";
                     return true;
                 }
-                return RuntimeCatalogTimeoutReadsAreSafe(
+                if (RuntimeCatalogTimeoutReadsAreSafe(
                     true, cloneHome, cloneAway,
-                    firstHome, firstAway, secondHome, secondAway);
+                    firstHome, firstAway, secondHome, secondAway)) return true;
+                // An in-range catalog that disagrees with the clones is not
+                // proof the clones are wrong: it lags behind used timeouts and
+                // holds a different quantity in some modes, and its false
+                // vetoes are what kept verified timeouts off the scorebug for
+                // whole quarters. The clones' own five-layer verification is
+                // the authority; the catalog may only veto the one state it
+                // exists to catch - the dormant 0/0 pair a dead game leaves.
+                if (cloneHome == 0 && cloneAway == 0) return false;
+                catalogTimeoutDiagnostic += " (disagrees; advisory only, clones are self-verified)";
+                return true;
             }
             catch
             {

@@ -2633,13 +2633,14 @@ namespace CollegeFootballRamDiagnostic
                 long homeTimeoutAddress = result.TeamCatalogBase + 0x67850;
                 long awayTimeoutAddress = homeTimeoutAddress + 4;
                 bool corroborated = false;
+                bool hasPresentationConsensus = false;
+                int presentationHome = -1;
+                int presentationAway = -1;
                 try
                 {
                     int homeTimeouts = ReadInt32(homeTimeoutAddress);
                     int awayTimeouts = ReadInt32(awayTimeoutAddress);
-                    int presentationHome;
-                    int presentationAway;
-                    bool hasPresentationConsensus = TryReadTimeoutConsensus(
+                    hasPresentationConsensus = TryReadTimeoutConsensus(
                         result.HomeTimeoutAddresses, result.AwayTimeoutAddresses,
                         out presentationHome, out presentationAway);
                     corroborated = CatalogTimeoutCountersCorroborateClones(
@@ -2648,12 +2649,18 @@ namespace CollegeFootballRamDiagnostic
                         presentationHome, presentationAway);
                 }
                 catch { }
-                // The catalog-relative shortcut can point at a dormant zero
-                // pair after a new process starts, while a retained
-                // presentation pair can also remain structurally valid.
-                // Publish neither side unless both independent sources are
-                // readable and agree during this discovery pass.
-                if (!corroborated)
+                // The catalog word may not overrule a clone pair that already
+                // passed its own five-layer verification. It lags behind used
+                // timeouts and does not hold timeout counts in every mode -
+                // observed live vetoing a correct 3/3 - and every discovery it
+                // wrongly vetoed burned one of the exporter's bounded recovery
+                // attempts, which is how timeouts stayed blank for 23 minutes
+                // of a live Dynasty game on 2026-08-12. The one case it is
+                // still needed for is the dormant 0/0 pair a dead game can
+                // leave behind, which structure alone cannot tell from a real
+                // late-game 0/0.
+                if (TimeoutCatalogVetoApplies(hasPresentationConsensus,
+                    presentationHome, presentationAway, corroborated))
                 {
                     result.HomeTimeoutAddresses.Clear();
                     result.AwayTimeoutAddresses.Clear();
@@ -3245,6 +3252,20 @@ namespace CollegeFootballRamDiagnostic
                 && catalogHome >= 0 && catalogHome <= 3
                 && catalogAway >= 0 && catalogAway <= 3
                 && catalogHome == cloneHome && catalogAway == cloneAway;
+        }
+
+        // When the unreliable catalog word is allowed to discard a clone pair
+        // that verified itself: only for the dormant-zero signature. A pair
+        // without internal consensus is discarded as before - that is the
+        // clones disagreeing with each other, not the catalog disagreeing
+        // with the clones.
+        internal static bool TimeoutCatalogVetoApplies(
+            bool hasExactCloneConsensus, int cloneHome, int cloneAway,
+            bool catalogCorroborates)
+        {
+            if (!hasExactCloneConsensus) return true;
+            if (cloneHome != 0 || cloneAway != 0) return false;
+            return !catalogCorroborates;
         }
 
         private void KeepOnlyClonedTimeoutContexts(
