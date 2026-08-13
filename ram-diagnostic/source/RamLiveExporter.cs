@@ -503,10 +503,12 @@ namespace CollegeFootballRamDiagnostic
             RamReadResult homeScore = Read("homeScore", 0, 255);
             RamReadResult awayScore = Read("awayScore", 0, 255);
             RamReadResult rawPossession = Read("possessionAwayIsOne", 0, 2);
-            // The presentation-clone byte flickers without a real possession
-            // change. Publish only an independently synchronized legacy record;
-            // otherwise leave possession unavailable rather than guess.
-            RamReadResult possession = ReadVerifiedPossession(rawPossession);
+            // Publication order: the proven HUD flag first, the synchronized
+            // legacy record as fallback, nothing rather than a guess. The
+            // clone byte is never published - the probe game showed it
+            // flapping mid-drive.
+            RamReadResult possession = SelectVerifiedPossession(
+                ReadHudPossession(), rawPossession, PossessionVerificationRecordAgrees());
             RamReadResult down = Read("down", 1, 4);
             RamReadResult distance = Read("distance", 0, 99);
             RamReadResult stableDownRead;
@@ -961,7 +963,11 @@ namespace CollegeFootballRamDiagnostic
                 { "clock", gameClock.Available ? (object)gameClock.Value : null },
                 { "down", down.Value },
                 { "distance", distance.Value },
-                { "scoreHudDisplay", scoreHudDownDistance == null ? null : scoreHudDownDistance.Display },
+                // The filtered current candidate was null at every down change
+                // of the probe game; the last-seen object (any age) is the
+                // ground truth this log actually needs.
+                { "scoreHudDisplay", scoreHudDownDistance != null ? scoreHudDownDistance.Display
+                    : (lastScoreHudDownDistance != null ? lastScoreHudDownDistance.Display : null) },
                 { "catalog", catalogWindow },
                 { "wide", wideWindow }
             };
@@ -2236,6 +2242,23 @@ namespace CollegeFootballRamDiagnostic
 
         // DIAGNOSTIC. Why possession had no address on the last discovery.
         private string possessionBindDiagnostic = "not evaluated";
+
+        // HUD possession. The probe game of 2026-08-13 (VT at UNC, 111
+        // samples) settled the source question: the ScoreHud team objects'
+        // +72 flag matched the game's derivable truth at every checkpoint -
+        // scoring drives, post-score kickoffs, turnovers on downs, and a
+        // safety - and was always cleanly complementary, while the timeout-
+        // clone byte flapped mid-drive and the legacy record was readable for
+        // only two samples. Publication rules: the two oriented objects must
+        // disagree complementarily, a flip needs two consecutive agreeing
+        // reads, brief read failures hold the last confirmed value (bounded),
+        // and everything resets with the orientation it depends on.
+        private int hudPossessionPublished = -1;
+        private int hudPossessionPending = -1;
+        private int hudPossessionPendingCount;
+        private DateTime hudPossessionLastConfirmedUtc;
+        private const int HudPossessionRequiredConfirmations = 2;
+        private static readonly TimeSpan HudPossessionHoldWindow = TimeSpan.FromSeconds(120);
 
         // PROBES. Two append-only logs that cost nothing on screen and decide
         // two open questions with one game of ordinary play:
@@ -4401,22 +4424,75 @@ namespace CollegeFootballRamDiagnostic
                 && VerificationRecordAgrees();
         }
 
+        // Orientation-only view: deciding which team object is home must never
+        // consume the HUD possession that is read FROM those same objects, or a
+        // torn-down wrong orientation could re-assert itself. Legacy only here.
         private RamReadResult ReadVerifiedPossession()
         {
-            return ReadVerifiedPossession(Read("possessionAwayIsOne", 0, 2));
+            return SelectVerifiedPossession(RamReadResult.Missing(0),
+                Read("possessionAwayIsOne", 0, 2), PossessionVerificationRecordAgrees());
         }
 
-        private RamReadResult ReadVerifiedPossession(RamReadResult raw)
+        // 1 = away has the ball, 0 = home does, -1 = no clean answer. Only a
+        // complementary pair counts; both-off is a real dead-ball state and
+        // both-on is a mid-update read, and neither may move the arrow.
+        internal static int HudPossessionCandidate(int awayFlag, int homeFlag)
         {
-            return SelectVerifiedPossession(
-                RamReadResult.Missing(0), raw, PossessionVerificationRecordAgrees());
+            if (awayFlag == 1 && homeFlag == 0) return 1;
+            if (awayFlag == 0 && homeFlag == 1) return 0;
+            return -1;
+        }
+
+        private void ObserveHudPossession()
+        {
+            ScoreHudTeamCandidate away;
+            ScoreHudTeamCandidate home;
+            if (!TryReadConfiguredRankObject("awayRank", out away)
+                || !TryReadConfiguredRankObject("homeRank", out home)) return;
+            int candidate = HudPossessionCandidate(away.HasPossession, home.HasPossession);
+            if (candidate < 0) return;
+            if (candidate == hudPossessionPublished)
+            {
+                hudPossessionLastConfirmedUtc = DateTime.UtcNow;
+                hudPossessionPending = -1;
+                hudPossessionPendingCount = 0;
+                return;
+            }
+            if (candidate == hudPossessionPending) hudPossessionPendingCount++;
+            else
+            {
+                hudPossessionPending = candidate;
+                hudPossessionPendingCount = 1;
+            }
+            if (hudPossessionPendingCount >= HudPossessionRequiredConfirmations)
+            {
+                hudPossessionPublished = candidate;
+                hudPossessionLastConfirmedUtc = DateTime.UtcNow;
+                hudPossessionPending = -1;
+                hudPossessionPendingCount = 0;
+            }
+        }
+
+        private RamReadResult ReadHudPossession()
+        {
+            ObserveHudPossession();
+            // Hold the last confirmed side through brief object churn - the
+            // oriented objects vanish for a few reads around presentations -
+            // but never across the bounded window, and the whole state dies
+            // with the orientation in ResetScoreHudOrientation.
+            if (hudPossessionPublished >= 0
+                && DateTime.UtcNow - hudPossessionLastConfirmedUtc <= HudPossessionHoldWindow)
+                return new RamReadResult(true, hudPossessionPublished, 1, 1, 1);
+            return RamReadResult.Missing(0);
         }
 
         internal static RamReadResult SelectVerifiedPossession(
-            RamReadResult clone, RamReadResult legacy, bool legacyVerified)
+            RamReadResult hud, RamReadResult legacy, bool legacyVerified)
         {
-            // `clone` remains in this test seam so old diagnostics can prove
-            // that the transient presentation byte is deliberately ignored.
+            // The HUD flag is the proven source (probe game 2026-08-13). The
+            // independently synchronized legacy record remains as the fallback
+            // for the rare game where it exists and the HUD never bound.
+            if (hud != null && hud.Available && hud.Value <= 1) return hud;
             if (legacy != null && legacy.Available && legacy.Value <= 1 && legacyVerified)
                 return legacy;
             int successful = legacy == null ? 0 : legacy.SuccessfulReads;
@@ -4657,6 +4733,12 @@ namespace CollegeFootballRamDiagnostic
             pendingAwayScoreHudAddress = 0;
             pendingHomeScoreHudAddress = 0;
             scoreHudOrientationConfirmations = 0;
+            // HUD possession is read from the oriented objects; it cannot
+            // outlive the orientation that gave the flags their sides.
+            hudPossessionPublished = -1;
+            hudPossessionPending = -1;
+            hudPossessionPendingCount = 0;
+            hudPossessionLastConfirmedUtc = DateTime.MinValue;
         }
 
         private void ClearMatchupCandidate()

@@ -3904,19 +3904,29 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.AwayPossessionFromHomeFlag(0) != 1
                     || RamLiveExporter.AwayPossessionFromHomeFlag(1) != 0)
                     throw new Exception("Timeout-clone possession consensus/mapping gate failed.");
-                RamReadResult clonePossession = new RamReadResult(true, 1, 2, 2, 2);
+                // Selection priority after the 2026-08-13 probe game: the HUD
+                // flag wins when bound; the synchronized legacy record is the
+                // fallback; an unverified legacy alone publishes nothing.
+                RamReadResult hudPossession = new RamReadResult(true, 1, 1, 1, 1);
                 RamReadResult legacyPossession = new RamReadResult(true, 0, 1, 1, 1);
                 if (!Object.ReferenceEquals(
                         RamLiveExporter.SelectVerifiedPossession(
-                            clonePossession, legacyPossession, true), legacyPossession)
-                    || RamLiveExporter.SelectVerifiedPossession(
-                        clonePossession, RamReadResult.Missing(0), false).Available
+                            hudPossession, legacyPossession, true), hudPossession)
                     || !Object.ReferenceEquals(
                         RamLiveExporter.SelectVerifiedPossession(
                             RamReadResult.Missing(2), legacyPossession, true), legacyPossession)
                     || RamLiveExporter.SelectVerifiedPossession(
-                        RamReadResult.Missing(2), legacyPossession, false).Available)
-                    throw new Exception("Transient clone possession did not fail closed.");
+                        RamReadResult.Missing(2), legacyPossession, false).Available
+                    || RamLiveExporter.SelectVerifiedPossession(
+                        RamReadResult.Missing(0), RamReadResult.Missing(0), true).Available)
+                    throw new Exception("Possession selection priority is wrong.");
+                // Only a complementary HUD pair may move the arrow: both-off is
+                // a real dead-ball state, both-on is a mid-update read.
+                if (RamLiveExporter.HudPossessionCandidate(1, 0) != 1
+                    || RamLiveExporter.HudPossessionCandidate(0, 1) != 0
+                    || RamLiveExporter.HudPossessionCandidate(0, 0) != -1
+                    || RamLiveExporter.HudPossessionCandidate(1, 1) != -1)
+                    throw new Exception("HUD possession candidate rule is not complementary-only.");
                 if (!RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(true, true, 3, 2, 3, 2)
                     || RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(true, true, 2, 3, 3, 2)
                     || RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(false, true, 3, 2, 3, 2))
