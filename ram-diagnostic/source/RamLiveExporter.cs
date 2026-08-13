@@ -168,6 +168,13 @@ namespace CollegeFootballRamDiagnostic
         private readonly object fullMemoryScanSync = new object();
         private bool fullMemoryScanRunning;
         private long fullMemoryScanToken;
+        // The game's exe version and module size, read once per attached
+        // process. Every hardcoded ScoreHud offset is measured against one
+        // specific game build; without this stamp a patch mismatch is
+        // indistinguishable from every other failure in a user's report.
+        private int gameVersionProcessId;
+        private string gameExeVersion;
+        private long gameModuleSize;
 
         public RamLiveExporter(MemoryScanner scanner, string profilePath)
         {
@@ -538,10 +545,13 @@ namespace CollegeFootballRamDiagnostic
             root["schemaVersion"] = 1;
             root["status"] = "live";
             root["updatedAt"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+            EnsureGameVersionInfo();
             root["process"] = new Dictionary<string, object>
             {
                 { "name", scanner.Process.ProcessName },
                 { "id", scanner.Process.Id },
+                { "exeVersion", gameExeVersion },
+                { "moduleSize", gameModuleSize > 0 ? (object)gameModuleSize : null },
                 { "profileScope", profile.Scope },
                 { "profileCreatedAt", profile.CreatedAt }
             };
@@ -756,6 +766,25 @@ namespace CollegeFootballRamDiagnostic
                 awayTimeouts.Available ? awayTimeouts.Value.ToString(CultureInfo.InvariantCulture) : "?",
                 homeTimeouts.Available ? homeTimeouts.Value.ToString(CultureInfo.InvariantCulture) : "?",
                 outputPath);
+        }
+
+        private void EnsureGameVersionInfo()
+        {
+            if (scanner.Process == null || scanner.Process.HasExited) return;
+            if (gameVersionProcessId == scanner.Process.Id) return;
+            gameVersionProcessId = scanner.Process.Id;
+            gameExeVersion = null;
+            gameModuleSize = 0;
+            // MainModule can throw on an access-protected process; a missing
+            // version then reads as null rather than crashing the refresh loop.
+            try
+            {
+                System.Diagnostics.ProcessModule module = scanner.Process.MainModule;
+                gameModuleSize = module.ModuleMemorySize;
+                gameExeVersion = module.FileVersionInfo == null
+                    ? null : module.FileVersionInfo.FileVersion;
+            }
+            catch { }
         }
 
         private static bool IsCompatibleAutomaticProfileScope(string scope)

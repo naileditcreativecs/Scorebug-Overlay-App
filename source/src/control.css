@@ -330,3 +330,18 @@ body.setup-wizard-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .setup-wizard-step { animation: none; }
 }
+
+/* Diagnostics tab: the plain-English RAM reader report. The shared
+   .status-detail style is one-line ellipsis; the headline must wrap. */
+#ram-doctor-headline { overflow: visible; white-space: normal; font-size: 12px; line-height: 1.5; color: var(--text); }
+#ram-doctor-headline[data-state="ok"] { color: var(--green); }
+#ram-doctor-headline[data-state="warn"] { color: var(--amber); }
+#ram-doctor-headline[data-state="bad"] { color: var(--red); }
+.ram-doctor-lines { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.ram-doctor-lines li { position: relative; padding-left: 16px; color: var(--muted); font-size: 11.5px; line-height: 1.45; }
+.ram-doctor-lines li strong { color: var(--text); }
+.ram-doctor-lines li::before { content: ""; position: absolute; left: 0; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.ram-doctor-lines li[data-state="ok"]::before { background: var(--green); }
+.ram-doctor-lines li[data-state="warn"]::before { background: var(--amber); }
+.ram-doctor-lines li[data-state="bad"]::before { background: var(--red); }
+.ram-doctor-lines li[data-state="info"]::before { background: var(--blue, #58a6ff); }

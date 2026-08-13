@@ -134,6 +134,7 @@ const {
   supportSafeStatus,
 } = require('./support-diagnostics');
 const { LatestTaskQueue } = require('./latest-task-queue');
+const { buildRamReaderReport } = require('./ram-reader-report');
 const {
   captureSourceHwnd,
   normalizeWindowTitle,
@@ -940,10 +941,15 @@ function pollRamScoreboardState() {
       home: payload.state.home,
       game: payload.state.game,
     });
-    if (signature === ramScoreboardSignature) return;
-    // Fresh data proves the reader is alive; the watchdog measures from here.
+    // Any valid payload proves the reader is alive - ramScoreboardPayload
+    // already rejected documents older than 20 seconds, so reaching here means
+    // the reader wrote the file recently. Refreshing liveness only when the
+    // VALUES changed was the bug: a paused game publishes identical values for
+    // minutes, the watchdog read that as "no data for 90s" and killed a healthy
+    // reader, and the scorebug vanished until play resumed and re-acquired.
     lastRamDataAtMs = Date.now();
     consecutiveRamRecoveries = 0;
+    if (signature === ramScoreboardSignature) return;
     const firstRamState = !runtime.ramScoreboardState;
     ramScoreboardSignature = signature;
     runtime.ramScoreboardState = payload.state;
@@ -4983,6 +4989,32 @@ async function openDataExport() {
   return target;
 }
 
+// The plain-English RAM reader report shown on the Diagnostics tab. Reads the
+// status and live files fresh on every call so a stalled broadcast can never
+// show a stale diagnosis - the whole point is being accurate when broken.
+function ramReaderDoctor() {
+  const executable = unpackedResource(path.join('ram-reader', 'CollegeFB27RamReader.exe'));
+  let readerExePresent = true;
+  try { readerExePresent = fs.existsSync(executable); } catch { }
+  return buildRamReaderReport({
+    now: Date.now(),
+    appVersion: app.getVersion(),
+    readerEnabled: usesRamReader(scoreboardDataSourceMode()),
+    readerExePresent,
+    readerProcessRunning: Boolean(ramReaderProcess && ramReaderProcess.exitCode === null && !ramReaderProcess.killed),
+    status: readJsonFile(ramReaderStatusPath(), null),
+    live: readJsonFile(ramLiveDataPath(), null),
+    gameWindowDetected: Boolean(runtime.game?.detected),
+  });
+}
+
+function copyRamReaderDoctor() {
+  const report = ramReaderDoctor();
+  clipboard.writeText(report.reportText);
+  logMessage('Reader report copied to the clipboard.');
+  return true;
+}
+
 function copyDiagnostics() {
   const readerProfile = resolvedReaderProfile();
   const displays = screen.getAllDisplays().map((display) => ({
@@ -5063,6 +5095,8 @@ async function scoreboardMethod(method, payload) {
     case 'openLogs': return openLogs();
     case 'openDataExport': return openDataExport();
     case 'copyDiagnostics': return copyDiagnostics();
+    case 'ramReaderDoctor': return ramReaderDoctor();
+    case 'copyRamReaderDoctor': return copyRamReaderDoctor();
     default: throw new Error(`Unknown scoreboard method: ${String(method)}`);
   }
 }

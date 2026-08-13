@@ -3361,6 +3361,8 @@ namespace CollegeFootballRamDiagnostic
                             : Path.GetDirectoryName(screenJsonPath),
                         "ram-live-profile-cache.json"));
                 int attachedProcessId = 0;
+                string gameExeVersion = null;
+                long gameModuleSize = 0;
                 DateTime nextAttachUtc = DateTime.MinValue;
                 DateTime nextStatusUtc = DateTime.MinValue;
                 string status = "RAM service: starting";
@@ -3381,6 +3383,20 @@ namespace CollegeFootballRamDiagnostic
                                     scanner.Attach(games[0]);
                                     exporter.Reset();
                                     attachedProcessId = games[0].Id;
+                                    // The exe version pins which game build these
+                                    // reads were measured against. MainModule can
+                                    // throw on a protected process; version then
+                                    // stays null instead of losing the attach.
+                                    gameExeVersion = null;
+                                    gameModuleSize = 0;
+                                    try
+                                    {
+                                        ProcessModule module = games[0].MainModule;
+                                        gameModuleSize = module.ModuleMemorySize;
+                                        gameExeVersion = module.FileVersionInfo == null
+                                            ? null : module.FileVersionInfo.FileVersion;
+                                    }
+                                    catch { }
                                     status = "RAM service: attached read-only to CollegeFB27.exe";
                                 }
                                 else status = "RAM service: waiting for CollegeFB27.exe";
@@ -3404,11 +3420,13 @@ namespace CollegeFootballRamDiagnostic
                     if (DateTime.UtcNow >= nextStatusUtc)
                     {
                         nextStatusUtc = DateTime.UtcNow.AddMilliseconds(500);
-                        WriteStatus(statusPath, parentProcessId, attachedProcessId, status);
+                        WriteStatus(statusPath, parentProcessId, attachedProcessId, status,
+                            gameExeVersion, gameModuleSize);
                     }
                     Thread.Sleep(100);
                 }
-                WriteStatus(statusPath, parentProcessId, attachedProcessId, "RAM service: parent scorebug app closed");
+                WriteStatus(statusPath, parentProcessId, attachedProcessId,
+                    "RAM service: parent scorebug app closed", gameExeVersion, gameModuleSize);
             }
             return 0;
         }
@@ -3437,7 +3455,8 @@ namespace CollegeFootballRamDiagnostic
             catch { return false; }
         }
 
-        private static void WriteStatus(string path, int parentProcessId, int gameProcessId, string message)
+        private static void WriteStatus(string path, int parentProcessId, int gameProcessId, string message,
+            string gameExeVersion = null, long gameModuleSize = 0)
         {
             if (String.IsNullOrWhiteSpace(path)) return;
             try
@@ -3450,6 +3469,8 @@ namespace CollegeFootballRamDiagnostic
                     { "updatedAt", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
                     { "parentProcessId", parentProcessId },
                     { "gameProcessId", gameProcessId == 0 ? (object)null : gameProcessId },
+                    { "gameExeVersion", gameProcessId == 0 ? null : gameExeVersion },
+                    { "gameModuleSize", gameProcessId == 0 || gameModuleSize <= 0 ? (object)null : gameModuleSize },
                     { "message", message }
                 });
                 string temporary = path + ".tmp";

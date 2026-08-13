@@ -138,6 +138,8 @@
       openLogs: async () => false,
       openDataExport: async () => false,
       copyDiagnostics: async () => false,
+      ramReaderDoctor: async () => null,
+      copyRamReaderDoctor: async () => false,
       onStatus: () => () => {}, onState: () => () => {}, onLog: () => () => {}, onPanel: () => () => {}, onCalibrationSnapshot: () => () => {}
     };
   }
@@ -823,6 +825,41 @@
     qsa('.panel').forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === name));
     window.scrollTo({ top: 0, behavior: 'instant' });
     if (name === 'calibration') refreshSources().then(undefined, reportSourceRefreshError);
+    setRamDoctorPolling(name === 'diagnostics');
+  }
+
+  // The reader report re-reads the reader's files on every request, so poll it
+  // only while the Diagnostics tab is actually open.
+  let ramDoctorTimer = null;
+  async function refreshRamDoctor() {
+    if (!$('ram-doctor-headline')) return;
+    let report = null;
+    try { report = await api.ramReaderDoctor?.(); } catch { }
+    if (!report) {
+      $('ram-doctor-headline').textContent = 'The reader report is not available in this build.';
+      return;
+    }
+    $('ram-doctor-headline').textContent = report.headline;
+    $('ram-doctor-headline').dataset.state = report.level || 'info';
+    const list = $('ram-doctor-lines');
+    list.textContent = '';
+    for (const item of report.lines || []) {
+      const entry = document.createElement('li');
+      entry.dataset.state = item.state || 'info';
+      const label = document.createElement('strong');
+      label.textContent = `${item.label}: `;
+      entry.append(label, document.createTextNode(item.text));
+      list.append(entry);
+    }
+  }
+  function setRamDoctorPolling(active) {
+    if (active && !ramDoctorTimer) {
+      refreshRamDoctor();
+      ramDoctorTimer = setInterval(refreshRamDoctor, 3000);
+    } else if (!active && ramDoctorTimer) {
+      clearInterval(ramDoctorTimer);
+      ramDoctorTimer = null;
+    }
   }
 
   function setupWizardRecognitionSummary() {
@@ -2419,6 +2456,10 @@
     $('btn-open-logs').addEventListener('click', () => api.openLogs());
     $('btn-open-data-export').addEventListener('click', () => api.openDataExport());
     $('btn-copy-diagnostics').addEventListener('click', async () => { await api.copyDiagnostics(); toast('Diagnostic report copied'); });
+    $('btn-copy-ram-report')?.addEventListener('click', async () => {
+      await api.copyRamReaderDoctor?.();
+      toast('Reader report copied — paste it anywhere');
+    });
     $('btn-clear-log').addEventListener('click', () => { logLines.length = 0; $('log-output').textContent = ''; });
     $('btn-save-debug-crops')?.addEventListener('click', async () => {
       await api.saveReaderDebugImages?.();

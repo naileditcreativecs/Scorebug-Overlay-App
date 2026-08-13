@@ -386,6 +386,12 @@
     <section class="panel" data-panel="diagnostics">
       <div class="advanced-page-heading"><div><p class="eyebrow">SUPPORT</p><h2>Diagnostics</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
       <article class="card">
+        <div class="card-heading"><div><p class="eyebrow">GAME MEMORY READER</p><h2>What the reader is doing right now</h2></div><div class="button-row"><button id="btn-copy-ram-report" class="primary">Copy reader report</button></div></div>
+        <p id="ram-doctor-headline" class="status-detail">Checking the reader&hellip;</p>
+        <ul id="ram-doctor-lines" class="ram-doctor-lines"></ul>
+        <p class="hint">Something not reading? Press <strong>Copy reader report</strong> and paste it when asking for help &mdash; it says in plain English what the reader can and cannot see, and why. It contains no personal information.</p>
+      </article>
+      <article class="card">
         <div class="card-heading"><div><p class="eyebrow">AUTOMATIC DATA EXTRACTION</p><h2>CSV, events, text, and screenshots</h2></div><div class="button-row"><button id="btn-open-data-export" class="primary">Open data folder</button></div></div>
         <p class="status-detail">The test build writes validated scorebug changes to <strong>scoreboard.csv</strong> and saves discovered touchdown, penalty, and statistics text while the reader runs.</p>
         <p id="ram-reader-status" class="status-detail">Read-only RAM reader is starting inside this app.</p>
