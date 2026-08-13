@@ -3927,6 +3927,24 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.HudPossessionCandidate(0, 0) != -1
                     || RamLiveExporter.HudPossessionCandidate(1, 1) != -1)
                     throw new Exception("HUD possession candidate rule is not complementary-only.");
+                // Multi-clone rank/possession addresses: the selected side is
+                // first, only agreeing clones (TeamId and Rank) join, capped.
+                {
+                    ScoreHudTeamCandidate sel = new ScoreHudTeamCandidate { Address = 0x2000, TeamId = 7, Rank = 15 };
+                    List<ScoreHudTeamCandidate> pool = new List<ScoreHudTeamCandidate>
+                    {
+                        new ScoreHudTeamCandidate { Address = 0x1000, TeamId = 7, Rank = 15 },
+                        sel,
+                        new ScoreHudTeamCandidate { Address = 0x3000, TeamId = 7, Rank = 14 },
+                        new ScoreHudTeamCandidate { Address = 0x4000, TeamId = 8, Rank = 15 },
+                        new ScoreHudTeamCandidate { Address = 0x5000, TeamId = 7, Rank = 15 },
+                    };
+                    List<long> addresses = RamLiveExporter.RankObjectFieldAddresses(pool, sel);
+                    if (addresses.Count != 3 || addresses[0] != 0x2000 + 44
+                        || !addresses.Contains(0x1000 + 44) || !addresses.Contains(0x5000 + 44)
+                        || addresses.Contains(0x3000 + 44) || addresses.Contains(0x4000 + 44))
+                        throw new Exception("Rank clone address selection admitted a disagreeing clone.");
+                }
                 if (!RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(true, true, 3, 2, 3, 2)
                     || RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(true, true, 2, 3, 3, 2)
                     || RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(false, true, 3, 2, 3, 2))

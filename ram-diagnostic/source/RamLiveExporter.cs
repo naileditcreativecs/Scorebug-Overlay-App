@@ -3532,13 +3532,39 @@ namespace CollegeFootballRamDiagnostic
 
         private bool TryReadConfiguredRankObject(string fieldName, out ScoreHudTeamCandidate candidate)
         {
+            return TryReadConfiguredRankObject(fieldName, -1, out candidate);
+        }
+
+        // The game keeps several clones of each team object and rebuilds them
+        // constantly; watching a single address meant multi-second blind spots
+        // whenever "our" clone was mid-rebuild - the dominant possession lag in
+        // the 2026-08-13 probe game (~40% unreadable samples). All bound clone
+        // addresses are configured now, and the first one that validates
+        // answers. expectedScore is the freshness guard for state that changes
+        // mid-game (the possession flag): a clone must carry the live score to
+        // be believed; -1 skips the guard for fields identical across clones
+        // (rank, record).
+        private bool TryReadConfiguredRankObject(string fieldName, int expectedScore,
+            out ScoreHudTeamCandidate candidate)
+        {
             candidate = null;
             List<long> addresses;
             if (profile == null || !profile.Fields.TryGetValue(fieldName, out addresses)
-                || addresses == null || addresses.Count != 1) return false;
-            long objectAddress = addresses[0] - 44;
-            try { return scanner.TryReadLiveScoreHudTeamCandidate(objectAddress, out candidate); }
-            catch { return false; }
+                || addresses == null || addresses.Count == 0) return false;
+            for (int index = 0; index < addresses.Count; index++)
+            {
+                ScoreHudTeamCandidate current;
+                try
+                {
+                    if (!scanner.TryReadLiveScoreHudTeamCandidate(addresses[index] - 44, out current))
+                        continue;
+                }
+                catch { continue; }
+                if (expectedScore >= 0 && current.Score != expectedScore) continue;
+                candidate = current;
+                return true;
+            }
+            return false;
         }
 
         private RamReadResult ReadLiveRank(string fieldName, ref int lastValue,
@@ -3839,8 +3865,11 @@ namespace CollegeFootballRamDiagnostic
                 + (FormatTeamRecord(home.Wins, home.Losses, home.Ties) ?? "?")
                 + ", order " + (away.Address > home.Address ? "away-higher" : "away-lower")
                 + ")";
-            SetField("awayRank", new long[] { away.Address + 44 });
-            SetField("homeRank", new long[] { home.Address + 44 });
+            // Every clone of each bound team is a valid read source; the
+            // highest-address one is listed first to preserve the historical
+            // preference, and readers walk the list until one validates.
+            SetField("awayRank", RankObjectFieldAddresses(teams, away));
+            SetField("homeRank", RankObjectFieldAddresses(teams, home));
             lastAwayRank = away.Rank;
             lastHomeRank = home.Rank;
             lastAwayRecord = FormatTeamRecord(away.Wins, away.Losses, away.Ties);
@@ -3848,6 +3877,25 @@ namespace CollegeFootballRamDiagnostic
             lastAwayRankGeneration = matchupGeneration;
             lastHomeRankGeneration = matchupGeneration;
             ApplyOrientedTimeoutFields(away, home);
+        }
+
+        // All clone addresses for one bound team, selected side first. Clones
+        // must agree with the selected object on TeamId and Rank - the same
+        // agreement TrySelectFreshScoreHudSides demands - and the list is
+        // capped so a pathological sweep cannot bloat the profile.
+        internal static List<long> RankObjectFieldAddresses(
+            List<ScoreHudTeamCandidate> teams, ScoreHudTeamCandidate selected)
+        {
+            List<long> addresses = new List<long> { selected.Address + 44 };
+            for (int index = 0; index < teams.Count && addresses.Count < 8; index++)
+            {
+                ScoreHudTeamCandidate candidate = teams[index];
+                if (candidate.Address == selected.Address
+                    || candidate.TeamId != selected.TeamId
+                    || candidate.Rank != selected.Rank) continue;
+                addresses.Add(candidate.Address + 44);
+            }
+            return addresses;
         }
 
         // Orientation of last resort, for the tied-score case with no usable
@@ -4445,10 +4493,19 @@ namespace CollegeFootballRamDiagnostic
 
         private void ObserveHudPossession()
         {
+            // The score freshness guard mirrors the rule the orientation itself
+            // uses (a bound side must keep matching its score): only a clone
+            // carrying the live score may move the arrow. Without a readable
+            // score this tick, skip the guard rather than stall - the
+            // complementary-pair rule and flip debounce still hold.
+            RamReadResult awayScore = Read("awayScore", 0, 255);
+            RamReadResult homeScore = Read("homeScore", 0, 255);
             ScoreHudTeamCandidate away;
             ScoreHudTeamCandidate home;
-            if (!TryReadConfiguredRankObject("awayRank", out away)
-                || !TryReadConfiguredRankObject("homeRank", out home)) return;
+            if (!TryReadConfiguredRankObject("awayRank",
+                    awayScore.Available ? awayScore.Value : -1, out away)
+                || !TryReadConfiguredRankObject("homeRank",
+                    homeScore.Available ? homeScore.Value : -1, out home)) return;
             int candidate = HudPossessionCandidate(away.HasPossession, home.HasPossession);
             if (candidate < 0) return;
             if (candidate == hudPossessionPublished)
