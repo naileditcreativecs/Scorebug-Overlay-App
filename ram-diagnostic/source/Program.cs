@@ -3945,6 +3945,17 @@ namespace CollegeFootballRamDiagnostic
                         || addresses.Contains(0x3000 + 44) || addresses.Contains(0x4000 + 44))
                         throw new Exception("Rank clone address selection admitted a disagreeing clone.");
                 }
+                // Anchor windows: 1 MB aligned, each anchor covers itself plus
+                // both neighbors, deduplicated, capped, garbage rejected.
+                {
+                    List<long> windows = MemoryScanner.AnchorScanWindows(
+                        new long[] { 0x2F100200, 0x2F1FFF00, 0, -5 }, 12);
+                    if (!windows.Contains(0x2F000000L) || !windows.Contains(0x2F100000L)
+                        || !windows.Contains(0x2F200000L) || windows.Count != 3
+                        || MemoryScanner.AnchorScanWindows(new long[] { 0x2F100200 }, 2).Count != 2
+                        || MemoryScanner.AnchorScanWindows(null, 4).Count != 0)
+                        throw new Exception("Anchor scan windows are not aligned, deduplicated and capped.");
+                }
                 if (!RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(true, true, 3, 2, 3, 2)
                     || RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(true, true, 2, 3, 3, 2)
                     || RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(false, true, 3, 2, 3, 2))

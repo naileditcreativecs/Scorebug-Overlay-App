@@ -1471,6 +1471,69 @@ namespace CollegeFootballRamDiagnostic
             return result;
         }
 
+        // The 1 MB-aligned windows around a set of known addresses, deduplicated
+        // and capped. ScoreHud pools its per-presentation objects inside a small
+        // set of heap neighborhoods, so the windows around every address seen
+        // this game are where the NEXT freshly allocated object almost always
+        // lands - which is what makes a milliseconds-scale targeted scan
+        // possible while the full sweep stays behind it as the guarantee.
+        internal static List<long> AnchorScanWindows(IEnumerable<long> anchors, int maximumWindows)
+        {
+            const long windowSize = 0x100000;
+            List<long> windows = new List<long>();
+            if (anchors == null || maximumWindows <= 0) return windows;
+            foreach (long anchor in anchors)
+            {
+                if (anchor <= 0) continue;
+                long baseWindow = anchor & ~(windowSize - 1);
+                // The window itself plus one neighbor on each side: a pool that
+                // straddles a boundary is still covered.
+                foreach (long candidate in new[] { baseWindow - windowSize, baseWindow, baseWindow + windowSize })
+                {
+                    if (candidate <= 0 || windows.Contains(candidate)) continue;
+                    if (windows.Count >= maximumWindows) return windows;
+                    windows.Add(candidate);
+                }
+            }
+            return windows;
+        }
+
+        // Targeted complement to FindLiveScoreHudSnapshot: scan ONLY the given
+        // windows for down-distance objects. This may only ever ADD candidates
+        // faster - it proves nothing about absence, concludes nothing, and the
+        // exhaustive sweep remains the authority (the mistake the withdrawn
+        // narrowed-scan made was treating a partial scan's silence as absence).
+        public List<ScoreHudDownDistanceCandidate> FindDownDistanceCandidatesNear(
+            IEnumerable<long> anchorAddresses, int maximumWindows)
+        {
+            EnsureAttached();
+            List<ScoreHudDownDistanceCandidate> found = new List<ScoreHudDownDistanceCandidate>();
+            long moduleBase = process.MainModule.BaseAddress.ToInt64();
+            long expectedVtable = moduleBase + 0xB0F3128L;
+            const long windowSize = 0x100000;
+            HashSet<long> seen = new HashSet<long>();
+            foreach (long windowBase in AnchorScanWindows(anchorAddresses, maximumWindows))
+            {
+                byte[] buffer = new byte[(int)windowSize];
+                int bytesRead = Read(windowBase, buffer, buffer.Length);
+                int alignment = (int)((8 - (windowBase & 7)) & 7);
+                for (int index = alignment; index + 8 <= bytesRead; index += 8)
+                {
+                    if (BitConverter.ToInt64(buffer, index) != expectedVtable) continue;
+                    long address = windowBase + index;
+                    if (!seen.Add(address)) continue;
+                    ScoreHudDownDistanceCandidate candidate;
+                    try
+                    {
+                        if (TryReadLiveScoreHudDownDistanceCandidate(address, out candidate))
+                            found.Add(candidate);
+                    }
+                    catch { }
+                }
+            }
+            return found;
+        }
+
         public bool TryReadLiveScoreHudDownDistanceCandidate(long address,
             out ScoreHudDownDistanceCandidate candidate)
         {

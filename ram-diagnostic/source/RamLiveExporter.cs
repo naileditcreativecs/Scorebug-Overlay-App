@@ -207,6 +207,10 @@ namespace CollegeFootballRamDiagnostic
             resolvedProcessId = 0;
             attachedProcessStartUtcTicks = CurrentProcessStartUtcTicks();
             discoveryAttemptProcessId = 0;
+            // Pooled neighborhoods are per game process; a new attach starts
+            // with none rather than scanning another process's map.
+            scoreHudDownDistanceAnchors.Clear();
+            nextFastScoreHudScanUtc = DateTime.MinValue;
             nextAutoDiscoveryUtc = DateTime.MinValue;
             autoDiscoverySummary = null;
             scoreboardCandidateCount = 0;
@@ -1769,6 +1773,10 @@ namespace CollegeFootballRamDiagnostic
             {
                 if (zeroDistanceScanDue)
                     nextScoreHudZeroDistanceRetryUtc = now.Add(ScoreHudZeroDistanceRetry);
+                // Milliseconds-scale look in the known pooled neighborhoods so
+                // the next refresh can already poll a freshly allocated layer;
+                // the background sweep below stays as the authority.
+                TryFastScoreHudDownDistanceScan();
                 RequestScoreHudDiscovery();
             }
             else if ((scoreHudExpectedNonScrimmageSpecial == ScoreHudExpectedKickoff
@@ -2203,6 +2211,52 @@ namespace CollegeFootballRamDiagnostic
         private int lastScannedDown = -1;
         private int lastScannedDistance = -1;
 
+        // Fast path for freshly allocated special layers (Goal, Inches,
+        // Kickoff, PAT): the pooled neighborhoods of every down-distance
+        // address seen this process. A targeted window scan there finds a new
+        // object in milliseconds where the full sweep needs a second-plus -
+        // the difference between "4th & Inches" appearing with the snap or
+        // after it. Additive only; the full sweep remains the authority.
+        private readonly HashSet<long> scoreHudDownDistanceAnchors = new HashSet<long>();
+        private DateTime nextFastScoreHudScanUtc = DateTime.MinValue;
+
+        private void TryFastScoreHudDownDistanceScan()
+        {
+            if (scanner.Process == null || scanner.Process.HasExited
+                || resolvedProcessId != scanner.Process.Id
+                || scoreHudDownDistanceAnchors.Count == 0) return;
+            if (DateTime.UtcNow < nextFastScoreHudScanUtc) return;
+            nextFastScoreHudScanUtc = DateTime.UtcNow.AddMilliseconds(400);
+            List<ScoreHudDownDistanceCandidate> found;
+            try
+            {
+                found = scanner.FindDownDistanceCandidatesNear(
+                    scoreHudDownDistanceAnchors, 12);
+            }
+            catch { return; }
+            if (found.Count == 0) return;
+            List<long> merged = CopyConfiguredAddresses("scoreHudDownDistance");
+            bool changed = false;
+            for (int index = 0; index < found.Count; index++)
+            {
+                long address = found[index].Address;
+                RememberScoreHudDownDistanceAnchor(address);
+                if (merged.Contains(address)) continue;
+                merged.Add(address);
+                changed = true;
+            }
+            if (!changed) return;
+            merged.Sort();
+            if (merged.Count > 32) merged.RemoveRange(0, merged.Count - 32);
+            SetField("scoreHudDownDistance", merged);
+        }
+
+        private void RememberScoreHudDownDistanceAnchor(long address)
+        {
+            if (address > 0 && scoreHudDownDistanceAnchors.Count < 256)
+                scoreHudDownDistanceAnchors.Add(address);
+        }
+
         // DIAGNOSTIC. Records why timeout binding declined on the last attempt,
         // published as discovery.timeoutBind. Every path that gives up on the
         // timeout fields sets this, so a failure names its own cause instead of
@@ -2335,6 +2389,7 @@ namespace CollegeFootballRamDiagnostic
             for (int index = 0; index < result.DownDistance.Count; index++)
             {
                 long address = result.DownDistance[index].Address;
+                RememberScoreHudDownDistanceAnchor(address);
                 if (address > 0 && !addresses.Contains(address)) addresses.Add(address);
             }
             addresses.Sort();
