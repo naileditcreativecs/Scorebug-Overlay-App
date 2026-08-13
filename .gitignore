@@ -6,3 +6,6 @@ win-unpacked/
 *.zip
 UserData/
 data-export/
+# Memory-dump probe artifacts are too large for GitHub and are not source.
+ram-diagnostic/**/reports/*.bin
+ram-diagnostic/source/rank-exact-indiana5-initial-full.json
