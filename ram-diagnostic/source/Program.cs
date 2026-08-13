@@ -3956,6 +3956,21 @@ namespace CollegeFootballRamDiagnostic
                         || MemoryScanner.AnchorScanWindows(null, 4).Count != 0)
                         throw new Exception("Anchor scan windows are not aligned, deduplicated and capped.");
                 }
+                // Slug normalization must match the game's asset folder names:
+                // punctuation between letters joins, only spaces/hyphens/
+                // slashes split. Every punctuated FBS name is asserted.
+                if (MemoryScanner.NormalizeSlug("Texas A&M") != "texas_am"
+                    || MemoryScanner.NormalizeSlug("N.C. State") != "nc_state"
+                    || MemoryScanner.NormalizeSlug("LA. Tech") != "la_tech"
+                    || MemoryScanner.NormalizeSlug("W. Kentucky") != "w_kentucky"
+                    || MemoryScanner.NormalizeSlug("Hawai'i") != "hawaii"
+                    || MemoryScanner.NormalizeSlug("Miami (OH)") != "miami_oh"
+                    || MemoryScanner.NormalizeSlug("Louisiana-Monroe") != "louisiana_monroe"
+                    || MemoryScanner.NormalizeSlug("Notre Dame") != "notre_dame"
+                    || MemoryScanner.NormalizeSlug("  Air   Force ") != "air_force"
+                    || MemoryScanner.NormalizeSlug("western_michigan") != "western_michigan"
+                    || MemoryScanner.NormalizeSlug("") != "")
+                    throw new Exception("Slug normalization does not match the game's asset folder names.");
                 if (!RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(true, true, 3, 2, 3, 2)
                     || RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(true, true, 2, 3, 3, 2)
                     || RamLiveExporter.VerifiedHomeAwayTimeoutRereadIsValid(false, true, 3, 2, 3, 2))

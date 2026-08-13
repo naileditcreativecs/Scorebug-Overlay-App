@@ -4428,8 +4428,15 @@ namespace CollegeFootballRamDiagnostic
             }
         }
 
-        private static string NormalizeSlug(string value)
+        internal static string NormalizeSlug(string value)
         {
+            // Only whitespace, hyphens and slashes are word boundaries; other
+            // punctuation vanishes WITHOUT splitting. This mirrors how the game
+            // names its asset folders: "Texas A&M" is texas_am and "N.C. State"
+            // is nc_state. The old rule turned every non-alphanumeric into a
+            // separator, producing texas_a_m / n_c_state - slugs that match
+            // nothing, which silently discarded those teams' names in any mode
+            // with tradition assets present.
             StringBuilder result = new StringBuilder();
             bool separator = false;
             string text = (value ?? String.Empty).ToLowerInvariant();
@@ -4442,7 +4449,7 @@ namespace CollegeFootballRamDiagnostic
                     result.Append(c);
                     separator = false;
                 }
-                else separator = true;
+                else if (Char.IsWhiteSpace(c) || c == '-' || c == '/' || c == '_') separator = true;
             }
             return result.ToString();
         }

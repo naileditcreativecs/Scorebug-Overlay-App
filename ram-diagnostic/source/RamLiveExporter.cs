@@ -5400,6 +5400,10 @@ namespace CollegeFootballRamDiagnostic
 
         private static string NormalizeSlug(string value)
         {
+            // Must stay identical to MemoryScanner.NormalizeSlug: only
+            // whitespace, hyphens and slashes split words; other punctuation
+            // vanishes without splitting, matching the game's asset slugs
+            // ("Texas A&M" -> texas_am, "N.C. State" -> nc_state).
             System.Text.StringBuilder result = new System.Text.StringBuilder();
             bool separator = false;
             string text = (value ?? String.Empty).ToLowerInvariant();
@@ -5412,7 +5416,7 @@ namespace CollegeFootballRamDiagnostic
                     result.Append(c);
                     separator = false;
                 }
-                else separator = true;
+                else if (Char.IsWhiteSpace(c) || c == '-' || c == '/' || c == '_') separator = true;
             }
             return result.ToString();
         }
