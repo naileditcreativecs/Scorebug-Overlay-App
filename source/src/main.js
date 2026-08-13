@@ -2601,7 +2601,12 @@ function setTheme(themePath, preferredCanvas = {}, { rememberPrevious = true } =
   runtime.mockMode = false;
   runtime.themeRevision += 1;
   runtime.logoGeometry = { away: null, home: null };
-  applyPlacementSettings();
+  // On a real switch the placement restoreThemeSizing just loaded must be
+  // APPLIED, not merely stored: without restoreLocked the locked path kept
+  // the previous theme's on-screen position and then persisted it straight
+  // over the snapshot it had just restored - which is why each theme's saved
+  // spot never seemed to stick.
+  applyPlacementSettings({ restoreLocked: changingTheme });
   rememberThemeSizing(resolved);
   persistSettings();
   sendToOverlay('overlay:theme', {
