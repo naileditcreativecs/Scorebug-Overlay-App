@@ -52,7 +52,8 @@ function reportError(error) {
 function describeTeam(team) {
   if (!team?.name) return 'waiting';
   const rank = Number(team.rank);
-  return `${Number.isInteger(rank) && rank > 0 ? `#${rank} ` : ''}${team.name}`;
+  const record = team.record ? ` · ${team.record}` : '';
+  return `${Number.isInteger(rank) && rank > 0 ? `#${rank} ` : ''}${team.name}${record}`;
 }
 
 function teamNameForId(teamId) {
@@ -235,14 +236,20 @@ function renderTeamControls() {
     const recordInput = document.getElementById(`${side}-record-input`);
     if (recordInput && document.activeElement !== recordInput) {
       recordInput.value = override.recordMode === 'custom' ? (override.record || '') : '';
-      recordInput.placeholder = appState?.scoreboard?.[side]?.record
-        ? `Auto (${appState.scoreboard[side].record})`
-        : 'Auto';
+      recordInput.placeholder = override.recordMode === 'hidden'
+        ? 'Hidden'
+        : (appState?.scoreboard?.[side]?.record
+          ? `Auto (${appState.scoreboard[side].record})`
+          : 'Auto');
     }
+    const recordMode = override.recordMode || 'auto';
+    document.getElementById(`${side}-record-apply`)?.classList.toggle('active', recordMode === 'custom');
+    document.getElementById(`${side}-record-auto`)?.classList.toggle('active', recordMode === 'auto');
+    document.getElementById(`${side}-record-hide`)?.classList.toggle('active', recordMode === 'hidden');
     const overridden = Boolean(
       override.teamId
       || (override.rankMode && override.rankMode !== 'auto')
-      || override.recordMode === 'custom'
+      || ['custom', 'hidden'].includes(override.recordMode)
       || logoState.selectedVariantId,
     );
     document.querySelector(`.team-card[data-side="${side}"]`).classList.toggle('overridden', overridden);
@@ -335,29 +342,42 @@ async function runColorCommand(command, successText) {
 }
 
 function wireRecordControls() {
+  // Overrides layer onto live game data; without a game being read there is
+  // nothing on screen to show them on. Say so instead of looking dead.
+  const savedToast = (message) => {
+    const liveGame = Boolean(appState?.scoreboard?.away?.name || appState?.scoreboard?.home?.name);
+    setToast(liveGame ? message : `${message} It will appear once the game is being read.`);
+  };
   for (const side of ['away', 'home']) {
     const sideLabel = side === 'away' ? 'Away' : 'Home';
     const input = document.getElementById(`${side}-record-input`);
-    const applyRecord = () => {
+    const applyRecord = async () => {
       const text = input.value.trim();
       if (!text) {
-        applyPickerChoice(side, { recordMode: 'auto', record: null });
+        await applyPickerChoice(side, { recordMode: 'auto', record: null });
+        savedToast(`${sideLabel} record returned to automatic.`);
         return;
       }
       if (!/^\d{1,2}-\d{1,2}(?:-\d{1,2})?$/.test(text)) {
         setToast('Records look like 5-2 or 5-2-1', true);
         return;
       }
-      applyPickerChoice(side, { recordMode: 'custom', record: text });
+      await applyPickerChoice(side, { recordMode: 'custom', record: text });
+      savedToast(`${sideLabel} record set to ${text}.`);
     };
     document.getElementById(`${side}-record-apply`)?.addEventListener('click', applyRecord);
     input?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') { event.preventDefault(); applyRecord(); }
     });
-    document.getElementById(`${side}-record-auto`)?.addEventListener('click', () => {
+    document.getElementById(`${side}-record-auto`)?.addEventListener('click', async () => {
       input.value = '';
-      applyPickerChoice(side, { recordMode: 'auto', record: null });
-      setToast(`${sideLabel} record returned to automatic.`);
+      await applyPickerChoice(side, { recordMode: 'auto', record: null });
+      savedToast(`${sideLabel} record returned to automatic.`);
+    });
+    document.getElementById(`${side}-record-hide`)?.addEventListener('click', async () => {
+      input.value = '';
+      await applyPickerChoice(side, { recordMode: 'hidden', record: null });
+      savedToast(`${sideLabel} record hidden from the scorebug.`);
     });
   }
 }

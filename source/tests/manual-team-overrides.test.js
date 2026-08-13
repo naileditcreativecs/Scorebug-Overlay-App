@@ -49,3 +49,22 @@ test('rank and record overrides are independent', () => {
   assert.equal(autoRecord.recordMode, 'auto');
   assert.equal(autoRecord.record, null);
 });
+
+test('hidden record mode blanks the record on the scorebug', () => {
+  const overrides = emptyManualTeamOverrides();
+  overrides.home = normalizeManualTeamOverride(null, { recordMode: 'hidden' });
+  const published = applyManualTeamOverrides({
+    away: { name: 'USC', record: '4-1' },
+    home: { name: 'Pittsburgh', record: '3-2' },
+    game: {}, meta: {},
+  }, overrides, null);
+  assert.equal(published.home.record, null);
+  assert.equal(published.away.record, '4-1');
+  assert.equal(published.meta.manualTeamOverrides.home.record, null);
+});
+
+test('hidden record mode needs no record text', () => {
+  const override = normalizeManualTeamOverride(null, { recordMode: 'hidden', record: 'ignored' });
+  assert.equal(override.recordMode, 'hidden');
+  assert.equal(override.record, null);
+});

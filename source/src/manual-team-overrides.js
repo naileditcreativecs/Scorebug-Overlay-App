@@ -32,8 +32,8 @@ function normalizeManualTeamOverride(resolver, payload = {}) {
   }
 
   const recordMode = String(payload.recordMode || 'auto').toLowerCase();
-  if (!['auto', 'custom'].includes(recordMode)) {
-    throw new Error('The record override must be Auto or a typed record.');
+  if (!['auto', 'custom', 'hidden'].includes(recordMode)) {
+    throw new Error('The record override must be Auto, Hidden, or a typed record.');
   }
   let record = null;
   if (recordMode === 'custom') {
@@ -80,6 +80,11 @@ function applyManualTeamOverrides(sourceState, overrides, resolver) {
     if (override.recordMode === 'custom' && RECORD_PATTERN.test(String(override.record || ''))) {
       payload[side].record = override.record;
       applied[side] = { ...(applied[side] || {}), record: override.record };
+    } else if (override.recordMode === 'hidden') {
+      // Show nothing where the record would be - the overlay blanks a
+      // null-bound element, so the bug simply has no record text.
+      payload[side].record = null;
+      applied[side] = { ...(applied[side] || {}), record: null };
     }
   }
 
