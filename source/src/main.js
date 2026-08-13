@@ -231,6 +231,8 @@ let ramReaderProcess = null;
 let ramReaderRestartTimer = null;
 let ramReaderSeedMode = null;
 let ramScoreboardTimer = null;
+let ramFileWatcher = null;
+let ramWatchPollScheduled = false;
 let ramScoreboardSignature = '';
 
 // Reader health watchdog. The reader can stay alive and busy while publishing
@@ -981,12 +983,45 @@ function startRamScoreboardBridge() {
   ramScoreboardTimer = setInterval(pollRamScoreboardState, 100);
   startRamReaderHealthWatch();
   ramScoreboardTimer.unref?.();
+  startRamFileWatch();
+}
+
+// Push instead of poll: the reader atomically replaces live-game-data.json
+// on every publish, and waiting for the next 100ms poll tick added up to
+// 100ms of pure latency to every field on the scorebug. The watcher reacts
+// the instant the file lands; the interval above stays as the safety net,
+// so a watcher failure costs nothing but the speed-up.
+function startRamFileWatch() {
+  if (ramFileWatcher) return;
+  try {
+    fs.mkdirSync(dataExportRootPath(), { recursive: true });
+    ramFileWatcher = fs.watch(dataExportRootPath(), (eventType, filename) => {
+      if (filename !== 'live-game-data.json') return;
+      // Coalesce bursts (replace fires several events) into one poll.
+      if (ramWatchPollScheduled) return;
+      ramWatchPollScheduled = true;
+      setTimeout(() => {
+        ramWatchPollScheduled = false;
+        pollRamScoreboardState();
+      }, 0);
+    });
+    ramFileWatcher.on?.('error', () => {
+      try { ramFileWatcher?.close(); } catch { }
+      ramFileWatcher = null;
+    });
+  } catch {
+    // Polling continues to carry the bridge alone.
+    ramFileWatcher = null;
+  }
 }
 
 function stopRamScoreboardBridge() {
   stopRamReaderHealthWatch();
   if (ramScoreboardTimer) clearInterval(ramScoreboardTimer);
   ramScoreboardTimer = null;
+  try { ramFileWatcher?.close(); } catch { }
+  ramFileWatcher = null;
+  ramWatchPollScheduled = false;
   ramLiveDocumentReader.clear();
   runtime.ramScoreboardState = null;
   runtime.ramAppliedFields = [];
