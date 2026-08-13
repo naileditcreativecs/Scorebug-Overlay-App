@@ -175,6 +175,19 @@ namespace CollegeFootballRamDiagnostic
         private int gameVersionProcessId;
         private string gameExeVersion;
         private long gameModuleSize;
+        // Fast reattach. When the app restarts while the same game process is
+        // still running, the cached core addresses are checked by watching the
+        // clock tick there - the same liveness proof discovery uses - instead
+        // of being discarded outright. Adoption on proof, full discovery on any
+        // failure; discovery keeps its normal cadence in parallel the whole
+        // time, so this path can shortcut acquisition but never block it.
+        private bool cacheProbeActive;
+        private int cacheProbeProcessId;
+        private DateTime nextCacheProbeSampleUtc;
+        private RamScoreboardSnapshot cacheProbeFirst;
+        private RamScoreboardSnapshot cacheProbeSecond;
+        private DateTime cacheProbeFirstAtUtc;
+        private DateTime cacheProbeSecondAtUtc;
 
         public RamLiveExporter(MemoryScanner scanner, string profilePath)
         {
@@ -219,6 +232,7 @@ namespace CollegeFootballRamDiagnostic
             lastHomeRankGeneration = -1;
             candidateDifferentCoreSignature = null;
             differentCoreConfirmations = 0;
+            ResetCacheProbe();
             ResetScoreHudOrientation();
             matchupTransitionPending = false;
             retiredAwayTeamName = null;
@@ -315,33 +329,49 @@ namespace CollegeFootballRamDiagnostic
                 || scoreHudExpectedNonScrimmageSpecial != ScoreHudExpectedNone;
             bool canRecoverDuringSpecialState = nonScrimmageSpecialState
                 && CanRecoverProfileDuringSpecialState();
+            bool sameProcessIdentity = profile.ProcessId == scanner.Process.Id
+                && CurrentProcessIdentityMatchesProfile();
             if (resolvedProcessId != scanner.Process.Id
                 && IsCompatibleAutomaticProfileScope(profile.Scope)
-                && ((profile.ProcessId == scanner.Process.Id && CurrentProcessIdentityMatchesProfile())
-                    || canRecoverDuringSpecialState))
+                && (sameProcessIdentity || canRecoverDuringSpecialState))
             {
-                PrepareRestoredMatchupState();
                 // The game process can outlive the overlay and retain a fully
-                // readable prior-game core. Static cache readabilityâ€”even with
-                // an agreeing legacy recordâ€”is not current-game proof. Drop all
-                // addresses and force the same live-progression discovery used
-                // on a cold process attach. A paused restart intentionally stays
-                // blank until gameplay moves.
-                ClearStaleOutput(screenJsonPath);
-                profile.Fields.Clear();
-                profile.SeedAwayTeamName = null;
-                profile.SeedHomeTeamName = null;
-                profile.ProcessId = 0;
-                profile.ProcessStartUtcTicks = 0;
-                profile.Scope = AutomaticProfileScope;
-                profile.CreatedAt = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
-                try
+                // readable prior-game core. Static cache readability - even with
+                // an agreeing legacy record - is not current-game proof. But the
+                // proof discovery uses IS available here without a sweep: watch
+                // the cached core and require a coherent clock countdown, the
+                // exact test PromoteChangingWideCandidates applies to a freshly
+                // found record. So for a same-process reattach, probe the cached
+                // addresses instead of discarding them: they either prove
+                // themselves within a few live seconds or the normal discovery
+                // (still running on its own cadence below) replaces them.
+                //
+                // Side-bound state - names, ranks, timeouts, possession - is
+                // still dropped up front. A different matchup can be loaded in
+                // the same process between sessions, and re-reading a cached
+                // name address is exactly the hanging-teams bug. Those fields
+                // re-bind through their existing confirmation paths once the
+                // core is adopted.
+                if (sameProcessIdentity && !canRecoverDuringSpecialState && HasCachedCoreFields())
                 {
-                    profile.Save(profilePath);
-                    profileWriteTimeUtc = File.GetLastWriteTimeUtc(profilePath);
+                    if (!cacheProbeActive || cacheProbeProcessId != scanner.Process.Id)
+                    {
+                        PrepareRestoredMatchupState();
+                        ClearStaleOutput(screenJsonPath);
+                        BeginCacheProbe();
+                        autoDiscoverySummary = "same-process cache found; verifying the cached scoreboard by watching it move";
+                    }
+                    AdvanceCacheProbe(screenJsonPath);
                 }
-                catch { }
-                autoDiscoverySummary = "same-process cache discarded; waiting for live progression";
+                else
+                {
+                    PrepareRestoredMatchupState();
+                    // A paused restart intentionally stays blank until gameplay
+                    // moves; without a full cached core there is nothing to
+                    // probe, so force the cold-attach discovery.
+                    ClearStaleOutput(screenJsonPath);
+                    DiscardCachedProfile("same-process cache discarded; waiting for live progression");
+                }
             }
             bool processNeedsDiscovery = resolvedProcessId != scanner.Process.Id;
             bool matchupNeedsDiscovery = !processNeedsDiscovery && TeamNamesDifferFromScreen(screen);
@@ -766,6 +796,146 @@ namespace CollegeFootballRamDiagnostic
                 awayTimeouts.Available ? awayTimeouts.Value.ToString(CultureInfo.InvariantCulture) : "?",
                 homeTimeouts.Available ? homeTimeouts.Value.ToString(CultureInfo.InvariantCulture) : "?",
                 outputPath);
+        }
+
+        private bool HasCachedCoreFields()
+        {
+            return HasConfiguredField("quarter") && HasConfiguredField("gameClockSeconds")
+                && HasConfiguredField("playClock") && HasConfiguredField("homeScore")
+                && HasConfiguredField("awayScore") && HasConfiguredField("down")
+                && HasConfiguredField("distance");
+        }
+
+        private void BeginCacheProbe()
+        {
+            cacheProbeActive = true;
+            cacheProbeProcessId = scanner.Process.Id;
+            nextCacheProbeSampleUtc = DateTime.MinValue;
+            cacheProbeFirst = null;
+            cacheProbeSecond = null;
+        }
+
+        private void ResetCacheProbe()
+        {
+            cacheProbeActive = false;
+            cacheProbeProcessId = 0;
+            nextCacheProbeSampleUtc = DateTime.MinValue;
+            cacheProbeFirst = null;
+            cacheProbeSecond = null;
+        }
+
+        // One sample roughly every second; three coherent samples adopt the
+        // cache. Any unreadable sample abandons it immediately - "can't find
+        // them" means go find them manually, not keep hoping.
+        private void AdvanceCacheProbe(string screenJsonPath)
+        {
+            if (!cacheProbeActive || scanner.Process == null || scanner.Process.HasExited
+                || cacheProbeProcessId != scanner.Process.Id) return;
+            if (DateTime.UtcNow < nextCacheProbeSampleUtc) return;
+            nextCacheProbeSampleUtc = DateTime.UtcNow.AddMilliseconds(1000);
+            RamScoreboardSnapshot sample = ReadCacheProbeSnapshot();
+            if (sample == null)
+            {
+                // The cached addresses no longer read as a scoreboard at all.
+                ResetCacheProbe();
+                ClearStaleOutput(screenJsonPath);
+                DiscardCachedProfile("cached scoreboard unreadable; discarded, locating from scratch");
+                return;
+            }
+            DateTime now = DateTime.UtcNow;
+            if (cacheProbeFirst == null)
+            {
+                cacheProbeFirst = sample;
+                cacheProbeFirstAtUtc = now;
+                return;
+            }
+            if (cacheProbeSecond == null)
+            {
+                cacheProbeSecond = sample;
+                cacheProbeSecondAtUtc = now;
+                return;
+            }
+            if (MemoryScanner.HasCoherentLiveWideProgression(
+                cacheProbeFirst, cacheProbeSecond, sample,
+                (long)(cacheProbeSecondAtUtc - cacheProbeFirstAtUtc).TotalMilliseconds,
+                (long)(now - cacheProbeSecondAtUtc).TotalMilliseconds))
+            {
+                AdoptVerifiedCache();
+                return;
+            }
+            // Readable but not moving - a paused game looks exactly like this.
+            // Slide the window and keep watching; the full discovery running on
+            // its own cadence is the guarantee this can never become a trap.
+            cacheProbeFirst = cacheProbeSecond;
+            cacheProbeFirstAtUtc = cacheProbeSecondAtUtc;
+            cacheProbeSecond = sample;
+            cacheProbeSecondAtUtc = now;
+            autoDiscoverySummary = "cached scoreboard readable; waiting for it to move (paused games stay here)";
+        }
+
+        // Reads the cached core exactly the way live publication would, and
+        // reuses the discovery-side snapshot validation so "looks like a live
+        // scoreboard" means the same thing in both places.
+        private RamScoreboardSnapshot ReadCacheProbeSnapshot()
+        {
+            RamReadResult quarter = Read("quarter", 1, 20);
+            RamReadResult clock = Read("gameClockSeconds", 0, 3600);
+            RamReadResult playClock = Read("playClock", 0, 99);
+            RamReadResult homeScore = Read("homeScore", 0, 255);
+            RamReadResult awayScore = Read("awayScore", 0, 255);
+            RamReadResult down = Read("down", 0, 4);
+            RamReadResult distance = Read("distance", 0, 99);
+            if (!quarter.Available || !clock.Available || !playClock.Available
+                || !homeScore.Available || !awayScore.Available
+                || !down.Available || !distance.Available) return null;
+            return new RamScoreboardSnapshot
+            {
+                // A fixed non-zero token: the progression check requires the
+                // three samples to come from one address, and these all come
+                // from the same configured field set by construction.
+                Address = 1,
+                UsesWideLayout = true,
+                Quarter = quarter.Value,
+                Clock = clock.Value,
+                PlayClock = playClock.Value,
+                HomeScore = homeScore.Value,
+                AwayScore = awayScore.Value,
+                Down = down.Value,
+                Distance = distance.Value
+            };
+        }
+
+        private void AdoptVerifiedCache()
+        {
+            ResetCacheProbe();
+            discoveryAttemptProcessId = scanner.Process.Id;
+            resolvedProcessId = scanner.Process.Id;
+            profile.ProcessId = scanner.Process.Id;
+            profile.ProcessStartUtcTicks = attachedProcessStartUtcTicks;
+            teamKeyNames = null;
+            lastAwayAssetResult = RamTextResult.Missing(0);
+            nextAwayAssetScanUtc = DateTime.MinValue;
+            // The same three synchronized confirmation passes a discovered core
+            // gets; adoption is a shortcut past the sweep, not past the checks.
+            BeginProfileConfirmation("cached scoreboard verified by live movement; confirmation pending");
+        }
+
+        private void DiscardCachedProfile(string summary)
+        {
+            profile.Fields.Clear();
+            profile.SeedAwayTeamName = null;
+            profile.SeedHomeTeamName = null;
+            profile.ProcessId = 0;
+            profile.ProcessStartUtcTicks = 0;
+            profile.Scope = AutomaticProfileScope;
+            profile.CreatedAt = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture);
+            try
+            {
+                profile.Save(profilePath);
+                profileWriteTimeUtc = File.GetLastWriteTimeUtc(profilePath);
+            }
+            catch { }
+            autoDiscoverySummary = summary;
         }
 
         private void EnsureGameVersionInfo()
@@ -3908,6 +4078,8 @@ namespace CollegeFootballRamDiagnostic
 
         private void BeginProfileConfirmation(string summary)
         {
+            // Discovery adopting a core makes any in-flight cache probe moot.
+            ResetCacheProbe();
             confirmationProcessId = scanner.Process.Id;
             confirmationPassCount = 0;
             nextConfirmationUtc = DateTime.MinValue;
