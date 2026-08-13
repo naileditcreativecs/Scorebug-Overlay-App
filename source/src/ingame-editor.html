@@ -19,6 +19,8 @@
       </nav>
       <div class="actions">
         <span class="resize-actions">
+          <button id="center-horizontal" type="button" title="Center the scorebug left-to-right in the game window">Center &#8596;</button>
+          <button id="center-vertical" type="button" title="Center the scorebug top-to-bottom in the game window">Center &#8597;</button>
           <button id="crop-toggle" type="button" aria-pressed="false">Crop edges: OFF</button>
           <button id="reset-crop" type="button">Reset crop</button>
         </span>
@@ -72,6 +74,15 @@
             <div class="side-heading"><strong>AWAY</strong><span id="away-output">Output: waiting</span></div>
             <label>Team<button id="away-team" class="picker-trigger" type="button" aria-label="Choose away team override">Auto (OCR)</button></label>
             <label>Rank<button id="away-rank" class="picker-trigger" type="button" aria-label="Choose away rank override">Auto (OCR)</button></label>
+            <label>Scorebug color
+              <span class="color-row" data-side="away">
+                <button id="away-color-auto" class="color-swatch color-auto" type="button" title="Team's 1st color (automatic)">1st</button>
+                <button id="away-color-secondary" class="color-swatch" type="button" title="Team's 2nd color">2nd</button>
+                <button id="away-color-white" class="color-swatch color-white" type="button" title="White">W</button>
+                <button id="away-color-black" class="color-swatch color-black" type="button" title="Black">B</button>
+                <span class="color-wheel-wrap" title="Pick any color"><input id="away-color-wheel" type="color" value="#888888" aria-label="Away custom color"></span>
+              </span>
+            </label>
             <label>Logo<div class="current-logo-choice"><img id="away-current-logo" alt="" draggable="false"><button id="away-logo" class="picker-trigger" type="button" aria-label="Choose the away team's logo">Waiting for team</button></div></label>
             <div class="logo-actions">
               <button id="away-import-logo" type="button">Import logo</button>
@@ -100,6 +111,15 @@
             <div class="side-heading"><strong>HOME</strong><span id="home-output">Output: waiting</span></div>
             <label>Team<button id="home-team" class="picker-trigger" type="button" aria-label="Choose home team override">Auto (OCR)</button></label>
             <label>Rank<button id="home-rank" class="picker-trigger" type="button" aria-label="Choose home rank override">Auto (OCR)</button></label>
+            <label>Scorebug color
+              <span class="color-row" data-side="home">
+                <button id="home-color-auto" class="color-swatch color-auto" type="button" title="Team's 1st color (automatic)">1st</button>
+                <button id="home-color-secondary" class="color-swatch" type="button" title="Team's 2nd color">2nd</button>
+                <button id="home-color-white" class="color-swatch color-white" type="button" title="White">W</button>
+                <button id="home-color-black" class="color-swatch color-black" type="button" title="Black">B</button>
+                <span class="color-wheel-wrap" title="Pick any color"><input id="home-color-wheel" type="color" value="#888888" aria-label="Home custom color"></span>
+              </span>
+            </label>
             <label>Logo<div class="current-logo-choice"><img id="home-current-logo" alt="" draggable="false"><button id="home-logo" class="picker-trigger" type="button" aria-label="Choose the home team's logo">Waiting for team</button></div></label>
             <div class="logo-actions">
               <button id="home-import-logo" type="button">Import logo</button>
@@ -140,8 +160,16 @@
           </div>
           <footer><button id="clear-logo-number" type="button">Clear</button><button id="apply-logo-number" class="primary" type="button">Apply value</button></footer>
         </aside>
+        <div class="color-presets">
+          <strong>COLOR PRESETS</strong>
+          <span class="color-preset-controls">
+            <input id="color-preset-name" type="text" maxlength="40" placeholder="Preset name (optional)" aria-label="Color preset name">
+            <button id="save-color-preset" type="button">Save current colors</button>
+          </span>
+          <span id="color-preset-list" class="color-preset-list"></span>
+        </div>
         <footer class="team-panel-footer">
-          <span>Team/rank overrides last for this session. Imported logos and placement are remembered without changing OCR.</span>
+          <span>Team/rank overrides last for this session. Colors, imported logos and placement are remembered without changing the reader.</span>
           <button id="clear-team-overrides" type="button">Return both teams to Auto</button>
         </footer>
       </section>

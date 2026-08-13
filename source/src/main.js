@@ -136,6 +136,14 @@ const {
 const { LatestTaskQueue } = require('./latest-task-queue');
 const { buildRamReaderReport } = require('./ram-reader-report');
 const {
+  applyScorebugColorPreset,
+  applyScorebugColors,
+  deleteScorebugColorPreset,
+  isHexColor: isScorebugHexColor,
+  normalizeScorebugColors,
+  upsertScorebugColorPreset,
+} = require('./scorebug-colors');
+const {
   captureSourceHwnd,
   normalizeWindowTitle,
   selectCaptureSource,
@@ -1280,6 +1288,22 @@ function currentThemeSizingSnapshot() {
     crop,
     scale,
     scaleAt2160,
+    // Position is part of a theme's identity too: each HTML remembers its own
+    // anchor, offsets, and (when placed by hand) the exact screen placement,
+    // so switching themes puts each one back where it was left.
+    anchor: typeof runtime.layout?.anchor === 'string'
+      ? runtime.layout.anchor
+      : (settings.overlay?.anchor || 'bottom-center'),
+    marginX: clampInteger(runtime.layout?.right ?? settings.overlay?.marginX, 0, -4000, 4000),
+    marginY: clampInteger(runtime.layout?.bottom ?? settings.overlay?.marginY, 0, -4000, 4000),
+    positionLocked: Boolean(runtime.positionLocked),
+    placement: overlayWindow && !overlayWindow.isDestroyed()
+      ? serializePlacement(
+        overlayWindow.getBounds(),
+        runtime.layout,
+        displayForBounds(overlayWindow.getBounds()),
+      )
+      : null,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -1303,6 +1327,21 @@ function restoreThemeSizing(themePath, preferred = {}, { usePreferredCrop = true
     settings.overlay ||= {};
     settings.overlay.scale = saved.scale;
     settings.overlay.scaleAt2160 = saved.scaleAt2160;
+    // Older snapshots carry no position; restore it only when present so the
+    // upgrade never moves anything that was not saved by this build.
+    if (typeof saved.anchor === 'string' && saved.anchor.includes('-')) {
+      settings.overlay.anchor = saved.anchor;
+      settings.overlay.marginX = clampInteger(saved.marginX, settings.overlay.marginX ?? 0, -4000, 4000);
+      settings.overlay.marginY = clampInteger(saved.marginY, settings.overlay.marginY ?? 0, -4000, 4000);
+    }
+    if (isPlainObject(saved.placement) && saved.placement.displayId) {
+      placementMap()[String(saved.placement.displayId)] = { ...saved.placement };
+      settings.overlay.lastDisplayId = String(saved.placement.displayId);
+      if (saved.positionLocked !== undefined) {
+        runtime.positionLocked = Boolean(saved.positionLocked);
+        settings.overlay.positionLocked = runtime.positionLocked;
+      }
+    }
   }
   return { ...canvas, restored: Boolean(saved) };
 }
@@ -1806,6 +1845,7 @@ function inGameEditorState() {
     readerMode: settings.recognition?.mode || 'local-ocr',
     teams: scoreboardTeamOptions(teamAssetResolver),
     teamOverrides: cloneJson(runtime.manualTeamOverrides),
+    scorebugColors: scorebugColorState(),
     logoChoices: {
       away: logoChoicesForSide('away'),
       home: logoChoicesForSide('home'),
@@ -2594,12 +2634,17 @@ function publishCurrentScoreboardState() {
   runtime.scoreboardState = applyTeamLogoLayouts(
     applyThemeLogoLibrary(
       applyTeamLogoPreferences(
-        applyBundledTeamAssets(
-          applyManualTeamOverrides(
-            applyRamScoreboardState(runtime.readerScoreboardState),
-            runtime.manualTeamOverrides,
-            teamAssetResolver,
+        // Colors apply after the bundled assets so a pinned scorebug color
+        // wins over the asset's primary.
+        applyScorebugColors(
+          applyBundledTeamAssets(
+            applyManualTeamOverrides(
+              applyRamScoreboardState(runtime.readerScoreboardState),
+              runtime.manualTeamOverrides,
+              teamAssetResolver,
+            ),
           ),
+          settings.scorebugColors,
         ),
         settings.teamLogos?.preferences,
         teamAssetResolver,
@@ -2671,6 +2716,116 @@ function clearManualTeamOverrides({ publish = true, recordLog = true } = {}) {
   sendToInGameEditor('in-game-editor:state', inGameEditorState());
   if (recordLog) logMessage('Manual team and rank overrides cleared; automatic OCR owns both teams again.');
   return inGameEditorState();
+}
+
+// Current color choices plus the swatches the editor can offer: the live
+// team's real primary and secondary from the bundled assets.
+function scorebugColorState() {
+  const colors = normalizeScorebugColors(settings.scorebugColors);
+  const swatches = {};
+  for (const side of ['away', 'home']) {
+    const id = runtime.scoreboardState?.meta?.teamAssets?.[side]?.id;
+    const asset = id && teamAssetResolver ? teamAssetResolver.resolveTeamId(id) : null;
+    swatches[side] = {
+      teamName: asset?.name || runtime.scoreboardState?.[side]?.name || null,
+      primary: asset?.primary || null,
+      secondary: asset?.secondary || null,
+      live: runtime.scoreboardState?.[side]?.color || null,
+    };
+  }
+  return { ...colors, swatches };
+}
+
+function publishScorebugColors(nextColors, logText) {
+  settings.scorebugColors = normalizeScorebugColors(nextColors);
+  persistSettings();
+  publishCurrentScoreboardState();
+  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  if (logText) logMessage(logText);
+  return inGameEditorState();
+}
+
+function setScorebugColor(payload = {}) {
+  const side = String(payload.side || '').toLowerCase();
+  if (!['away', 'home'].includes(side)) throw new Error('Choose the away or home scorebug color.');
+  const mode = String(payload.mode || 'auto').toLowerCase();
+  if (mode === 'custom' && !isScorebugHexColor(payload.color)) {
+    throw new Error('Pick a color first.');
+  }
+  const colors = normalizeScorebugColors(settings.scorebugColors);
+  colors[side] = mode === 'custom'
+    ? { mode: 'custom', color: String(payload.color).trim().toLowerCase() }
+    : { mode: 'auto', color: null };
+  return publishScorebugColors(colors, `${side === 'away' ? 'Away' : 'Home'} scorebug color: `
+    + (mode === 'custom' ? colors[side].color : 'auto (team primary)'));
+}
+
+function saveScorebugColorPresetCommand(payload = {}) {
+  const colors = normalizeScorebugColors(settings.scorebugColors);
+  // "Save current colors": a pinned color saves as pinned; an auto side
+  // saves whatever the live scorebug is actually showing right now.
+  const away = colors.away.mode === 'custom'
+    ? colors.away.color : runtime.scoreboardState?.away?.color;
+  const home = colors.home.mode === 'custom'
+    ? colors.home.color : runtime.scoreboardState?.home?.color;
+  if (!isScorebugHexColor(away) || !isScorebugHexColor(home)) {
+    throw new Error('Both teams need a visible color before saving a preset.');
+  }
+  const name = String(payload.name || '').trim()
+    || `Preset ${colors.presets.length + 1}`;
+  return publishScorebugColors(
+    upsertScorebugColorPreset(colors, name, away, home),
+    `Scorebug color preset saved: ${name}.`,
+  );
+}
+
+function applyScorebugColorPresetCommand(payload = {}) {
+  return publishScorebugColors(
+    applyScorebugColorPreset(settings.scorebugColors, payload.name),
+    `Scorebug color preset applied: ${String(payload.name || '').trim()}.`,
+  );
+}
+
+function deleteScorebugColorPresetCommand(payload = {}) {
+  return publishScorebugColors(
+    deleteScorebugColorPreset(settings.scorebugColors, payload.name),
+    `Scorebug color preset deleted: ${String(payload.name || '').trim()}.`,
+  );
+}
+
+// Center the scorebug inside the game window (or its display), one axis at
+// a time. Behaves exactly like a user drag: absolute placement persists, and
+// the anchor offsets are updated so follow-game keeps the centered position.
+function centerOverlay(payload = {}) {
+  if (!runtime.quickSettingsOpen || !overlayWindow || overlayWindow.isDestroyed()) {
+    return statusSnapshot();
+  }
+  const horizontal = Boolean(payload.horizontal);
+  const vertical = Boolean(payload.vertical);
+  if (!horizontal && !vertical) return statusSnapshot();
+  const reference = referenceBounds();
+  if (!reference || !(reference.width > 0) || !(reference.height > 0)) return statusSnapshot();
+  const bounds = overlayWindow.getBounds();
+  if (horizontal) bounds.x = Math.round(reference.x + ((reference.width - bounds.width) / 2));
+  if (vertical) bounds.y = Math.round(reference.y + ((reference.height - bounds.height) / 2));
+  setOverlayBounds(bounds);
+  settings.overlay ||= {};
+  if (horizontal) {
+    const verticalAnchor = String(settings.overlay.anchor || 'bottom-center').startsWith('top')
+      ? 'top' : 'bottom';
+    settings.overlay.anchor = `${verticalAnchor}-center`;
+    settings.overlay.marginX = 0;
+    runtime.layout.anchor = settings.overlay.anchor;
+    runtime.layout.right = 0;
+  }
+  if (vertical) {
+    const inset = Math.round((reference.height - bounds.height) / 2);
+    settings.overlay.marginY = inset;
+    runtime.layout.bottom = inset;
+  }
+  persistPlacement(bounds, displayForBounds(bounds), { preserveScale: true });
+  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  return statusSnapshot();
 }
 
 function setTeamLogoPreference(payload = {}) {
@@ -3058,6 +3213,7 @@ async function saveSettings(nextSettings) {
     if (previousKey) settings.theme.sizingByHtml[previousKey] = previousThemeSizing;
   }
   settings.theme.chromaKey = normalizeGreenScreen(settings.theme.chromaKey);
+  settings.scorebugColors = normalizeScorebugColors(settings.scorebugColors);
   settings.onboarding = normalizeOnboardingState(settings.onboarding);
   settings.overlay = deepMerge(settings.overlay || {}, livePlacementSettings);
   settings.overlay = applyResolutionSettings(settings.overlay, defaults.overlay?.scale || 0.5);
@@ -5173,6 +5329,16 @@ async function executeCommand(command, payload) {
       return reportTeamLogoGeometry(payload);
     case 'set-green-screen-enabled':
       return setGreenScreenEnabled(payload);
+    case 'set-scorebug-color':
+      return setScorebugColor(payload);
+    case 'save-scorebug-color-preset':
+      return saveScorebugColorPresetCommand(payload);
+    case 'apply-scorebug-color-preset':
+      return applyScorebugColorPresetCommand(payload);
+    case 'delete-scorebug-color-preset':
+      return deleteScorebugColorPresetCommand(payload);
+    case 'center-overlay':
+      return centerOverlay(payload);
     case 'fresh-read':
       await runControlAction('fresh-read');
       return statusSnapshot();

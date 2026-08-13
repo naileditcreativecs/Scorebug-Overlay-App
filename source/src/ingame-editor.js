@@ -246,6 +246,122 @@ function renderTeamControls() {
   document.getElementById('reader-mode').textContent = mode === 'local-ocr'
     ? 'Automatic OCR remains active'
     : `Reader mode: ${mode}`;
+  renderScorebugColors();
+}
+
+function renderScorebugColors() {
+  const colors = appState?.scorebugColors;
+  if (!colors) return;
+  for (const side of ['away', 'home']) {
+    const choice = colors[side] || { mode: 'auto', color: null };
+    const swatches = colors.swatches?.[side] || {};
+    const autoButton = document.getElementById(`${side}-color-auto`);
+    const secondaryButton = document.getElementById(`${side}-color-secondary`);
+    const whiteButton = document.getElementById(`${side}-color-white`);
+    const blackButton = document.getElementById(`${side}-color-black`);
+    const wheel = document.getElementById(`${side}-color-wheel`);
+    if (!autoButton || !wheel) return;
+    // The 1st swatch previews the team's real primary; the 2nd its secondary.
+    autoButton.style.background = swatches.primary || swatches.live || '#555';
+    if (swatches.secondary) {
+      secondaryButton.style.background = swatches.secondary;
+      secondaryButton.disabled = false;
+      secondaryButton.title = "Team's 2nd color";
+    } else {
+      secondaryButton.style.background = '#333';
+      secondaryButton.disabled = true;
+      secondaryButton.title = 'This team has no bundled 2nd color yet';
+    }
+    const active = choice.mode === 'custom' ? choice.color : null;
+    autoButton.classList.toggle('active', choice.mode !== 'custom');
+    secondaryButton.classList.toggle('active', Boolean(active && active === swatches.secondary));
+    whiteButton.classList.toggle('active', active === '#ffffff');
+    blackButton.classList.toggle('active', active === '#000000');
+    const wheelActive = Boolean(active
+      && active !== swatches.secondary && active !== '#ffffff' && active !== '#000000');
+    wheel.parentElement.classList.toggle('active', wheelActive);
+    if (active) wheel.value = active;
+    else if (swatches.live) wheel.value = swatches.live;
+  }
+  const list = document.getElementById('color-preset-list');
+  list.replaceChildren();
+  for (const preset of colors.presets || []) {
+    const chip = document.createElement('span');
+    chip.className = 'color-preset-chip';
+    const apply = document.createElement('button');
+    apply.type = 'button';
+    apply.className = 'color-preset-apply';
+    apply.title = `Apply ${preset.name}`;
+    const awayDot = document.createElement('i');
+    awayDot.style.background = preset.away;
+    const homeDot = document.createElement('i');
+    homeDot.style.background = preset.home;
+    apply.append(awayDot, homeDot, document.createTextNode(preset.name));
+    apply.addEventListener('click', () => runColorCommand(
+      () => api.applyScorebugColorPreset({ name: preset.name }),
+      `Preset applied: ${preset.name}`,
+    ));
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'color-preset-delete';
+    remove.textContent = '×';
+    remove.title = `Delete ${preset.name}`;
+    remove.addEventListener('click', () => runColorCommand(
+      () => api.deleteScorebugColorPreset({ name: preset.name }),
+      `Preset deleted: ${preset.name}`,
+    ));
+    chip.append(apply, remove);
+    list.append(chip);
+  }
+}
+
+async function runColorCommand(command, successText) {
+  try {
+    const next = await command();
+    if (next) acceptState(next);
+    if (successText) setToast(successText);
+  } catch (error) {
+    setToast(error?.message || 'Color change failed', true);
+    try { acceptState(await api.getInGameEditorState()); } catch { /* Keep the last usable state. */ }
+  }
+}
+
+function wireScorebugColorControls() {
+  for (const side of ['away', 'home']) {
+    const sideLabel = side === 'away' ? 'Away' : 'Home';
+    document.getElementById(`${side}-color-auto`)?.addEventListener('click', () => runColorCommand(
+      () => api.setScorebugColor({ side, mode: 'auto' }),
+      `${sideLabel} color: automatic (team's 1st color)`,
+    ));
+    document.getElementById(`${side}-color-secondary`)?.addEventListener('click', () => {
+      const secondary = appState?.scorebugColors?.swatches?.[side]?.secondary;
+      if (!secondary) { setToast('This team has no bundled 2nd color yet', true); return; }
+      runColorCommand(
+        () => api.setScorebugColor({ side, mode: 'custom', color: secondary }),
+        `${sideLabel} color: team's 2nd color`,
+      );
+    });
+    document.getElementById(`${side}-color-white`)?.addEventListener('click', () => runColorCommand(
+      () => api.setScorebugColor({ side, mode: 'custom', color: '#ffffff' }),
+      `${sideLabel} color: white`,
+    ));
+    document.getElementById(`${side}-color-black`)?.addEventListener('click', () => runColorCommand(
+      () => api.setScorebugColor({ side, mode: 'custom', color: '#000000' }),
+      `${sideLabel} color: black`,
+    ));
+    document.getElementById(`${side}-color-wheel`)?.addEventListener('change', (event) => runColorCommand(
+      () => api.setScorebugColor({ side, mode: 'custom', color: event.target.value }),
+      `${sideLabel} color: ${event.target.value}`,
+    ));
+  }
+  document.getElementById('save-color-preset')?.addEventListener('click', async () => {
+    const nameInput = document.getElementById('color-preset-name');
+    await runColorCommand(
+      () => api.saveScorebugColorPreset({ name: nameInput.value }),
+      'Colors saved as a preset',
+    );
+    nameInput.value = '';
+  });
 }
 
 function closeChoicePicker() {
@@ -1212,6 +1328,19 @@ document.getElementById('clear-team-overrides').addEventListener('click', async 
 document.getElementById('save-close').addEventListener('click', () => {
   api.closeQuickSettings().catch(reportError);
 });
+document.getElementById('center-horizontal').addEventListener('click', async () => {
+  try {
+    await api.centerOverlay({ horizontal: true });
+    setToast('Scorebug centered left-to-right.');
+  } catch (error) { reportError(error); }
+});
+document.getElementById('center-vertical').addEventListener('click', async () => {
+  try {
+    await api.centerOverlay({ vertical: true });
+    setToast('Scorebug centered top-to-bottom.');
+  } catch (error) { reportError(error); }
+});
+wireScorebugColorControls();
 
 api.onInGameEditorState(acceptState);
 api.onTeamLogoGeometry((update) => {

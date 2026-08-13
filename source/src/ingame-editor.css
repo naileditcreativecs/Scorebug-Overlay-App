@@ -590,3 +590,22 @@ button { font: inherit; }
   .team-panel-footer { align-items: stretch; flex-direction: column; }
   .instructions { max-width: calc(100vw - 24px); white-space: normal; text-align: center; }
 }
+
+/* Scorebug team colors: real 1st/2nd swatches, white/black, and the wheel. */
+.color-row { display: flex; gap: 6px; align-items: center; }
+.color-swatch { min-height: 30px; width: 42px; padding: 0; border: 2px solid #3a4356; border-radius: 7px; font-size: 10px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.75); cursor: pointer; }
+.color-swatch.color-white { color: #222; text-shadow: none; }
+.color-swatch:disabled { opacity: .4; cursor: default; }
+.color-swatch.active, .color-wheel-wrap.active { border-color: #58a6ff; box-shadow: 0 0 0 2px rgba(88,166,255,.35); }
+.color-wheel-wrap { display: inline-flex; border: 2px solid #3a4356; border-radius: 7px; overflow: hidden; }
+.color-wheel-wrap input[type="color"] { width: 42px; height: 30px; padding: 0; border: none; background: none; cursor: pointer; }
+.color-presets { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-top: 1px solid #2a3244; }
+.color-presets strong { font-size: 10px; letter-spacing: .12em; color: #8fa0b8; }
+.color-preset-controls { display: inline-flex; gap: 6px; }
+.color-preset-controls input { width: 170px; border: 1px solid #3a4356; border-radius: 7px; background: #0d1320; color: #e8eef7; padding: 6px 8px; }
+.color-preset-list { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.color-preset-chip { display: inline-flex; border: 1px solid #3a4356; border-radius: 999px; overflow: hidden; }
+.color-preset-apply { display: inline-flex; align-items: center; gap: 5px; border: none; background: #1b2433; color: #e8eef7; padding: 5px 8px 5px 6px; cursor: pointer; font-size: 12px; }
+.color-preset-apply i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); }
+.color-preset-delete { border: none; border-left: 1px solid #3a4356; background: #151c29; color: #8fa0b8; width: 24px; cursor: pointer; }
+.color-preset-delete:hover { color: #ff8f9c; }
