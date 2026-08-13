@@ -297,7 +297,7 @@ button { font: inherit; }
 .logo-transform-heading span { color: #8293aa; font-size: 9px; }
 .logo-live-preview {
   position: relative;
-  height: 116px;
+  height: 220px;
   border: 1px solid rgba(125, 211, 252, .3);
   border-radius: 7px;
   background:
@@ -619,3 +619,16 @@ button { font: inherit; }
 .record-row button.record-mode { min-height: 36px; padding: 0 14px; border: 2px solid #45506b; border-radius: 8px; background: #232d40; color: #f2f6fc; cursor: pointer; font-size: 13px; font-weight: 700; }
 .record-row button.record-mode:hover { border-color: #6c82a8; background: #2b3750; }
 .record-row button.record-mode.active { border-color: #58a6ff; background: #16324f; color: #cfe6ff; box-shadow: 0 0 0 2px rgba(88,166,255,.28); }
+
+
+/* Placement guides inside the logo preview: a dashed crosshair through the
+   logo's live center plus an exact-offset readout, so you can see where the
+   logo is going instead of judging by eye. */
+.logo-guide { position: absolute; z-index: 6; pointer-events: none; }
+.logo-guide-v { top: 0; bottom: 0; width: 0; border-left: 1px dashed rgba(56, 189, 248, .85); }
+.logo-guide-h { left: 0; right: 0; height: 0; border-top: 1px dashed rgba(56, 189, 248, .85); }
+.logo-position-badge { position: absolute; z-index: 7; right: 6px; bottom: 5px; padding: 3px 8px; border-radius: 6px; background: rgba(2, 6, 23, .88); border: 1px solid rgba(56, 189, 248, .5); color: #bfe9ff; font: 700 11px/1 "Segoe UI", sans-serif; font-variant-numeric: tabular-nums; pointer-events: none; }
+/* Keep the original-slot marker visually distinct from the live position. */
+.logo-capture-marker { border-color: rgba(251, 146, 60, .8) !important; }
+/* Cheaper paint while actively dragging the scorebug outline. */
+.editor.is-dragging .output-box { box-shadow: 0 0 0 1px rgba(2, 6, 23, .9); }

@@ -110,6 +110,34 @@ function paintLogoGeometry(side) {
     : 'Waiting for live logo position';
 }
 
+// Guides that make the mini preview legible: dashed crosshair lines through
+// the logo's live center plus a readout of the exact offsets, created once
+// per preview and repositioned on every paint.
+function ensurePreviewGuides(preview) {
+  let guides = preview.__cfb27Guides;
+  if (guides) return guides;
+  const vertical = document.createElement('span');
+  vertical.className = 'logo-guide logo-guide-v';
+  const horizontal = document.createElement('span');
+  horizontal.className = 'logo-guide logo-guide-h';
+  const badge = document.createElement('span');
+  badge.className = 'logo-position-badge';
+  preview.append(vertical, horizontal, badge);
+  guides = { vertical, horizontal, badge };
+  preview.__cfb27Guides = guides;
+  return guides;
+}
+
+function paintPreviewGuides(preview, centerX, centerY, transform) {
+  const guides = ensurePreviewGuides(preview);
+  guides.vertical.style.left = `${centerX}px`;
+  guides.horizontal.style.top = `${centerY}px`;
+  const x = Math.round(Number(transform.x) || 0);
+  const y = Math.round(Number(transform.y) || 0);
+  const scale = Math.round((Number(transform.scale) || 1) * 100);
+  guides.badge.textContent = `${x >= 0 ? '+' : ''}${x} · ${y >= 0 ? '+' : ''}${y} · ${scale}%`;
+}
+
 function paintLogoPreview(side, transform) {
   const preview = document.getElementById(`${side}-logo-preview`);
   const image = document.getElementById(`${side}-logo-preview-image`);
@@ -155,6 +183,7 @@ function paintLogoPreview(side, transform) {
     image.style.height = `${height}px`;
     image.style.margin = '0';
     image.style.transform = `translate(-50%, -50%) rotate(${Number(transform.rotation) - Number(baseline.rotation || 0)}deg)`;
+    paintPreviewGuides(preview, centerX, centerY, transform);
   } else {
     captureImage.removeAttribute('src');
     captureMarker.removeAttribute('style');
@@ -164,6 +193,11 @@ function paintLogoPreview(side, transform) {
     image.style.height = '64px';
     image.style.margin = '-32px 0 0 -32px';
     image.style.transform = `translate(${transform.x}px, ${transform.y}px) rotate(${transform.rotation}deg) scale(${transform.scale})`;
+    const previewWidth = Math.max(1, preview.clientWidth || 1);
+    const previewHeight = Math.max(1, preview.clientHeight || 1);
+    paintPreviewGuides(preview,
+      (previewWidth / 2) + (Number(transform.x) || 0),
+      (previewHeight / 2) + (Number(transform.y) || 0), transform);
   }
 }
 
@@ -1217,6 +1251,13 @@ function previewPointer(pointer, send = true) {
     screenY: pointer.screenY,
   };
   if (gesture.type === 'resize') {
+    // Every live resize step forces the scorebug theme to re-layout, which
+    // is what made resizing feel like it fought the mouse. The editor's own
+    // outline still tracks every frame; the live window follows at ~30Hz,
+    // and the end-of-gesture command below is always exact.
+    const now = performance.now();
+    if (now - (gesture.lastResizeSentAt || 0) < 33) return;
+    gesture.lastResizeSentAt = now;
     enqueueOverlayCommand('resize', {
       ...payload,
       operation: gesture.operation,
