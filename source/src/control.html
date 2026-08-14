@@ -14,13 +14,13 @@
       <h1>Scoreboard Overlay</h1>
       <p class="header-subtitle">Every overlay tool has its own tab.</p>
     </div>
-    <span id="app-version" class="version">v1.4.3</span>
+    <span id="app-version" class="version">v1.4.4</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
     <div class="status-item"><span id="dot-game" class="dot"></span><div><small>GAME</small><strong id="status-game">Not detected</strong></div></div>
-    <div class="status-item"><span id="dot-capture" class="dot"></span><div><small>CAPTURE</small><strong id="status-capture">Stopped</strong><span id="status-capture-detail" class="status-detail">Waiting to start</span></div></div>
-    <div class="status-item"><span id="dot-reader" class="dot"></span><div><small>LIVE READER</small><strong id="status-reader">Waiting</strong><span id="status-reader-detail" class="status-detail"></span></div></div>
+    <div class="status-item"><span id="dot-capture" class="dot"></span><div><small id="label-capture">MEMORY READER</small><strong id="status-capture">Starting</strong><span id="status-capture-detail" class="status-detail">Connecting to the game</span></div></div>
+    <div class="status-item"><span id="dot-reader" class="dot"></span><div><small id="label-reader">LIVE DATA</small><strong id="status-reader">Waiting</strong><span id="status-reader-detail" class="status-detail"></span></div></div>
     <div id="overlay-status-item" class="status-item overlay-status" data-state="stopped"><span id="dot-overlay" class="dot"></span><div><small>ON-SCREEN OVERLAY</small><strong id="status-overlay">STOPPED</strong><span id="status-overlay-detail" class="status-detail">Reader is not running</span></div></div>
   </section>
 

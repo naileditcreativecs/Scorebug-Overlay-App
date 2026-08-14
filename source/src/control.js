@@ -548,46 +548,84 @@
       && (captureFallback || ['slow', 'static'].includes(status.capture?.health));
     const readerOk = status.reader?.status === 'reading' || status.reader?.healthy;
     const overlay = Boolean(status.overlay?.visible);
-    $('status-game').textContent = game ? (status.game?.title || 'Detected') : 'Not detected';
-    $('status-capture').textContent = capture
-      ? (captureError
-        ? 'Recovering'
-        : (captureFallback ? 'Fresh capture' : (captureDegraded ? 'Capture delayed' : 'Running')))
-      : (captureState === 'starting'
-        ? 'Starting'
-        : (captureState === 'retry-wait' ? 'Retrying' : (captureFailed ? 'Unavailable' : 'Stopped')));
-    $('status-capture-detail').textContent = captureError
-      ? `[${captureError.code || 'capture-failed'}] ${captureError.message || 'Capture failed'}`
-      : (captureFallback
-        ? 'The video stream was stale; reading fresh game-window snapshots automatically'
-        : (captureDegraded
-          ? (status.capture?.healthReason || `Capture health: ${status.capture?.health}`)
-          : (captureProfile?.status && captureProfile.status !== 'waiting-for-frame'
-            ? (captureProfile.status === 'custom-aspect'
-              ? `${status.capture?.sourceWidth || captureProfile.source?.width || '?'} x ${status.capture?.sourceHeight || captureProfile.source?.height || '?'} custom game shape (supported)`
-              : `Profile ${captureProfile.profileKey || ''}: ${String(captureProfile.status).replaceAll('-', ' ')}`)
-            : (status.capture?.sourceName || (captureWaiting ? 'Waiting for a game frame' : 'Waiting to start')))));
-    const readerStatusToken = String(status.reader?.status || '');
-    $('status-reader').textContent = readerOk
-      ? 'Reading'
-      : (READER_STATUS_LABELS[readerStatusToken] || readerStatusToken || 'Waiting');
-    $('status-reader-detail').textContent = readerDetailText(status, capture);
+    // The top strip leads with the memory reader - the app's primary source -
+    // and only falls back to the legacy capture/OCR wording when the user has
+    // explicitly selected the Screen reader.
+    const ramInfo = status.ramReader || {};
+    const ramMode = normalizeScoreboardDataSource(ramInfo.mode || settings?.dataExtraction?.scoreboardSource);
+    const ramPrimary = ramMode !== 'screen';
+    if (ramPrimary) {
+      const ramRunning = Boolean(ramInfo.running);
+      const ramAttached = Boolean(ramInfo.gameProcessId);
+      const fieldCount = ramInfo.appliedFields?.length || 0;
+      if ($('label-capture')) $('label-capture').textContent = 'MEMORY READER';
+      if ($('label-reader')) $('label-reader').textContent = 'LIVE DATA';
+      $('status-game').textContent = ramAttached
+        ? 'Running'
+        : (game ? (status.game?.title || 'Detected') : 'Not detected');
+      $('status-capture').textContent = !ramRunning
+        ? 'Not running'
+        : (ramAttached ? 'Connected' : 'Waiting for game');
+      $('status-capture-detail').textContent = !ramRunning
+        ? 'The reader restarts automatically'
+        : (ramAttached
+          ? 'Reading game memory (read-only)'
+          : 'Start College Football 27 - it connects automatically');
+      $('status-reader').textContent = ramInfo.dataApplied
+        ? `Reading ${fieldCount} fields`
+        : 'No live data';
+      $('status-reader-detail').textContent = ramInfo.dataApplied
+        ? 'Live from game memory'
+        : (ramAttached
+          ? 'Play (unpaused) so the reader can lock on'
+          : 'Waiting for a live game');
+      $('dot-game').className = `dot ${ramAttached || game ? 'ok' : ''}`;
+      $('dot-capture').className = `dot ${!ramRunning ? 'bad' : (ramAttached ? 'ok' : 'warn')}`;
+      $('dot-reader').className = `dot ${ramInfo.dataApplied ? 'ok' : 'warn'}`;
+    } else {
+      if ($('label-capture')) $('label-capture').textContent = 'CAPTURE';
+      if ($('label-reader')) $('label-reader').textContent = 'LIVE READER';
+      $('status-game').textContent = game ? (status.game?.title || 'Detected') : 'Not detected';
+      $('status-capture').textContent = capture
+        ? (captureError
+          ? 'Recovering'
+          : (captureFallback ? 'Fresh capture' : (captureDegraded ? 'Capture delayed' : 'Running')))
+        : (captureState === 'starting'
+          ? 'Starting'
+          : (captureState === 'retry-wait' ? 'Retrying' : (captureFailed ? 'Unavailable' : 'Stopped')));
+      $('status-capture-detail').textContent = captureError
+        ? `[${captureError.code || 'capture-failed'}] ${captureError.message || 'Capture failed'}`
+        : (captureFallback
+          ? 'The video stream was stale; reading fresh game-window snapshots automatically'
+          : (captureDegraded
+            ? (status.capture?.healthReason || `Capture health: ${status.capture?.health}`)
+            : (captureProfile?.status && captureProfile.status !== 'waiting-for-frame'
+              ? (captureProfile.status === 'custom-aspect'
+                ? `${status.capture?.sourceWidth || captureProfile.source?.width || '?'} x ${status.capture?.sourceHeight || captureProfile.source?.height || '?'} custom game shape (supported)`
+                : `Profile ${captureProfile.profileKey || ''}: ${String(captureProfile.status).replaceAll('-', ' ')}`)
+              : (status.capture?.sourceName || (captureWaiting ? 'Waiting for a game frame' : 'Waiting to start')))));
+      const readerStatusToken = String(status.reader?.status || '');
+      $('status-reader').textContent = readerOk
+        ? 'Reading'
+        : (READER_STATUS_LABELS[readerStatusToken] || readerStatusToken || 'Waiting');
+      $('status-reader-detail').textContent = readerDetailText(status, capture);
+      $('dot-game').className = `dot ${game ? 'ok' : ''}`;
+      $('dot-capture').className = `dot ${captureError || captureFailed ? 'bad' : (captureDegraded || captureWaiting ? 'warn' : (capture ? 'ok' : ''))}`;
+      $('dot-reader').className = `dot ${readerOk ? 'ok' : ['error', 'capture-unavailable'].includes(status.reader?.status) ? 'bad' : 'warn'}`;
+    }
     const visibilityMode = status.overlay?.visibilityMode
       || (overlay ? (status.automatic === false ? 'on-manual' : 'on-auto') : (status.started ? 'off' : 'stopped'));
     const visibilityLabels = {
       'on-auto': ['VISIBLE — AUTOMATIC', 'Automatic visibility is on'],
       'on-manual': ['VISIBLE — MANUAL', 'Automatic visibility is off'],
-      'auto-waiting': ['HIDDEN — AUTOMATIC', 'Waiting for the game scoreboard'],
-      off: ['OFF', status.started ? 'Overlay is hidden' : 'Reader is not running'],
-      stopped: ['STOPPED', 'Reader is not running'],
+      'auto-waiting': ['HIDDEN — AUTOMATIC', ramPrimary ? 'Waiting for live game data' : 'Waiting for the game scoreboard'],
+      off: ['OFF', status.started ? 'Overlay is hidden' : 'Overlay is stopped'],
+      stopped: ['STOPPED', 'Overlay is stopped'],
     };
     const [visibilityLabel, visibilityDetail] = visibilityLabels[visibilityMode] || visibilityLabels.off;
     $('status-overlay').textContent = visibilityLabel;
     $('status-overlay-detail').textContent = visibilityDetail;
     $('overlay-status-item').dataset.state = visibilityMode;
-    $('dot-game').className = `dot ${game ? 'ok' : ''}`;
-    $('dot-capture').className = `dot ${captureError || captureFailed ? 'bad' : (captureDegraded || captureWaiting ? 'warn' : (capture ? 'ok' : ''))}`;
-    $('dot-reader').className = `dot ${readerOk ? 'ok' : ['error', 'capture-unavailable'].includes(status.reader?.status) ? 'bad' : 'warn'}`;
     renderFieldDiagnostics(status.support);
     if ($('ram-reader-status')) {
       const ram = status.ramReader || {};
@@ -609,7 +647,7 @@
     $('btn-start').disabled = Boolean(status.started);
     $('btn-stop').disabled = !status.started;
     $('simple-runtime-status').textContent = status.started
-      ? (captureFailed ? 'Capture needs attention' : 'Reader is running')
+      ? (!ramPrimary && captureFailed ? 'Capture needs attention' : 'Reader is running')
       : 'Reader is stopped';
     $('simple-visibility-state').textContent = overlay ? 'Overlay is visible' : (status.started ? 'Overlay is hidden' : 'Overlay is off');
     const automatic = status.automatic !== false;
