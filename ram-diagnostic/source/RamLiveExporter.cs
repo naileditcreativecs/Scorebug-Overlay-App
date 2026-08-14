@@ -583,6 +583,7 @@ namespace CollegeFootballRamDiagnostic
                 return "RAM export: game state reset detected; locating again";
             }
 
+            probeOutputSeedPath = screenJsonPath;
             WriteResearchProbes(screenJsonPath, rawPossession, possession,
                 quarter, gameClock, awayScore, homeScore,
                 stableDownRead, stableDistanceRead, scoreHudDownDistance);
@@ -3444,9 +3445,53 @@ namespace CollegeFootballRamDiagnostic
                         && scoreHudExpectedNonScrimmageSpecial == ScoreHudExpectedConversion));
         }
 
+        // PROBE. Every ScoreHud message the game publishes - flags, touchdown
+        // banners, milestones - carries a message id, two text lines, and the
+        // PlayerId/TeamId it is about. Only the two conversion ids have ever
+        // been decoded; this logs each distinct message once so a single game
+        // of play yields the full vocabulary: which id means TOUCHDOWN, which
+        // means FLAG, and whether the info text already names the scorer.
+        private readonly HashSet<string> loggedScoreHudMessages = new HashSet<string>();
+        private string probeOutputSeedPath;
+
+        private void LogScoreHudMessagesProbe(List<ScoreHudMessageCandidate> messages)
+        {
+            if (messages == null || String.IsNullOrWhiteSpace(probeOutputSeedPath)) return;
+            for (int index = 0; index < messages.Count; index++)
+            {
+                ScoreHudMessageCandidate message = messages[index];
+                string signature = message.MessageId + "|" + (message.DisplayText ?? "")
+                    + "|" + (message.InfoText ?? "") + "|" + message.PlayerId
+                    + "|" + message.TeamId;
+                if (loggedScoreHudMessages.Count > 2000) loggedScoreHudMessages.Clear();
+                if (!loggedScoreHudMessages.Add(signature)) continue;
+                RamReadResult quarter = Read("quarter", 1, 20);
+                RamReadResult clock = Read("gameClockSeconds", 0, 3600);
+                RamReadResult awayScore = Read("awayScore", 0, 255);
+                RamReadResult homeScore = Read("homeScore", 0, 255);
+                AppendProbeLine(probeOutputSeedPath, "messages-probe.jsonl",
+                    new Dictionary<string, object>
+                {
+                    { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                    { "quarter", quarter.Available ? (object)quarter.Value : null },
+                    { "clock", clock.Available ? (object)clock.Value : null },
+                    { "awayScore", awayScore.Available ? (object)awayScore.Value : null },
+                    { "homeScore", homeScore.Available ? (object)homeScore.Value : null },
+                    { "messageId", message.MessageId },
+                    { "displayText", message.DisplayText },
+                    { "infoText", message.InfoText },
+                    { "playerId", message.PlayerId },
+                    { "teamId", message.TeamId },
+                    { "color", message.Color },
+                    { "displayTime", message.DisplayTime }
+                });
+            }
+        }
+
         private void RememberScoreHudMessages(List<ScoreHudMessageCandidate> messages)
         {
             if (messages == null || messages.Count == 0) return;
+            try { LogScoreHudMessagesProbe(messages); } catch { }
             ScoreHudMessageCandidate selected = messages[0];
             for (int index = 0; index < messages.Count; index++)
             {
