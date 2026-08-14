@@ -2242,6 +2242,20 @@ function setEditMode(enabled) {
   }
 }
 
+// The editor deliberately opens without keyboard focus so the game keeps
+// running - which also made every text box in it untypeable: keystrokes
+// went to the game. Reported by a tester as the record editor "not
+// working". Focus is now borrowed exactly while a text box is active and
+// handed straight back when it is left; dropping focusable returns
+// keyboard focus to the game window automatically on Windows.
+function setInGameEditorTypeFocus(payload = {}) {
+  if (!inGameEditorWindow || inGameEditorWindow.isDestroyed()) return statusSnapshot();
+  const enabled = Boolean(payload.enabled);
+  inGameEditorWindow.setFocusable(enabled);
+  if (enabled) inGameEditorWindow.focus();
+  return statusSnapshot();
+}
+
 function syncInGameEditorBounds() {
   if (!inGameEditorWindow || inGameEditorWindow.isDestroyed()) return;
   const bounds = inGameEditorBounds();
@@ -5381,6 +5395,8 @@ async function executeCommand(command, payload) {
       return deleteScorebugColorPresetCommand(payload);
     case 'center-overlay':
       return centerOverlay(payload);
+    case 'set-editor-type-focus':
+      return setInGameEditorTypeFocus(payload);
     case 'fresh-read':
       await runControlAction('fresh-read');
       return statusSnapshot();

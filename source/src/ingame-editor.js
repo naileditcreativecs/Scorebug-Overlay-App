@@ -398,6 +398,8 @@ function wireRecordControls() {
       }
       await applyPickerChoice(side, { recordMode: 'custom', record: text });
       savedToast(`${sideLabel} record set to ${text}.`);
+      // Hand the keyboard back to the game once the record is applied.
+      input.blur();
     };
     document.getElementById(`${side}-record-apply`)?.addEventListener('click', applyRecord);
     input?.addEventListener('keydown', (event) => {
@@ -1441,6 +1443,40 @@ document.getElementById('center-vertical').addEventListener('click', async () =>
 });
 wireScorebugColorControls();
 wireRecordControls();
+
+// This window opens without keyboard focus so the game keeps running - which
+// silently made every text box untypeable (keystrokes went to the game).
+// Borrow real keyboard focus exactly while a text box is in use, return it
+// to the game the moment focus leaves. Escape also bails out immediately.
+const TYPE_TARGETS = 'input[type="text"], input[type="number"]';
+let typeFocusHeld = false;
+function setTypeFocus(enabled) {
+  if (typeFocusHeld === enabled) return;
+  typeFocusHeld = enabled;
+  api.setEditorTypeFocus?.({ enabled }).catch(() => { typeFocusHeld = !enabled; });
+}
+document.addEventListener('pointerdown', (event) => {
+  const input = event.target.closest?.(TYPE_TARGETS);
+  if (input) {
+    setTypeFocus(true);
+    // The window may only become focusable after the call lands; refocus the
+    // box on the next tick so the first click already starts typing.
+    setTimeout(() => input.focus(), 30);
+  } else if (typeFocusHeld && !event.target.closest?.('.choice-picker, .logo-number-pad')) {
+    setTypeFocus(false);
+  }
+}, true);
+document.addEventListener('focusout', (event) => {
+  if (!typeFocusHeld) return;
+  const next = event.relatedTarget;
+  if (!next || !next.closest?.(TYPE_TARGETS)) setTypeFocus(false);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && typeFocusHeld) {
+    document.activeElement?.blur?.();
+    setTypeFocus(false);
+  }
+});
 
 api.onInGameEditorState(acceptState);
 api.onTeamLogoGeometry((update) => {

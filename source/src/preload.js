@@ -48,6 +48,7 @@ const overlayControl = Object.freeze({
   applyScorebugColorPreset: (payload) => command('apply-scorebug-color-preset', payload),
   deleteScorebugColorPreset: (payload) => command('delete-scorebug-color-preset', payload),
   centerOverlay: (payload) => command('center-overlay', payload),
+  setEditorTypeFocus: (payload) => command('set-editor-type-focus', payload),
   freshRead: () => command('fresh-read'),
   reload: () => command('reload'),
   chooseTheme: () => command('choose-theme'),
