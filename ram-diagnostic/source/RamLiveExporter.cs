@@ -213,6 +213,8 @@ namespace CollegeFootballRamDiagnostic
             nextFastScoreHudScanUtc = DateTime.MinValue;
             loggedScoreHudMessages.Clear();
             recentScoreHudMessages.Clear();
+            publishedFieldValues.Clear();
+            publishedFieldChangedAt.Clear();
             nextAutoDiscoveryUtc = DateTime.MinValue;
             autoDiscoverySummary = null;
             scoreboardCandidateCount = 0;
@@ -631,6 +633,28 @@ namespace CollegeFootballRamDiagnostic
             string publishedHomeName = matchupTransitionPending ? null : lastHomeTeamName;
             ram["awayTeamName"] = TeamNameDictionary(publishedAwayName, publishedAwayRead);
             ram["homeTeamName"] = TeamNameDictionary(publishedHomeName, publishedHomeRead);
+            DateTime freshnessNowUtc = DateTime.UtcNow;
+            NoteRead("quarter", quarter, freshnessNowUtc);
+            NoteRead("gameClockSeconds", gameClock, freshnessNowUtc);
+            NoteRead("playClock", playClock, freshnessNowUtc);
+            NoteRead("awayScore", awayScore, freshnessNowUtc);
+            NoteRead("homeScore", homeScore, freshnessNowUtc);
+            NoteRead("possessionAwayIsOne", possession, freshnessNowUtc);
+            NoteRead("down", down, freshnessNowUtc);
+            NoteRead("distance", distance, freshnessNowUtc);
+            NoteRead("awayTimeouts", awayTimeouts, freshnessNowUtc);
+            NoteRead("homeTimeouts", homeTimeouts, freshnessNowUtc);
+            NoteRead("awayRank", awayRank, freshnessNowUtc);
+            NoteRead("homeRank", homeRank, freshnessNowUtc);
+            NotePublishedFieldValue(publishedFieldValues, publishedFieldChangedAt,
+                "awayRecord", awayRecord, freshnessNowUtc);
+            NotePublishedFieldValue(publishedFieldValues, publishedFieldChangedAt,
+                "homeRecord", homeRecord, freshnessNowUtc);
+            NotePublishedFieldValue(publishedFieldValues, publishedFieldChangedAt,
+                "awayTeamName", publishedAwayName, freshnessNowUtc);
+            NotePublishedFieldValue(publishedFieldValues, publishedFieldChangedAt,
+                "homeTeamName", publishedHomeName, freshnessNowUtc);
+            ram["freshness"] = BuildFreshness(freshnessNowUtc);
             root["ram"] = ram;
 
             Dictionary<string, object> screenSnapshot = ScreenSnapshot(screen);
@@ -989,6 +1013,54 @@ namespace CollegeFootballRamDiagnostic
                 { "wide", wideWindow }
             };
             AppendProbeLine(screenJsonPath, "ballspot-probe.jsonl", entry);
+        }
+
+        // Per-field freshness for consumers. Downstream apps (OCR hybrids,
+        // stream tools) need to distinguish "score unchanged because nobody
+        // scored" from "reader gone stale" - a distinction only the reader can
+        // make, since it re-verifies every field from memory on every tick.
+        // Each published field gets a changedAt stamp; a frozen value whose
+        // clock siblings keep advancing is genuinely unchanged, never stale.
+        private readonly Dictionary<string, string> publishedFieldValues =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+        private readonly Dictionary<string, DateTime> publishedFieldChangedAt =
+            new Dictionary<string, DateTime>(StringComparer.Ordinal);
+
+        internal static bool NotePublishedFieldValue(Dictionary<string, string> values,
+            Dictionary<string, DateTime> changedAt, string field, string value, DateTime nowUtc)
+        {
+            string previous;
+            bool seen = values.TryGetValue(field, out previous);
+            // Transitions to and from null (unavailable) count as changes so
+            // consumers see exactly when a field dropped out or came back.
+            bool changed = !seen || !String.Equals(previous, value, StringComparison.Ordinal);
+            if (changed)
+            {
+                values[field] = value;
+                changedAt[field] = nowUtc;
+            }
+            return changed;
+        }
+
+        private void NoteRead(string field, RamReadResult read, DateTime nowUtc)
+        {
+            NotePublishedFieldValue(publishedFieldValues, publishedFieldChangedAt, field,
+                read.Available ? read.Value.ToString(CultureInfo.InvariantCulture) : null, nowUtc);
+        }
+
+        private Dictionary<string, object> BuildFreshness(DateTime nowUtc)
+        {
+            Dictionary<string, object> freshness = new Dictionary<string, object>();
+            foreach (KeyValuePair<string, DateTime> entry in publishedFieldChangedAt)
+            {
+                double seconds = (nowUtc - entry.Value).TotalSeconds;
+                freshness[entry.Key] = new Dictionary<string, object>
+                {
+                    { "changedAt", entry.Value.ToString("o", CultureInfo.InvariantCulture) },
+                    { "secondsSinceChange", seconds < 0 ? 0 : Math.Round(seconds, 1) }
+                };
+            }
+            return freshness;
         }
 
         // PROBE. Hunting the game's "HUD hidden" state so the overlay can

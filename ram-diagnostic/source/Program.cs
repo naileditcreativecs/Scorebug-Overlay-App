@@ -3927,6 +3927,26 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.HudPossessionCandidate(0, 0) != -1
                     || RamLiveExporter.HudPossessionCandidate(1, 1) != -1)
                     throw new Exception("HUD possession candidate rule is not complementary-only.");
+                // Freshness stamps for downstream consumers: a stamp moves only
+                // when the published value actually changes, and transitions to
+                // and from null (unavailable) count as changes.
+                {
+                    Dictionary<string, string> values = new Dictionary<string, string>(StringComparer.Ordinal);
+                    Dictionary<string, DateTime> changed = new Dictionary<string, DateTime>(StringComparer.Ordinal);
+                    DateTime t0 = new DateTime(2026, 8, 14, 12, 0, 0, DateTimeKind.Utc);
+                    DateTime t1 = t0.AddSeconds(5);
+                    DateTime t2 = t0.AddSeconds(9);
+                    if (!RamLiveExporter.NotePublishedFieldValue(values, changed, "awayScore", "14", t0)
+                        || RamLiveExporter.NotePublishedFieldValue(values, changed, "awayScore", "14", t1)
+                        || changed["awayScore"] != t0
+                        || !RamLiveExporter.NotePublishedFieldValue(values, changed, "awayScore", "21", t1)
+                        || changed["awayScore"] != t1
+                        || !RamLiveExporter.NotePublishedFieldValue(values, changed, "awayScore", null, t2)
+                        || changed["awayScore"] != t2
+                        || RamLiveExporter.NotePublishedFieldValue(values, changed, "awayScore", null, t2.AddSeconds(1))
+                        || !RamLiveExporter.NotePublishedFieldValue(values, changed, "awayScore", "21", t2.AddSeconds(2)))
+                        throw new Exception("Freshness stamp rule moved on an unchanged value or missed a change.");
+                }
                 // Multi-clone rank/possession addresses: the selected side is
                 // first, only agreeing clones (TeamId and Rank) join, capped.
                 {

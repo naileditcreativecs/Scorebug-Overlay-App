@@ -33,7 +33,8 @@ reader-status.json      Always present while the reader runs. Plain-
                         doing or why it is waiting. Also carries
                         gameExeVersion/gameModuleSize once attached.
 
-possession-probe.jsonl / ballspot-probe.jsonl
+possession-probe.jsonl / ballspot-probe.jsonl /
+messages-probe.jsonl / hudstate-probe.jsonl
                         Append-only research logs (capped at 5 MB).
                         Ignore them, or send them with bug reports.
 
@@ -89,6 +90,44 @@ Top-level keys:
 
   discovery     The reader explaining itself (why a field is not
                 reading). Useful verbatim in bug reports.
+
+  ram.freshness
+                Per-field staleness data, so you never have to guess
+                with your own freeze heuristics. For each field
+                (quarter, gameClockSeconds, playClock, awayScore,
+                homeScore, possessionAwayIsOne, down, distance,
+                awayTimeouts, homeTimeouts, awayRank, homeRank,
+                awayRecord, homeRecord, awayTeamName, homeTeamName):
+
+                  changedAt            ISO time the PUBLISHED value
+                                       last changed
+                  secondsSinceChange   same thing as a number
+
+                A field dropping to null and coming back both count as
+                changes, so you see exactly when a field lost and
+                regained verification.
+
+Staleness: how to actually detect it
+------------------------------------
+The reader re-verifies every field from live memory on every publish,
+so use these rules instead of per-field freeze timers:
+
+1. File heartbeat first. If updatedAt is older than ~2 seconds (or the
+   file is gone), the reader is down or between games - distrust the
+   whole document, not individual fields.
+2. The clocks are your canary for the core block. quarter, clocks,
+   scores, down, distance and timeouts all come from ONE memory block.
+   While freshness.gameClockSeconds or freshness.playClock shows recent
+   change, that block is provably live - a score frozen for 8 minutes
+   is genuinely unchanged, NOT stale. Only if BOTH clocks have been
+   frozen well past a normal dead-ball stretch while your own signal
+   (e.g. OCR) sees the game progressing should you suspect the block -
+   and then discard ALL of its fields together, never one of them.
+3. Rank, record, possession and team names guard themselves. They are
+   verified against live score/matchup state before publishing and go
+   null rather than stale (that is why ranks/records wait for the first
+   score). Trust them whenever non-null; never "correct" them with a
+   freeze timer.
 
 Rules of thumb
 --------------
