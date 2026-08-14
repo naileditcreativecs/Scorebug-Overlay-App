@@ -38,16 +38,26 @@ function setStatus(message) {
 
 function applyChromaKey(value) {
   currentChromaKey = chromaKeyApi.normalizeGreenScreen(value);
-  document
-    .getElementById('cfb27-chroma-key-color')
-    ?.setAttribute('flood-color', currentChromaKey.color);
-  document
-    .getElementById('cfb27-chroma-key-matrix')
-    ?.setAttribute('values', chromaKeyApi.matrixValues(currentChromaKey));
   overlay.classList.toggle('chroma-key-enabled', currentChromaKey.enabled);
   overlay.dataset.chromaKeyColor = currentChromaKey.color;
   overlay.dataset.chromaKeyTolerance = String(currentChromaKey.tolerance);
   overlay.dataset.chromaKeySoftness = String(currentChromaKey.softness);
+  document.body.classList.toggle('chroma-backdrop-solid', currentChromaKey.backdrop === 'green');
+  document.body.style.setProperty('--chroma-backdrop-color', currentChromaKey.color);
+  pushChromaKeyToTheme();
+}
+
+// The key filter runs INSIDE the theme document. Filtering the <webview>
+// element from out here composited as a solid black box on machines where
+// Chromium cannot run SVG filters over the guest's out-of-process surface.
+let guestChromaSignature = '';
+function pushChromaKeyToTheme(force) {
+  if (!themeReady) return;
+  const source = chromaKeyApi.guestFilterScript(currentChromaKey);
+  if (!force && source === guestChromaSignature) return;
+  themeView.executeJavaScript(source)
+    .then(() => { guestChromaSignature = source; })
+    .catch(() => { guestChromaSignature = ''; });
 }
 
 function applyQuickSettings(open) {
@@ -1443,6 +1453,8 @@ async function handleThemeLoaded() {
     // geometry. This prevents a transient blank/zero-width box from being
     // promoted as a ready theme.
     themeReady = true;
+    guestChromaSignature = '';
+    pushChromaKeyToTheme(true);
     await pushStateToTheme();
     const settledMetrics = await normalizeTheme(currentLayout, token, preparationToken);
     if (!settledMetrics || token !== themeLoadToken || preparationToken !== themePreparationToken) return;

@@ -77,8 +77,12 @@ body {
   opacity: 1;
 }
 
-.overlay.chroma-key-enabled .theme-view {
-  filter: url("#cfb27-chroma-key-filter");
+/* The key filter is injected into the theme document itself (see
+   pushChromaKeyToTheme). A host-side filter on the <webview> composited as a
+   solid black box on GPUs that cannot filter an out-of-process surface. */
+
+body.chroma-backdrop-solid {
+  background: var(--chroma-backdrop-color, #00ff00) !important;
 }
 
 .mock-scoreboard {

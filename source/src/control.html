@@ -14,7 +14,7 @@
       <h1>Scoreboard Overlay</h1>
       <p class="header-subtitle">Every overlay tool has its own tab.</p>
     </div>
-    <span id="app-version" class="version">v1.4.10</span>
+    <span id="app-version" class="version">v1.4.11</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -325,6 +325,7 @@
         <div class="card-heading"><div><p class="eyebrow">GREEN CANVAS</p><h2>Remove the green background</h2></div></div>
         <div class="chroma-key-settings">
           <label class="check"><input id="green-screen-enabled" type="checkbox"><span>Remove green canvas background</span></label>
+          <label class="check"><input id="green-screen-backdrop" type="checkbox"><span>Paint a solid green backdrop behind the bug (use this if the see-through area shows up black - e.g. OBS window capture - then chroma key the green in your streaming software)</span></label>
           <details id="green-screen-fine-tune">
             <summary>Fine tune green-screen edges</summary>
             <div class="form-grid chroma-key-controls">

@@ -722,6 +722,7 @@
     $('theme-canvas-width').value = settings.theme.canvasWidth ?? 371;
     $('theme-canvas-height').value = settings.theme.canvasHeight ?? 433;
     $('green-screen-enabled').checked = chromaKey.enabled;
+    $('green-screen-backdrop').checked = chromaKey.backdrop === 'green';
     $('green-screen-color').value = chromaKey.color;
     $('green-screen-tolerance').value = String(chromaKey.tolerance * 100);
     $('green-screen-tolerance-output').value = `${Math.round(chromaKey.tolerance * 100)}%`;
@@ -2330,6 +2331,7 @@
         color: $('green-screen-color').value,
         tolerance: numberValue('green-screen-tolerance', 6) / 100,
         softness: numberValue('green-screen-softness', 4) / 100,
+        backdrop: $('green-screen-backdrop').checked ? 'green' : 'transparent',
       };
       await saveSettings(settings.theme.chromaKey.enabled
         ? 'Green-screen filter applied'
