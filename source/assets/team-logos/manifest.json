@@ -2113,6 +2113,136 @@
       ],
       "preCropped": true,
       "cropProfile": "tight-visible-alpha-v1"
+    },
+    {
+      "id": "cfb27-sam-houston",
+      "assetId": null,
+      "name": "Sam Houston",
+      "primary": "#f56423",
+      "secondary": "#ffffff",
+      "file": "add-sam-houston.png",
+      "width": 512,
+      "height": 512,
+      "source": "cfb27-schedule-generator-import",
+      "aliases": [
+        "SAM HOUSTON",
+        "SAM HOUSTON STATE",
+        "SHSU"
+      ],
+      "preCropped": false
+    },
+    {
+      "id": "cfb27-james-madison",
+      "assetId": null,
+      "name": "James Madison",
+      "primary": "#450084",
+      "secondary": "#cbb677",
+      "file": "add-james-madison.png",
+      "width": 512,
+      "height": 512,
+      "source": "cfb27-schedule-generator-import",
+      "aliases": [
+        "JAMES MADISON",
+        "JMU"
+      ],
+      "preCropped": false
+    },
+    {
+      "id": "cfb27-jacksonville-state",
+      "assetId": null,
+      "name": "Jacksonville State",
+      "primary": "#cc0000",
+      "secondary": "#ffffff",
+      "file": "add-jacksonville-state.png",
+      "width": 512,
+      "height": 512,
+      "source": "cfb27-schedule-generator-import",
+      "aliases": [
+        "JACKSONVILLE STATE",
+        "JAX STATE",
+        "JSU"
+      ],
+      "preCropped": false
+    },
+    {
+      "id": "cfb27-delaware",
+      "assetId": null,
+      "name": "Delaware",
+      "primary": "#00539f",
+      "secondary": "#ffd200",
+      "file": "add-delaware.png",
+      "width": 512,
+      "height": 512,
+      "source": "cfb27-schedule-generator-import",
+      "aliases": [
+        "DELAWARE"
+      ],
+      "preCropped": false
+    },
+    {
+      "id": "cfb27-kennesaw-state",
+      "assetId": null,
+      "name": "Kennesaw State",
+      "primary": "#231f20",
+      "secondary": "#fdbb30",
+      "file": "add-kennesaw-state.png",
+      "width": 512,
+      "height": 512,
+      "source": "cfb27-schedule-generator-import",
+      "aliases": [
+        "KENNESAW STATE",
+        "KENNESAW ST"
+      ],
+      "preCropped": false
+    },
+    {
+      "id": "cfb27-north-dakota-state",
+      "assetId": null,
+      "name": "North Dakota State",
+      "primary": "#0a5640",
+      "secondary": "#ffc82e",
+      "file": "add-north-dakota-state.png",
+      "width": 512,
+      "height": 512,
+      "source": "cfb27-schedule-generator-import",
+      "aliases": [
+        "NORTH DAKOTA STATE",
+        "NDSU"
+      ],
+      "preCropped": false
+    },
+    {
+      "id": "cfb27-missouri-state",
+      "assetId": null,
+      "name": "Missouri State",
+      "primary": "#5e0009",
+      "secondary": "#ffffff",
+      "file": "add-missouri-state.png",
+      "width": 512,
+      "height": 512,
+      "source": "cfb27-schedule-generator-import",
+      "aliases": [
+        "MISSOURI STATE",
+        "MISSOURI ST",
+        "MO STATE"
+      ],
+      "preCropped": false
+    },
+    {
+      "id": "cfb27-sacramento-state",
+      "assetId": null,
+      "name": "Sacramento State",
+      "primary": "#043927",
+      "secondary": "#c4b581",
+      "file": "add-sacramento-state.png",
+      "width": 512,
+      "height": 512,
+      "source": "cfb27-schedule-generator-import",
+      "aliases": [
+        "SACRAMENTO STATE",
+        "SAC STATE"
+      ],
+      "preCropped": false
     }
   ],
   "aliases": {
