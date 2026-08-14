@@ -12,6 +12,7 @@ const {
   dialog,
   globalShortcut,
   ipcMain,
+  Notification,
   nativeImage,
   protocol,
   screen,
@@ -984,6 +985,7 @@ function startRamScoreboardBridge() {
   startRamReaderHealthWatch();
   ramScoreboardTimer.unref?.();
   startRamFileWatch();
+  startRamProblemWatch();
 }
 
 // Push instead of poll: the reader atomically replaces live-game-data.json
@@ -5225,6 +5227,53 @@ function copyRamReaderDoctor() {
   clipboard.writeText(report.reportText);
   logMessage('Reader report copied to the clipboard.');
   return true;
+}
+
+// When the reader hits a REAL problem - not a normal wait - push the
+// diagnosis to the user instead of hoping they open the Diagnostics tab:
+// an alert banner in the control window plus one Windows notification per
+// distinct problem. Normal states (game not running, locking on) never
+// trigger it, so it cannot nag.
+let ramProblemTimer = null;
+let lastRamProblemHeadline = null;
+let notifiedRamProblemHeadline = null;
+
+function ramProblemFromReport(report) {
+  if (!report) return null;
+  if (report.level === 'bad') return report.headline;
+  // The one warn-state worth interrupting for: a game window exists but the
+  // reader cannot find the game process (unusual copies of the game).
+  if (report.level === 'warn' && /cannot find a game process/i.test(report.headline)) {
+    return report.headline;
+  }
+  return null;
+}
+
+function checkRamProblem() {
+  if (!usesRamReader(scoreboardDataSourceMode())) return;
+  let headline = null;
+  try { headline = ramProblemFromReport(ramReaderDoctor()); } catch { }
+  if (headline === lastRamProblemHeadline) return;
+  lastRamProblemHeadline = headline;
+  sendToControl('scoreboard:ram-problem', headline ? { headline } : null);
+  if (headline && headline !== notifiedRamProblemHeadline) {
+    notifiedRamProblemHeadline = headline;
+    try {
+      const alert = new Notification({
+        title: 'CFB27 Scoreboard Overlay needs attention',
+        body: headline,
+      });
+      alert.on('click', () => { controlWindow?.show?.(); controlWindow?.focus?.(); });
+      alert.show();
+    } catch { }
+  }
+}
+
+function startRamProblemWatch() {
+  if (ramProblemTimer) return;
+  checkRamProblem();
+  ramProblemTimer = setInterval(checkRamProblem, 10000);
+  ramProblemTimer.unref?.();
 }
 
 function copyDiagnostics() {

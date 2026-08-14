@@ -2760,6 +2760,27 @@
       await openSetupWizard();
     }
     api.onStatus?.(renderStatus);
+    let dismissedRamProblem = null;
+    api.onRamProblem?.((problem) => {
+      const banner = $('ram-problem-banner');
+      if (!banner) return;
+      const headline = problem?.headline || null;
+      if (!headline || headline === dismissedRamProblem) {
+        banner.hidden = true;
+        if (!headline) dismissedRamProblem = null;
+        return;
+      }
+      $('ram-problem-headline').textContent = headline;
+      banner.hidden = false;
+    });
+    $('ram-problem-copy')?.addEventListener('click', async () => {
+      await api.copyRamReaderDoctor?.();
+      toast('Reader report copied — paste it when asking for help');
+    });
+    $('ram-problem-dismiss')?.addEventListener('click', () => {
+      dismissedRamProblem = $('ram-problem-headline').textContent || null;
+      $('ram-problem-banner').hidden = true;
+    });
     api.onState?.(renderState);
     api.onLog?.(appendLog);
     api.onPanel?.(activatePanel);

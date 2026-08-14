@@ -14,7 +14,7 @@
       <h1>Scoreboard Overlay</h1>
       <p class="header-subtitle">Every overlay tool has its own tab.</p>
     </div>
-    <span id="app-version" class="version">v1.4.4</span>
+    <span id="app-version" class="version">v1.4.5</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -23,6 +23,17 @@
     <div class="status-item"><span id="dot-reader" class="dot"></span><div><small id="label-reader">LIVE DATA</small><strong id="status-reader">Waiting</strong><span id="status-reader-detail" class="status-detail"></span></div></div>
     <div id="overlay-status-item" class="status-item overlay-status" data-state="stopped"><span id="dot-overlay" class="dot"></span><div><small>ON-SCREEN OVERLAY</small><strong id="status-overlay">STOPPED</strong><span id="status-overlay-detail" class="status-detail">Reader is not running</span></div></div>
   </section>
+
+  <aside id="ram-problem-banner" class="ram-problem-banner" hidden role="alert">
+    <div class="ram-problem-text">
+      <strong>The reader hit a problem</strong>
+      <span id="ram-problem-headline"></span>
+    </div>
+    <div class="ram-problem-actions">
+      <button id="ram-problem-copy" class="primary" type="button">Copy reader report</button>
+      <button id="ram-problem-dismiss" type="button">Dismiss</button>
+    </div>
+  </aside>
 
   <nav class="tabs" aria-label="Overlay sections">
     <button class="tab active" data-tab="dashboard">Home</button>
