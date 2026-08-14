@@ -184,6 +184,7 @@ const {
   usesRamReader,
 } = require('./scoreboard-data-source');
 const { TransientJsonReader } = require('./transient-json-reader');
+const { applyRamFieldHold, createRamFieldHoldCache } = require('./ram-field-hold');
 
 registerPrivilegedThemeScheme(protocol, app);
 
@@ -288,6 +289,7 @@ const readerLifecycle = new LatestTaskQueue();
 const ocrFieldCadence = new OcrFieldCadence({ staticIntervalMs: 900 });
 const teamRankMemory = new TeamRankMemory();
 const ramLiveDocumentReader = new TransientJsonReader();
+const ramFieldHoldCache = createRamFieldHoldCache();
 const gameClockPresentation = new CountdownClockModel({
   format: 'minutes',
   correctionThresholdSeconds: 5,
@@ -941,7 +943,13 @@ function clearRamScoreboardState() {
 function pollRamScoreboardState() {
   if (!usesRamReader(scoreboardDataSourceMode())) return;
   try {
-    const payload = ramScoreboardPayload(ramLiveDocumentReader.read(ramLiveDataPath()));
+    // The hold runs before the signature compare so a one-tick withhold
+    // (value -> null -> value) neither blanks the bug nor publishes churn.
+    const payload = applyRamFieldHold(
+      ramScoreboardPayload(ramLiveDocumentReader.read(ramLiveDataPath())),
+      ramFieldHoldCache,
+      Date.now(),
+    );
     if (!payload) {
       clearRamScoreboardState();
       return;
