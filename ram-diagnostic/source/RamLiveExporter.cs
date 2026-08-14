@@ -211,6 +211,8 @@ namespace CollegeFootballRamDiagnostic
             // with none rather than scanning another process's map.
             scoreHudDownDistanceAnchors.Clear();
             nextFastScoreHudScanUtc = DateTime.MinValue;
+            loggedScoreHudMessages.Clear();
+            recentScoreHudMessages.Clear();
             nextAutoDiscoveryUtc = DateTime.MinValue;
             autoDiscoverySummary = null;
             scoreboardCandidateCount = 0;
@@ -621,6 +623,10 @@ namespace CollegeFootballRamDiagnostic
             ram["homeRecord"] = homeRecord;
             ram["scoreHudDownDistance"] = ScoreHudDownDistanceDictionary(scoreHudDownDistance);
             ram["scoreHudMessage"] = ScoreHudMessageDictionary(CurrentScoreHudMessage());
+            // Raw pass-through of the game's banner messages (flags, touchdown
+            // announcements, milestones): newest last, deduplicated, capped.
+            // Consumers parse or ignore as they see fit.
+            ram["recentMessages"] = new List<Dictionary<string, object>>(recentScoreHudMessages);
             string publishedAwayName = matchupTransitionPending ? null : lastAwayTeamName;
             string publishedHomeName = matchupTransitionPending ? null : lastHomeTeamName;
             ram["awayTeamName"] = TeamNameDictionary(publishedAwayName, publishedAwayRead);
@@ -3453,6 +3459,13 @@ namespace CollegeFootballRamDiagnostic
         // means FLAG, and whether the info text already names the scorer.
         private readonly HashSet<string> loggedScoreHudMessages = new HashSet<string>();
         private string probeOutputSeedPath;
+        // The same messages, published raw in the live export. The consumer
+        // asked for the information, not a decoded presentation - so every
+        // banner's text, player id and team id go straight into the feed and
+        // classification can happen downstream (or never).
+        private readonly List<Dictionary<string, object>> recentScoreHudMessages =
+            new List<Dictionary<string, object>>();
+        private const int MaximumRecentMessages = 12;
 
         private void LogScoreHudMessagesProbe(List<ScoreHudMessageCandidate> messages)
         {
@@ -3469,8 +3482,7 @@ namespace CollegeFootballRamDiagnostic
                 RamReadResult clock = Read("gameClockSeconds", 0, 3600);
                 RamReadResult awayScore = Read("awayScore", 0, 255);
                 RamReadResult homeScore = Read("homeScore", 0, 255);
-                AppendProbeLine(probeOutputSeedPath, "messages-probe.jsonl",
-                    new Dictionary<string, object>
+                Dictionary<string, object> entry = new Dictionary<string, object>
                 {
                     { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
                     { "quarter", quarter.Available ? (object)quarter.Value : null },
@@ -3484,7 +3496,11 @@ namespace CollegeFootballRamDiagnostic
                     { "teamId", message.TeamId },
                     { "color", message.Color },
                     { "displayTime", message.DisplayTime }
-                });
+                };
+                AppendProbeLine(probeOutputSeedPath, "messages-probe.jsonl", entry);
+                recentScoreHudMessages.Add(entry);
+                if (recentScoreHudMessages.Count > MaximumRecentMessages)
+                    recentScoreHudMessages.RemoveAt(0);
             }
         }
 

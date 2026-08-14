@@ -74,6 +74,19 @@ Top-level keys:
                               conversion | twoPointConversion |
                               pendingSpecial
 
+  ram.recentMessages
+                Raw pass-through of the game's own banner messages -
+                flags, touchdown announcements, milestones. Each entry:
+                t (ISO time), quarter, clock, awayScore, homeScore,
+                messageId, displayText, infoText, playerId, teamId,
+                color, displayTime. Newest last, deduplicated, capped at
+                12; cleared when the reader attaches to a new game
+                process. The text is exactly what the game displays
+                (touchdown banners typically name the scorer). Parse or
+                ignore as you see fit - nothing here is interpreted.
+                The full per-game history of the same entries appends to
+                messages-probe.jsonl in the data folder.
+
   discovery     The reader explaining itself (why a field is not
                 reading). Useful verbatim in bug reports.
 
