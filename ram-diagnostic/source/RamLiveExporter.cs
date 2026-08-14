@@ -841,6 +841,12 @@ namespace CollegeFootballRamDiagnostic
                     down, distance, scoreHudDownDistance);
             }
             catch { }
+            try
+            {
+                WriteHudStateProbe(screenJsonPath, quarter, gameClock,
+                    Read("playClock", 0, 99), down, distance);
+            }
+            catch { }
         }
 
         private void WritePossessionProbe(string screenJsonPath,
@@ -983,6 +989,70 @@ namespace CollegeFootballRamDiagnostic
                 { "wide", wideWindow }
             };
             AppendProbeLine(screenJsonPath, "ballspot-probe.jsonl", entry);
+        }
+
+        // PROBE. Hunting the game's "HUD hidden" state so the overlay can
+        // auto-hide during the play picker (bugs cover the play-call screen).
+        // The game blanks its own scorebug there, so SOME state in memory
+        // flips exactly at picker-open and picker-close. Candidates watched:
+        // every small-valued slot of the wide game-state block, whether all
+        // down-distance objects read empty, and the HUD possession pair state.
+        // A transition is logged with play-clock/game-clock context; one game
+        // of play shows which signal flips at the play-call boundaries (a
+        // phase slot flips twice per snap cycle with the play clock running -
+        // that shape is unmistakable in the log).
+        private bool lastDownDistanceAllEmpty;
+        private string hudStateProbeSignature;
+
+        private void WriteHudStateProbe(string screenJsonPath,
+            RamReadResult quarter, RamReadResult gameClock, RamReadResult playClock,
+            RamReadResult down, RamReadResult distance)
+        {
+            List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
+            if (quarterAddresses.Count != 1
+                || !ConfiguredCoreSignature().EndsWith(":W", StringComparison.Ordinal)) return;
+            Dictionary<string, object> slots = new Dictionary<string, object>();
+            try
+            {
+                long block = quarterAddresses[0] - 0xC8;
+                byte[] bytes = scanner.ReadBytes(block + 0x80, 0x110);
+                for (int offset = 0; offset + 4 <= bytes.Length; offset += 8)
+                {
+                    int value = BitConverter.ToInt32(bytes, offset);
+                    if (value >= 0 && value <= 20)
+                        slots["0x" + (0x80 + offset).ToString("X", CultureInfo.InvariantCulture)] = value;
+                }
+            }
+            catch { return; }
+            ScoreHudTeamCandidate awayTeam;
+            ScoreHudTeamCandidate homeTeam;
+            string hudPair = TryReadConfiguredRankObject("awayRank", out awayTeam)
+                && TryReadConfiguredRankObject("homeRank", out homeTeam)
+                ? awayTeam.HasPossession + "/" + homeTeam.HasPossession
+                : "unreadable";
+            // The signature deliberately excludes clocks and down/distance so
+            // only PHASE changes write a line, not every ticking second.
+            List<string> parts = new List<string>();
+            foreach (KeyValuePair<string, object> slot in slots)
+                parts.Add(slot.Key + "=" + slot.Value);
+            parts.Sort(StringComparer.Ordinal);
+            string signature = String.Join(",", parts.ToArray())
+                + "|" + lastDownDistanceAllEmpty + "|" + hudPair;
+            if (String.Equals(signature, hudStateProbeSignature, StringComparison.Ordinal)) return;
+            hudStateProbeSignature = signature;
+            Dictionary<string, object> entry = new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "quarter", quarter.Available ? (object)quarter.Value : null },
+                { "clock", gameClock.Available ? (object)gameClock.Value : null },
+                { "playClock", playClock.Available ? (object)playClock.Value : null },
+                { "down", down.Available ? (object)down.Value : null },
+                { "distance", distance.Available ? (object)distance.Value : null },
+                { "allDownDistanceEmpty", lastDownDistanceAllEmpty },
+                { "hudPossessionPair", hudPair },
+                { "slots", slots }
+            };
+            AppendProbeLine(screenJsonPath, "hudstate-probe.jsonl", entry);
         }
 
         private static void AppendProbeLine(string screenJsonPath, string fileName,
@@ -1388,6 +1458,13 @@ namespace CollegeFootballRamDiagnostic
                     catch { }
                 }
             }
+
+            // PROBE input: whether every known down-distance object is empty
+            // right now. The game blanks its own scorebug during the play
+            // picker, so this is a candidate signal for mirroring that hide.
+            lastDownDistanceAllEmpty = liveCandidates.Count > 0;
+            for (int index = 0; index < liveCandidates.Count; index++)
+                if (!liveCandidates[index].IsEmpty) { lastDownDistanceAllEmpty = false; break; }
 
             RamReadResult currentDown = Read("down", 1, 4);
             RamReadResult currentDistance = Read("distance", 0, 99);
