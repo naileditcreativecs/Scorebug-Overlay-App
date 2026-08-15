@@ -104,12 +104,37 @@
       const config = ${config};
       const svgId = 'cfb27-guest-chroma-svg';
       const styleId = 'cfb27-guest-chroma-style';
+      const shimId = 'cfb27-guest-chroma-shim';
       const oldSvg = document.getElementById(svgId);
       const oldStyle = document.getElementById(styleId);
+      const oldShim = document.getElementById(shimId);
       if (!config.enabled) {
         if (oldSvg) oldSvg.remove();
         if (oldStyle) oldStyle.remove();
+        if (oldShim) oldShim.remove();
         return 'chroma-off';
+      }
+      // An html/body background is promoted to the page CANVAS, which paints
+      // outside every element filter - keying body alone leaves that green
+      // untouched. So: capture the original background, force html/body
+      // transparent (this stylesheet is last in the document, so it beats the
+      // theme's own !important), and repaint the captured background on a
+      // shim INSIDE body where the filter can key it. Capture only once -
+      // after the override is active, computed backgrounds read transparent.
+      let shim = oldShim;
+      if (!shim) {
+        const htmlStyle = getComputedStyle(document.documentElement);
+        const bodyStyle = getComputedStyle(document.body);
+        const painted = (style) => style.backgroundColor !== 'rgba(0, 0, 0, 0)'
+          || style.backgroundImage !== 'none';
+        const source = painted(bodyStyle) ? bodyStyle
+          : (painted(htmlStyle) ? htmlStyle : null);
+        shim = document.createElement('div');
+        shim.id = shimId;
+        shim.style.cssText = 'position: fixed; inset: 0;'
+          + ' z-index: -2147483647; pointer-events: none;';
+        if (source) shim.style.background = source.background;
+        document.body.insertBefore(shim, document.body.firstChild);
       }
       const ns = 'http://www.w3.org/2000/svg';
       if (!oldSvg) {
@@ -120,10 +145,14 @@
         svg.setAttribute('aria-hidden', 'true');
         const filter = document.createElementNS(ns, 'filter');
         filter.id = 'cfb27-guest-chroma-filter';
-        filter.setAttribute('x', '-20%');
-        filter.setAttribute('y', '-20%');
-        filter.setAttribute('width', '140%');
-        filter.setAttribute('height', '140%');
+        // userSpaceOnUse with a huge fixed region: an objectBoundingBox
+        // region collapses to nothing on themes whose body has zero height
+        // (all-absolute layouts), clipping the whole scorebug away.
+        filter.setAttribute('filterUnits', 'userSpaceOnUse');
+        filter.setAttribute('x', '-8192');
+        filter.setAttribute('y', '-8192');
+        filter.setAttribute('width', '32768');
+        filter.setAttribute('height', '32768');
         filter.setAttribute('color-interpolation-filters', 'sRGB');
         const flood = document.createElementNS(ns, 'feFlood');
         flood.id = 'cfb27-guest-chroma-color';
@@ -158,8 +187,11 @@
         style = document.createElement('style');
         style.id = styleId;
         document.documentElement.appendChild(style);
+      } else if (style !== document.documentElement.lastElementChild) {
+        document.documentElement.appendChild(style);
       }
-      style.textContent = 'body { filter: url("#cfb27-guest-chroma-filter"); } '
+      style.textContent = 'html, body { background: transparent !important; } '
+        + 'body { filter: url("#cfb27-guest-chroma-filter"); } '
         + '#' + svgId + ' { position: fixed; width: 0; height: 0; }';
       return 'chroma-on';
     })()`;

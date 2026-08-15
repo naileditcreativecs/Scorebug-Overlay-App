@@ -37,6 +37,24 @@ test('enabled guest script carries the key color and filter matrix', () => {
   assert.ok(script.includes('body { filter:'));
 });
 
+test('guest script defeats canvas background propagation', () => {
+  const script = guestFilterScript({ enabled: true });
+  // An html/body background paints the page CANVAS, outside every element
+  // filter - it must be forced transparent and repainted on an in-body shim
+  // the filter can key, or body-background green survives keying entirely.
+  assert.ok(script.includes('html, body { background: transparent !important; }'));
+  assert.ok(script.includes('cfb27-guest-chroma-shim'));
+  assert.ok(script.includes('insertBefore(shim, document.body.firstChild)'));
+  // Region must not derive from body's box: zero-height bodies (all-absolute
+  // themes) would collapse an objectBoundingBox region and clip everything.
+  assert.ok(script.includes("'filterUnits', 'userSpaceOnUse'"));
+  // Removal restores the theme: all three artifacts are torn down.
+  const off = guestFilterScript({ enabled: false });
+  for (const id of ['cfb27-guest-chroma-svg', 'cfb27-guest-chroma-style', 'cfb27-guest-chroma-shim']) {
+    assert.ok(off.includes(id), `off script must remove ${id}`);
+  }
+});
+
 test('disabled guest script removes the filter instead of installing it', () => {
   const script = guestFilterScript({ enabled: false });
   assert.ok(script.includes('"enabled":false'));
