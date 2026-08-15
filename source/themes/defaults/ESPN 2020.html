@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" style="min-width:1920px;min-height:79px;background:#00FF00;">
+<html lang="en" style="min-width:1920px;min-height:79px;background:transparent;">
 <head>
 <meta charset="utf-8">
 <title>CFB Scorebug</title>
@@ -38,10 +38,10 @@ html, body {
   margin: 0; padding: 0; overflow: hidden;
   width: 100%; height: 100%;
   min-width: 1920px; min-height: 79px;
-  background: #00FF00 !important;      /* keyable; !important so a host stylesheet can't black it out */
+  background: transparent;            /* transparent by default; add ?bg=green for a chroma key */
 }
 /* Own green layer, in case the host paints its own background behind the page */
-#backdrop { position: fixed; left: -50vw; top: -50vh; width: 200vw; height: 200vh; background: #00FF00; z-index: 0; }
+#backdrop { position: fixed; left: -50vw; top: -50vh; width: 200vw; height: 200vh; background: transparent; z-index: 0; }
 body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
 
 #bug {
@@ -59,10 +59,10 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
 /* Ends are built as wrappers whose own background is never visible; the black
    arrow and its backing are child layers with !important, so a host writing an
    inline background onto the end elements cannot tint them. */
-.cap { position: absolute; top: 5px; width: 23px; height: 62px; z-index: 5; background: none !important; }
+.cap { position: absolute; top: 5px; width: 15px; height: 62px; z-index: 5; background: none !important; }
 .cap > i, .behind > i { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; }
 .cap > i { background: #000 !important; }
-#capL { left: 5px; }
+#capL { left: 13px; }
 #capR { left: 1811px; }
 #capL > i { clip-path: polygon(0 50%, 100% 0, 100% 100%); }
 #capR > i { clip-path: polygon(100% 50%, 0 0, 0 100%); }
@@ -73,10 +73,10 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
            text-decoration: none !important; opacity: 1 !important; visibility: visible !important;
            z-index: 1 !important; box-shadow: none !important; filter: none !important;
            clip-path: none !important; }
-#capL > u { left: -5px !important; }
+#capL > u { left: -13px !important; }
 #capR > u { left: -5px !important; }
 /* End caps are the negative: a filled rectangle with the arrow cut out in key green */
-.cap { position: absolute; top: 5px; width: 23px; height: 62px; z-index: 5; background: none !important; }
+.cap { position: absolute; top: 5px; width: 15px; height: 62px; z-index: 5; background: none !important; }
 .cap > i { position: absolute !important; left: 0 !important; top: 0 !important;
            width: 100% !important; height: 100% !important; display: block !important;
            background: #000 !important; background-image: none !important;
@@ -84,7 +84,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
            box-shadow: none !important; filter: none !important; }
 .cap > *:not(i) { display: none !important; }
 .cap::before, .cap::after { content: none !important; display: none !important; }
-#capL { left: 7px; }
+#capL { left: 15px; }
 #capR { left: 1811px; }
 #capL > i { clip-path: polygon(0 50%, 100% 0, 100% 100%); }
 #capR > i { clip-path: polygon(100% 50%, 0 0, 0 100%); }
@@ -95,7 +95,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
            text-decoration: none !important; opacity: 1 !important; visibility: visible !important;
            z-index: 1 !important; box-shadow: none !important; filter: none !important;
            clip-path: none !important; }
-#capL > u { left: -5px !important; }
+#capL > u { left: -13px !important; }
 #capR > u { left: -5px !important; }
 
 /* ---------- strip ---------- */
@@ -109,7 +109,10 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
 #strip > *:last-child { margin-right: 0; }
 
 /* team panel: 394 + hatch 23 + score 136  (home score 135) */
-.team { position: relative; flex: 0 0 394px; overflow: hidden; box-shadow: inset 0 0 15px rgba(0,0,0,.30); }
+.team { position: relative; flex: 0 0 404px; overflow: hidden; box-shadow: inset 0 0 15px rgba(0,0,0,.30); }
+/* top-down shadow gradient seen on the real bug's team panels */
+.team::before { content: ''; position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+                background: linear-gradient(180deg, rgba(0,0,0,.22), rgba(0,0,0,.04) 55%, rgba(255,255,255,.05)); pointer-events: none; }
 .team.away { background: var(--away); }
 .team.home { background: var(--home); }
 
@@ -137,9 +140,9 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
 .hatch s:nth-child(3) { clip-path: polygon(0 57px, 7px 50px, 21px 50px, 0 71px); }
 
 /* score block */
-.score { position: relative; flex: 0 0 136px; overflow: hidden; box-shadow: inset 0 0 12px rgba(0,0,0,.40); }
+.score { position: relative; flex: 0 0 118px; overflow: hidden; box-shadow: inset 0 0 12px rgba(0,0,0,.40); }
 .score.away, .score.home { background: #000; }
-.score.home { flex: 0 0 135px; }
+.score.home { flex: 0 0 118px; }
 /* Every visible layer of the score block is its own child element with !important,
    so a host writing an inline background onto .score cannot change the look. */
 .tint  { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 1; }
@@ -175,16 +178,17 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
   box-shadow: inset 1px 0 0 rgba(255,255,255,.07), inset 0 0 12px rgba(0,0,0,.30);
   display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
-#slabQuarter  { flex: 0 0 87px; }
-#slabClock    { flex: 0 0 172px; }
-#slabPlayClock{ flex: 0 0 58px; }
+#slabQuarter  { flex: 0 0 106px; background: linear-gradient(180deg, #2b2a28, #31302e); }
+#slabClock    { flex: 0 0 140px; background: linear-gradient(180deg, #414141, #161616); }
+#slabPlayClock{ flex: 0 0 50px; background: linear-gradient(180deg, #1e2321, #292c29);
+                box-shadow: inset 7px 0 6px -3px rgba(0,0,0,.85), inset -7px 0 6px -3px rgba(0,0,0,.85), inset 5px 0 0 0 #3a3d3a, inset -5px 0 0 0 #3a3d3a, inset 0 0 10px rgba(0,0,0,.30); }
 #quarterView  { font: 900 32px/1 var(--black); color: #FFDE5E; letter-spacing: -.5px; white-space: nowrap; }
-#clockView    { font: 900 45px/1 var(--black); color: #fff;    letter-spacing: -1px;  white-space: nowrap; font-variant-numeric: tabular-nums; }
-#playClockView{ font: 900 30px/1 var(--black); color: #FFDE5E; letter-spacing: -.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#clockView    { font: 900 42px/1 var(--black); color: #fff;    letter-spacing: -.5px;  white-space: nowrap; }
+#playClockView{ font: 900 26px/1 var(--black); color: #FFDE5E; letter-spacing: -.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* down & distance plate */
 #plate {
-  position: relative; flex: 0 0 350px; background: #2d2d2d; box-sizing: border-box;
+  position: relative; flex: 0 0 386px; background: #2d2d2d; box-sizing: border-box;
   padding: 7px 7px 8px; box-shadow: inset 1px 0 0 rgba(255,255,255,.06), inset 0 0 14px rgba(0,0,0,.45);
 }
 #plateFace {
@@ -196,14 +200,107 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
 #plateText { position: absolute; left: 26px; right: 26px; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 #downDistanceView { flex: 0 0 auto; font: 900 41px/1 var(--black); color: #111; letter-spacing: -.5px; white-space: nowrap; }
 
+/* flag announcement: both end-cap arrows blink yellow 3 times, then hold solid */
+@keyframes flagBlink {
+  0%, 14%   { filter: brightness(0); }
+  15%, 29%  { filter: brightness(1); }
+  30%, 44%  { filter: brightness(0); }
+  45%, 59%  { filter: brightness(1); }
+  60%, 74%  { filter: brightness(0); }
+  75%, 100% { filter: brightness(1); }
+}
+.cap.flagCapOn > i { background: #FFDE00 !important; }
+.cap.flagCapOn { animation: flagBlink 0.6s linear both; }
+/* retraction: flash again, ending dark */
+@keyframes flagBlinkOff {
+  0%, 14%   { filter: brightness(1); }
+  15%, 29%  { filter: brightness(0); }
+  30%, 44%  { filter: brightness(1); }
+  45%, 59%  { filter: brightness(0); }
+  60%, 74%  { filter: brightness(1); }
+  75%, 100% { filter: brightness(0); }
+}
+.cap.flagCapOff > i { background: #FFDE00 !important; }
+.cap.flagCapOff { animation: flagBlinkOff 0.6s linear both; }
+/* retraction: banners shrink away fast */
+@keyframes penShrink { to { transform: scale(0); opacity: 0; } }
+.penArrow.off { display: flex; animation: penSlideOut .3s cubic-bezier(.5,0,.8,1) both; }
+@keyframes penSlideOut { to { transform: translateX(-110%); } }
+#plateFlag.off { display: flex; transform-origin: center; animation: penShrink .28s cubic-bezier(.5,0,.8,1) both; }
+
+/* flag underline: slides out from centre both ways, white pulse, settles yellow */
+#underlineFlag {
+  position: absolute; top: 69px; left: 34px; width: 1772px; height: 3px;
+  background: #FFDE00; z-index: 7; display: none; transform-origin: center;
+}
+@keyframes flagLine {
+  0%   { transform: scaleX(0); background: #FFDE00; }
+  30%, 84% { transform: scaleX(1); background: #FFDE00; }
+  88%, 92% { transform: scaleX(1); background: #fff2a8; }
+  100% { transform: scaleX(1); background: #FFDE00; }
+}
+#underlineFlag.on { display: block; animation: flagLine 1.5s ease-out both; }
+/* two white patches run from the centre to the ends over the yellow */
+#underlineFlag::before, #underlineFlag::after {
+  content: ''; position: absolute; top: 0; height: 100%; width: 90px;
+  left: 50%; margin-left: -45px; opacity: 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0), #fff, rgba(255,255,255,0));
+}
+#underlineFlag.on::before { animation: flagPulseL .6s ease-out .45s both; }
+#underlineFlag.on::after  { animation: flagPulseR .6s ease-out .45s both; }
+@keyframes flagPulseR { 0% { transform: translateX(0); opacity: 0; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateX(841px); opacity: 0; } }
+@keyframes flagPulseL { 0% { transform: translateX(0); opacity: 0; } 12% { opacity: 1; } 85% { opacity: 1; } 100% { transform: translateX(-841px); opacity: 0; } }
+@keyframes flagLineOut { to { transform: scaleX(0); } }
+#underlineFlag.off { display: block; animation: flagLineOut .3s cubic-bezier(.5,0,.8,1) both; }
+
+/* down & distance plate turns into a flashing yellow FLAG plate during a penalty */
+#plateFlag {
+  position: absolute; left: 7px; right: 7px; top: 7px; bottom: 8px;
+  background: #FFDE00; z-index: 5;
+  display: none; align-items: center; justify-content: center;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.35);
+}
+#plateFlag span { font: 900 41px/1 var(--black); color: #111; letter-spacing: -.5px; white-space: nowrap; }
+#plateFlag b { position: absolute; width: 7px; height: 7px; background: #b3a000; }
+#plateFlag.on { display: flex; animation: flagBlink 0.6s linear both; }
+
+/* penalty callout: ONE yellow arrow slides out from the left over the flagged team's name */
+.penArrow {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 300px;
+  background: #FFDE00;
+  clip-path: path('M0,0 L284,0 L297,30 Q300,36 297,42 L284,72 L0,72 Z');
+  display: none; z-index: 4;
+  align-items: center; justify-content: flex-end;
+  padding-right: 44px; box-sizing: border-box;
+}
+.penArrow span { font: 900 30px/1 var(--black); color: #111; letter-spacing: -.5px; white-space: nowrap; }
+.penArrow.on { display: flex; animation: penSlide .4s cubic-bezier(.25,.9,.3,1) both; }
+@keyframes penSlide { from { transform: translateX(-110%); } to { transform: translateX(0); } }
 
 #diag { position: fixed; left: 0; top: 82px; width: 1900px; max-height: 900px; overflow: hidden; z-index: 99;
         font: 12px/1.35 Consolas, monospace; color: #baffba; background: #000; padding: 8px; white-space: pre-wrap; display: none; }
 
+#demoPanel {
+  position: fixed; left: 8px; top: 86px; z-index: 100;
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  font: 12px/1.2 Arial, Helvetica, sans-serif; color: #ccc; background: #222;
+  border: 1px solid #444; border-radius: 4px; padding: 8px 12px;
+}
+#demoPanel label { display: flex; align-items: center; gap: 4px; }
+#demoPanel input, #demoPanel select {
+  font: 700 12px/1.2 Arial, Helvetica, sans-serif; color: #111; background: #fff;
+  border: 1px solid #999; border-radius: 3px; padding: 3px 5px;
+}
+#flagDemoBtn {
+  font: 700 13px/1.2 Arial, Helvetica, sans-serif; color: #fff; background: #333;
+  border: 1px solid #555; border-radius: 4px; padding: 7px 12px; cursor: pointer; user-select: none;
+}
+#flagDemoBtn:hover { background: #444; }
+
 /* team-colour underline beneath each team's block */
 .underline { position: absolute; top: 69px; height: 3px; z-index: 6; }
-#underlineAway { left: 34px;  width: 553px; background: var(--away) !important; }
-#underlineHome { left: 587px; width: 552px; background: var(--home) !important; }
+#underlineAway { left: 34px;  width: 545px; background: var(--away) !important; }
+#underlineHome { left: 579px; width: 545px; background: var(--home) !important; }
 
 /* offscreen binding targets */
 #bind { position: absolute; left: -99999px; top: 0; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
@@ -213,19 +310,31 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
 <body data-width="1920" data-height="79"
       data-cfb27-width="1920" data-cfb27-height="79"
       data-cfb27-canvas-width="1920" data-cfb27-canvas-height="79"
-      style="width:100%;height:100%;min-width:1920px;min-height:79px;background:#00FF00;">
+      style="width:100%;height:100%;min-width:1920px;min-height:79px;background:transparent;">
 
 <div id="backdrop"></div>
 <div id="diag"></div>
+<div id="demoPanel" title="Test controls — not part of the keyed 1920x79 canvas">
+  <label>Away <input id="dAwayName" size="10" placeholder="name"><input id="dAwayRecord" size="5" placeholder="rec"><input id="dAwayScore" size="3" placeholder="score"></label>
+  <label>Home <input id="dHomeName" size="10" placeholder="name"><input id="dHomeRecord" size="5" placeholder="rec"><input id="dHomeScore" size="3" placeholder="score"></label>
+  <label>Qtr <input id="dQuarter" size="2"></label>
+  <label>Clock <input id="dClock" size="6" placeholder="3:56"></label>
+  <label>PlayClk <input id="dPlayClock" size="3" placeholder="25"></label>
+  <label>Down <input id="dDownDistance" size="9" placeholder="3rd &amp; 6"></label>
+  <label>Poss <select id="dPoss"><option value="">none</option><option value="away">away</option><option value="home">home</option></select></label>
+  <button id="flagDemoBtn">▶ Play Flag Animation</button>
+</div>
 <div id="bug" data-cfb27-scorebug data-cfb27-root>
   <div class="underline" id="underlineAway"></div>
   <div class="underline" id="underlineHome"></div>
+  <div id="underlineFlag"></div>
   <div class="cap" id="capL"><u></u><i></i></div>
   <div class="cap" id="capR"><u></u><i></i></div>
 
   <div id="strip">
 
     <div class="team away" id="awayPanel">
+      <div class="penArrow" id="awayPenArrow"><span id="awayPenText"></span></div>
       <div class="logo"><img id="awayLogo" class="away-logo" data-cfb27-bind="away.logo" alt="" data-cfb27-field="awayLogo" data-field="away-logo" data-bind="awayLogo"></div>
       <div class="ident">
         <div class="line" id="awayNameLine">
@@ -251,6 +360,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     </div>
 
     <div class="team home" id="homePanel">
+      <div class="penArrow" id="homePenArrow"><span id="homePenText"></span></div>
       <div class="logo"><img id="homeLogo" class="home-logo" data-cfb27-bind="home.logo" alt="" data-cfb27-field="homeLogo" data-field="home-logo" data-bind="homeLogo"></div>
       <div class="ident">
         <div class="line" id="homeNameLine">
@@ -275,15 +385,20 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
       <div class="poss home-possession" id="homePossession" data-cfb27-bind="home.possession" style="background:var(--home)" data-cfb27-field="homePossession" data-field="home-possession" data-bind="homePossession"></div>
     </div>
 
-    <div class="slab" id="slabQuarter"><span id="quarter" class="srcText period" data-cfb27-bind="game.quarter" data-cfb27-field="quarter" data-field="quarter" data-bind="quarter"></span><span id="quarterView"></span></div>
-    <div class="slab" id="slabClock"><span id="clock" class="srcText game-clock" data-cfb27-bind="game.clock" data-cfb27-field="clock" data-field="clock" data-bind="clock"></span><span id="clockView"></span></div>
-    <div class="slab" id="slabPlayClock"><span id="playClock" class="srcText play-clock" data-cfb27-bind="game.playClock" data-cfb27-field="playClock" data-field="play-clock" data-bind="playClock"></span><span id="playClockView"></span></div>
+    <div class="slab" id="slabQuarter"><span id="quarter" class="srcText period" data-cfb27-bind="game.quarter" data-cfb27-field="quarter" data-field="quarter" data-bind="quarter">1ST</span><span id="quarterView">1ST</span></div>
+    <div class="slab" id="slabClock"><span id="clock" class="srcText game-clock" data-cfb27-bind="game.clock" data-cfb27-field="clock" data-field="clock" data-bind="clock">15:00</span><span id="clockView">15:00</span></div>
+    <div class="slab" id="slabPlayClock"><span id="playClock" class="srcText play-clock" data-cfb27-bind="game.playClock" data-cfb27-field="playClock" data-field="play-clock" data-bind="playClock">40</span><span id="playClockView">40</span></div>
 
     <div id="plate">
       <div id="plateFace">
         <b style="left:9px;top:9px"></b><b style="left:9px;top:27px"></b><b style="left:9px;top:45px"></b>
         <b style="right:9px;top:9px"></b><b style="right:9px;top:27px"></b><b style="right:9px;top:45px"></b>
-        <div id="plateText"><span id="downDistance" class="srcText down-distance" data-cfb27-bind="game.downDistance" data-cfb27-field="downDistance" data-field="down-distance" data-bind="downDistance"></span><span id="downDistanceView"></span></div>
+        <div id="plateText"><span id="downDistance" class="srcText down-distance" data-cfb27-bind="game.downDistance" data-cfb27-field="downDistance" data-field="down-distance" data-bind="downDistance">1ST &amp; 10</span><span id="downDistanceView">1ST &amp; 10</span></div>
+      </div>
+      <div id="plateFlag">
+        <b style="left:9px;top:9px"></b><b style="left:9px;top:27px"></b><b style="left:9px;top:45px"></b>
+        <b style="right:9px;top:9px"></b><b style="right:9px;top:27px"></b><b style="right:9px;top:45px"></b>
+        <span>FLAG</span>
       </div>
     </div>
 
@@ -313,6 +428,9 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
   <span id="play_clock"></span><span id="play-clock"></span><span id="playClockText"></span><span id="shotClock"></span>
   <span id="down_distance"></span><span id="down-distance"></span><span id="downAndDistance"></span><span id="situation"></span>
   <span id="down"></span><span id="distance"></span>
+  <span id="penalty_flag"></span><span id="penalty-flag"></span><span id="flagTeam"></span><span id="penaltyTeam"></span>
+  <span id="penalty_type"></span><span id="penalty-type"></span><span id="penaltyText"></span><span id="foul"></span>
+  <span id="penalty_yards"></span><span id="penalty-yards"></span><span id="yards"></span>
 </div>
 
 <script>
@@ -333,7 +451,8 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     homeName: 'LOUISVILLE', homeRank: '', homeRecord: '2-1', homeColor: '#BB002F',
     homeScore: '0', homePossession: false, homeLogo: '',
     awayTimeouts: 3, homeTimeouts: 3,
-    quarter: '', clock: '', playClock: '', down: '', distance: '', downDistance: ''
+    quarter: '1', clock: '15:00', playClock: '40', down: '1', distance: '10', downDistance: '',
+    penaltyFlag: '', penaltyType: '', penaltyYards: ''
   };
 
   /* ---------------- alias table ---------------- */
@@ -364,6 +483,9 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
   alias('downDistance',   ['down_distance','down-distance','downAndDistance','situation']);
   alias('down',           ['down']);
   alias('distance',       ['distance']);
+  alias('penaltyFlag',    ['penalty_flag','penalty-flag','flagTeam','flag_team','penaltyTeam','penalty_team']);
+  alias('penaltyType',    ['penalty_type','penalty-type','penaltyText','penalty_name','foul','foulType','flagType']);
+  alias('penaltyYards',   ['penalty_yards','penalty-yards','flagYards','yards','penaltyYds']);
 
   /* ---------------- formatting ---------------- */
 
@@ -504,7 +626,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
      away ball  -> away colour runs the whole bottom of the board
      home ball  -> away side keeps its colour, home colour runs from there to the end
      no ball    -> each colour sits under its own team's block */
-  var STRIP_L = 34, STRIP_R = 1806, HOME_L = 587, AWAY_W = 553;
+  var STRIP_L = 34, STRIP_R = 1806, HOME_L = 579, AWAY_W = 545;
   function underlines() {
     var a = $('underlineAway'), h = $('underlineHome');
     if (!a || !h) return;
@@ -521,10 +643,68 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
       h.style.opacity = '1';
     } else {
       a.style.width = AWAY_W + 'px';
-      h.style.width = (HOME_L + 552 - HOME_L) + 'px';
+      h.style.width = '545px';
       h.style.opacity = '1';
     }
     a.style.opacity = '1';
+  }
+
+  // Penalty ("flag") overlay: everything else on the bug stays exactly as it
+  // is (score, record, quarter, clock, playClock, plate, hatch marks) — only
+  // the offending team's name swaps to the penalty call, and their end-cap
+  // arrow turns yellow so it's clear which team the flag is on.
+  var lastFlagActive = false, lastFlagSide = '', flagOffTimer = null;
+  function flagPaint() {
+    var side = F.penaltyFlag;
+    // 'flag' (or a bare true) means a flag with no team attributed yet - the
+    // game's banner often has no team id. Plate, caps and underline all fire;
+    // only the team arrow waits until a side is known.
+    if (side === true || side === 'true') side = 'flag';
+    var active = side === 'away' || side === 'home' || side === 'flag';
+    var label = String(F.penaltyType || 'FLAG').toUpperCase();
+    if (active) {
+      clearTimeout(flagOffTimer);
+      $('capL').classList.remove('flagCapOff');
+      $('capR').classList.remove('flagCapOff');
+      $('plateFlag').classList.remove('off');
+      $('underlineFlag').classList.remove('off');
+      $('awayPenArrow').classList.remove('off');
+      $('homePenArrow').classList.remove('off');
+    } else if (lastFlagActive) {
+      $('capL').classList.add('flagCapOff');
+      $('capR').classList.add('flagCapOff');
+      $('plateFlag').classList.add('off');
+      $('underlineFlag').classList.remove('on');
+      $('underlineFlag').classList.add('off');
+      $((lastFlagSide || 'away') + 'PenArrow').classList.add('off');
+      flagOffTimer = setTimeout(function () {
+        $('capL').classList.remove('flagCapOff');
+        $('capR').classList.remove('flagCapOff');
+        $('plateFlag').classList.remove('off');
+        $('underlineFlag').classList.remove('off');
+        $('awayPenArrow').classList.remove('off');
+        $('homePenArrow').classList.remove('off');
+      }, 700);
+    }
+    $('capL').classList.toggle('flagCapOn', active);
+    $('capR').classList.toggle('flagCapOn', active);
+    $('plateFlag').classList.toggle('on', active);
+    $('underlineFlag').classList.toggle('on', active);
+    ['away', 'home'].forEach(function (s) {
+      var on = active && s === side;
+      $(s + 'PenArrow').classList.toggle('on', on);
+      if (on) $(s + 'PenText').textContent = label;
+    });
+    lastFlagActive = active;
+    if (active) lastFlagSide = side;
+  }
+
+  var flagDemoTimer = null;
+  function playFlagDemo() {
+    var side = F.penaltyFlag === 'away' ? 'home' : 'away';   // alternate side each click
+    clearTimeout(flagDemoTimer);
+    update({ penaltyFlag: side, penaltyType: 'Holding', penaltyYards: '10' });
+    flagDemoTimer = setTimeout(function () { update({ penaltyFlag: '' }); }, 5000);
   }
 
   function paint() {
@@ -568,6 +748,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     timeoutMarks('homeTimeoutMarks', F.homeTimeouts);
     $('awayPossession').style.opacity = truthy(F.awayPossession) ? '1' : '0';
     $('homePossession').style.opacity = truthy(F.homePossession) ? '1' : '0';
+    flagPaint();
 
     layout();
 
@@ -597,6 +778,8 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     fit($('awayScoreBox'),   [$('awayScoreView')], 66, 30);
     fit($('homeScoreBox'),   [$('homeScoreView')], 66, 30);
     fit($('plateText'),      [$('downDistanceView')], 41, 20);
+    fit($('awayPenArrow'),   [$('awayPenText')], 30, 14);
+    fit($('homePenArrow'),   [$('homePenText')], 30, 14);
   }
 
   /* ---------------- inputs ---------------- */
@@ -657,6 +840,14 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
       var s = String(value).trim().toLowerCase();
       F.awayPossession = (s === 'away' || s === 'a' || s === 'visitor');
       F.homePossession = (s === 'home' || s === 'h');
+      return true;
+    }
+    if (field === 'penaltyFlag') {
+      var pf = String(value).trim().toLowerCase();
+      var v = (pf === 'away' || pf === 'a' || pf === 'visitor') ? 'away'
+            : (pf === 'home' || pf === 'h') ? 'home' : '';
+      if (F.penaltyFlag === v) return false;
+      F.penaltyFlag = v;
       return true;
     }
     if (!(field in F)) return false;
@@ -861,6 +1052,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     get: function () { var o = {}; Object.keys(F).forEach(function (k) { o[k] = F[k]; }); return o; },
     refit: layout,
     repaint: paint,
+    playFlagDemo: playFlagDemo,
     size: { width: CANVAS_W, height: CANVAS_H, artWidth: ART_W, artHeight: ART_H }
   };
   window.scorebug = window.scoreboard = window.CFB27 = api;
@@ -886,6 +1078,12 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
   try {
     var q = {};
     new URLSearchParams(location.search).forEach(function (v, k) { q[k] = v; });
+    if (q.bg) {
+      var bgc = (q.bg === 'green' || q.bg === '1') ? '#00FF00' : q.bg;
+      document.documentElement.style.background = document.body.style.background = bgc;
+      $('backdrop').style.background = bgc;
+      delete q.bg;
+    }
     update(q);
   } catch (e) {}
 
@@ -975,6 +1173,21 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
 
   paint();
   watch();
+  var flagBtn = $('flagDemoBtn');
+  if (flagBtn) flagBtn.addEventListener('click', function () { playFlagDemo(); });
+  (function () {
+    var wire = { dAwayName: 'awayName', dAwayRecord: 'awayRecord', dAwayScore: 'awayScore',
+                 dHomeName: 'homeName', dHomeRecord: 'homeRecord', dHomeScore: 'homeScore',
+                 dQuarter: 'quarter', dClock: 'clock', dPlayClock: 'playClock', dDownDistance: 'downDistance' };
+    Object.keys(wire).forEach(function (id) {
+      var el = $(id), field = wire[id];
+      if (!el) return;
+      el.value = F[field];
+      el.addEventListener('input', function () { api.set(field, el.value); });
+    });
+    var poss = $('dPoss');
+    if (poss) poss.addEventListener('change', function () { api.set('possession', poss.value || 'none'); });
+  })();
   setInterval(pollSources, 120);
   setInterval(function () { if (harvest()) paint(); }, 500);
   api.rescan = function () { sources = []; lastSeen = ''; findSources(); pollSources(); };

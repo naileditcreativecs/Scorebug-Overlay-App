@@ -37,7 +37,10 @@ function flagStateFromMessages(messages, nowMs) {
     if (!Number.isFinite(shownAtMs)) return { active: false };
     const ageMs = nowMs - shownAtMs;
     if (ageMs < 0 || ageMs > flagDisplayMs(message)) return { active: false };
-    return { active: true, sinceMs: shownAtMs };
+    const side = message.teamSide === 'away' || message.teamSide === 'home'
+      ? message.teamSide
+      : null;
+    return { active: true, sinceMs: shownAtMs, side };
   }
   return { active: false };
 }

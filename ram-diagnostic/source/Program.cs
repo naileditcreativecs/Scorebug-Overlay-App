@@ -3927,6 +3927,16 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.HudPossessionCandidate(0, 0) != -1
                     || RamLiveExporter.HudPossessionCandidate(1, 1) != -1)
                     throw new Exception("HUD possession candidate rule is not complementary-only.");
+                // Message team attribution: only a positive id matching an
+                // oriented side resolves; unknown ids and the -1/0 "no team"
+                // sentinels stay null rather than guessing a side.
+                if (RamLiveExporter.MessageTeamSide(1211, 1211, 77) != "away"
+                    || RamLiveExporter.MessageTeamSide(77, 1211, 77) != "home"
+                    || RamLiveExporter.MessageTeamSide(0, 1211, 77) != null
+                    || RamLiveExporter.MessageTeamSide(-1, 1211, 77) != null
+                    || RamLiveExporter.MessageTeamSide(5, 1211, 77) != null
+                    || RamLiveExporter.MessageTeamSide(0, 0, 0) != null)
+                    throw new Exception("Message team-side attribution guessed a side.");
                 // Freshness stamps for downstream consumers: a stamp moves only
                 // when the published value actually changes, and transitions to
                 // and from null (unavailable) count as changes.

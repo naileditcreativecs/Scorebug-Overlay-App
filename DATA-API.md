@@ -80,7 +80,8 @@ Top-level keys:
                 flags, touchdown announcements, milestones. Each entry:
                 t (ISO time), quarter, clock, awayScore, homeScore,
                 messageId, displayText, infoText, playerId, teamId,
-                color, displayTime. Newest last, deduplicated, capped at
+                teamSide (away/home when the reader can attribute the
+                message to a team, else null), color, displayTime. Newest last, deduplicated, capped at
                 12; cleared when the reader attaches to a new game
                 process. The text is exactly what the game displays
                 (touchdown banners typically name the scorer). Parse or

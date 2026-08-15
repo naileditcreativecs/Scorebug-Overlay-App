@@ -912,6 +912,9 @@ function ramScoreboardPayload(document) {
   // fallback). Present and true only while the game itself shows the banner.
   const flag = flagStateFromMessages(document.ram?.recentMessages, Date.now());
   apply(state.game, 'flag', true, flag.active, 'game.flag');
+  // Side-aware value for themes with their own penalty treatment:
+  // 'away'/'home' when the game attributed the flag, 'flag' when it did not.
+  apply(state.game, 'penaltyFlag', flag.side || 'flag', flag.active, 'game.penaltyFlag');
   if (fields.length === 0) return null;
   state.meta = {
     source: 'ram',

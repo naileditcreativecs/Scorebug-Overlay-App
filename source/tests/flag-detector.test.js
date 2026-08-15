@@ -27,7 +27,12 @@ test('the probe-captured flag banner is recognized and timed by its own display 
   assert.ok(isFlagMessage(PROBE_FLAG));
   assert.deepStrictEqual(
     flagStateFromMessages([PROBE_FLAG], SHOWN_AT + 100),
-    { active: true, sinceMs: SHOWN_AT },
+    { active: true, sinceMs: SHOWN_AT, side: null },
+  );
+  // teamSide from the reader resolves the arrow side for themes.
+  assert.strictEqual(
+    flagStateFromMessages([{ ...PROBE_FLAG, teamSide: 'home' }], SHOWN_AT + 100).side,
+    'home',
   );
   assert.deepStrictEqual(
     flagStateFromMessages([PROBE_FLAG], SHOWN_AT + 8001),
@@ -48,7 +53,7 @@ test('the newest flag in the list wins and stale ones stay inactive', () => {
     [older, { messageId: 7, displayText: 'TOUCHDOWN', t: PROBE_FLAG.t }, PROBE_FLAG],
     SHOWN_AT + 500,
   );
-  assert.deepStrictEqual(state, { active: true, sinceMs: SHOWN_AT });
+  assert.deepStrictEqual(state, { active: true, sinceMs: SHOWN_AT, side: null });
 });
 
 test('garbage input never activates', () => {

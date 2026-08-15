@@ -3619,6 +3619,14 @@ namespace CollegeFootballRamDiagnostic
             new List<Dictionary<string, object>>();
         private const int MaximumRecentMessages = 12;
 
+        internal static string MessageTeamSide(int teamId, int awayTeamId, int homeTeamId)
+        {
+            if (teamId <= 0) return null;
+            if (teamId == awayTeamId) return "away";
+            if (teamId == homeTeamId) return "home";
+            return null;
+        }
+
         private void LogScoreHudMessagesProbe(List<ScoreHudMessageCandidate> messages)
         {
             if (messages == null || String.IsNullOrWhiteSpace(probeOutputSeedPath)) return;
@@ -3646,6 +3654,11 @@ namespace CollegeFootballRamDiagnostic
                     { "infoText", message.InfoText },
                     { "playerId", message.PlayerId },
                     { "teamId", message.TeamId },
+                    // Which side the message is about, resolved against the
+                    // oriented team ids so consumers (and the flag indicator)
+                    // never have to map raw catalog ids themselves.
+                    { "teamSide", MessageTeamSide(message.TeamId,
+                        orientedAwayScoreHudTeamId, orientedHomeScoreHudTeamId) },
                     { "color", message.Color },
                     { "displayTime", message.DisplayTime }
                 };
