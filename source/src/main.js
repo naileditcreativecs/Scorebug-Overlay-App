@@ -192,7 +192,7 @@ registerPrivilegedThemeScheme(protocol, app);
 const APP_ID = 'com.cfb27.scoreboard.overlay.data-extraction-test';
 const PRODUCT_NAME = 'A test for this';
 const ONBOARDING_VERSION = 1;
-const SETTINGS_SCHEMA_VERSION = 13;
+const SETTINGS_SCHEMA_VERSION = 14;
 const READER_CALIBRATION_EXTENSION = 'cfb27reader';
 const OVERLAY_DOCUMENT = path.join(__dirname, 'overlay.html');
 const IN_GAME_EDITOR_DOCUMENT = path.join(__dirname, 'ingame-editor.html');
@@ -214,7 +214,9 @@ if (path.resolve(LEGACY_USER_DATA_PATH) !== path.resolve(STABLE_USER_DATA_PATH))
 }
 const DEFAULT_SIZE = Object.freeze({ width: 371, height: 433 });
 const DEFAULT_LAYOUT = Object.freeze({
-  anchor: 'bottom-center',
+  // Top-center by default: the game's play-call menu owns the bottom of the
+  // screen, and a factory-placed bug sitting on it glitches the picker.
+  anchor: 'top-center',
   right: 0,
   bottom: 32,
   width: DEFAULT_SIZE.width,
@@ -520,6 +522,27 @@ function sameRegion(left, right, tolerance = 1e-10) {
   return Boolean(left && right && ['x', 'y', 'width', 'height'].every((field) => (
     Math.abs(Number(left[field]) - Number(right[field])) <= tolerance
   )));
+}
+
+// Schema v13 -> v14: the factory position moved to top-center so a fresh
+// install's bug cannot sit on the play-call menu. Applies only to users
+// still on the untouched factory placement - anyone who moved, locked, or
+// saved per-theme positions keeps exactly what they had.
+function migratePickerClearDefault(saved, loadedSchemaVersion) {
+  if (!isPlainObject(saved) || loadedSchemaVersion >= 14) return false;
+  saved.overlay ||= {};
+  const placements = saved.overlay.placements;
+  const hasSavedPlacement = isPlainObject(placements) && Object.keys(placements).length > 0;
+  const factoryPlacement = !hasSavedPlacement
+    && saved.overlay.positionLocked !== true
+    && (saved.overlay.anchor === undefined || saved.overlay.anchor === 'bottom-center')
+    && (saved.overlay.marginX === undefined || Number(saved.overlay.marginX) === 0)
+    && (saved.overlay.marginY === undefined || Number(saved.overlay.marginY) === 32);
+  if (!factoryPlacement) return false;
+  saved.overlay.anchor = 'top-center';
+  saved.overlay.marginX = 0;
+  saved.overlay.marginY = 32;
+  return true;
 }
 
 function migrateCenteredDonorSettings(saved, loadedSchemaVersion) {
@@ -1461,6 +1484,7 @@ function loadSettings() {
   saved.recognition ||= {};
   saved.recognition.readingProfile = normalizedReadingProfile;
   const migratedCenteredDonorSettings = migrateCenteredDonorSettings(saved, loadedSchemaVersion);
+  migratePickerClearDefault(saved, loadedSchemaVersion);
   settings = deepMerge(defaults, saved);
   settings.dataExtraction ||= {};
   settings.dataExtraction.scoreboardSource = scoreboardDataSourceMode(settings);
