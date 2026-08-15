@@ -1613,6 +1613,7 @@ window.overlayControl.onReloadTheme((theme) => {
 });
 window.overlayControl.onState((state) => {
   currentState = state;
+  overlay.classList.toggle('flag-active', currentState?.game?.flag === true);
   pushStateToTheme();
 });
 window.overlayControl.onTeamLogoTransform(previewTeamLogoTransform);

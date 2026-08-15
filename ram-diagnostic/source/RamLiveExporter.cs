@@ -1083,16 +1083,23 @@ namespace CollegeFootballRamDiagnostic
             List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
             if (quarterAddresses.Count != 1
                 || !ConfiguredCoreSignature().EndsWith(":W", StringComparison.Ordinal)) return;
+            // ROUND 2 (2026-08-15): the first game of probe data proved the
+            // 0x80..0x188 slots are all plain scoreboard values and none flips
+            // at play-picker open/close (the all-empty signal fires only on
+            // scoring plays). The hidden-HUD state must live elsewhere, so
+            // widen to the unexplored ranges of the same block: the header
+            // below 0x80 and the tail beyond 0x188.
             Dictionary<string, object> slots = new Dictionary<string, object>();
             try
             {
                 long block = quarterAddresses[0] - 0xC8;
-                byte[] bytes = scanner.ReadBytes(block + 0x80, 0x110);
-                for (int offset = 0; offset + 4 <= bytes.Length; offset += 8)
+                byte[] bytes = scanner.ReadBytes(block, 0x300);
+                for (int offset = 0; offset + 4 <= bytes.Length; offset += 4)
                 {
+                    if (offset >= 0x80 && offset < 0x188) continue;
                     int value = BitConverter.ToInt32(bytes, offset);
                     if (value >= 0 && value <= 20)
-                        slots["0x" + (0x80 + offset).ToString("X", CultureInfo.InvariantCulture)] = value;
+                        slots["0x" + offset.ToString("X", CultureInfo.InvariantCulture)] = value;
                 }
             }
             catch { return; }

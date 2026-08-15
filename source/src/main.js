@@ -185,6 +185,7 @@ const {
 } = require('./scoreboard-data-source');
 const { TransientJsonReader } = require('./transient-json-reader');
 const { applyRamFieldHold, createRamFieldHoldCache } = require('./ram-field-hold');
+const { flagStateFromMessages } = require('./flag-detector');
 
 registerPrivilegedThemeScheme(protocol, app);
 
@@ -884,6 +885,10 @@ function ramScoreboardPayload(document) {
   // exporter can tell them apart.
   apply(state.game, 'downDistanceKind', game.downDistanceKind, game.downDistanceSource === 'ram'
     && /^(?:numeric|goal|inches|kickoff|pat|conversion|twoPointConversion|pendingSpecial)$/.test(String(game.downDistanceKind || '')), 'game.downDistanceKind');
+  // Penalty flag, from the game's own FLAG banner (probe-verified id + text
+  // fallback). Present and true only while the game itself shows the banner.
+  const flag = flagStateFromMessages(document.ram?.recentMessages, Date.now());
+  apply(state.game, 'flag', true, flag.active, 'game.flag');
   if (fields.length === 0) return null;
   state.meta = {
     source: 'ram',

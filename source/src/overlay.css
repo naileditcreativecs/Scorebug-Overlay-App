@@ -85,6 +85,39 @@ body.chroma-backdrop-solid {
   background: var(--chroma-backdrop-color, #00ff00) !important;
 }
 
+/* Penalty flag banner, driven by the game's own FLAG message. Appears on any
+   theme without the theme knowing about flags; themes that want their own
+   treatment read state.game.flag and this default can be ignored under it. */
+.flag-banner {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  z-index: 40;
+  padding: 0.28em 1.1em;
+  border-radius: 4px;
+  background: #f7d21b;
+  color: #131313;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+  pointer-events: none;
+}
+
+.overlay.flag-active .flag-banner {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  animation: flag-banner-pulse 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes flag-banner-pulse {
+  from { filter: brightness(1); }
+  to { filter: brightness(0.82); }
+}
+
 .mock-scoreboard {
   position: absolute;
   top: calc(-1 * var(--theme-crop-y));
