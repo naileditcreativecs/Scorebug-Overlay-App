@@ -944,6 +944,16 @@ namespace CollegeFootballRamDiagnostic
             return result;
         }
 
+        // Known wide-block offsets (scores, downs, quarter, timeouts, clock and
+        // score digit cells, play clock) - everything the 2026-08-15 probe game
+        // identified. The ball-spot sweep skips these so a new value stands out.
+        private static readonly HashSet<int> KnownWideBlockOffsets = new HashSet<int>
+        {
+            0x90, 0x98, 0xA0, 0xB0, 0xB8, 0xC0, 0xC8, 0xE0, 0xE8, 0xF0, 0xF8,
+            0x100, 0x108, 0x110, 0x118, 0x120, 0x128, 0x130, 0x138, 0x140,
+            0x148, 0x150, 0x158, 0x160, 0x168, 0x170, 0x180
+        };
+
         private void WriteBallSpotProbe(string screenJsonPath,
             RamReadResult quarter, RamReadResult gameClock,
             RamReadResult down, RamReadResult distance,
@@ -954,48 +964,35 @@ namespace CollegeFootballRamDiagnostic
             if (String.Equals(signature, ballSpotProbeSignature, StringComparison.Ordinal)) return;
             ballSpotProbeSignature = signature;
 
-            // Candidate window: the unidentified slots around the two known
-            // catalog-relative game-state values. Only values that could be a
-            // yardline (0..120) are recorded, keyed by their offset, so one
-            // game of downs shows which offset tracks the ball.
-            long catalogBase = SingleConfiguredAddress("teamCatalogBase");
-            Dictionary<string, object> catalogWindow = new Dictionary<string, object>();
-            if (catalogBase != 0)
-            {
-                try
-                {
-                    byte[] bytes = scanner.ReadBytes(catalogBase + 0x67780, 0x100);
-                    for (int offset = 0; offset + 4 <= bytes.Length; offset += 4)
-                    {
-                        int value = BitConverter.ToInt32(bytes, offset);
-                        if (value >= 0 && value <= 120)
-                            catalogWindow["0x" + (0x67780 + offset).ToString("X", CultureInfo.InvariantCulture)] = value;
-                    }
-                }
-                catch { catalogWindow["error"] = "unreadable"; }
-            }
-
-            // The wide core block has documented slots at 0x90..0x180; record
-            // the ones nothing reads yet, same plausibility filter.
+            // ROUND 2 (2026-08-15): the catalog window was unreadable all of
+            // game one and the 8-byte-stride wide dump identified everything it
+            // touched as known scoreboard values (the 0x168/0x170 "ball spot"
+            // candidates were play-clock digits). This round sweeps the WHOLE
+            // block at 4-byte stride - half the slots were never looked at -
+            // skipping known offsets. The ball spot is a 0..50 yard number
+            // with a territory (own/opponent) indicator likely adjacent, and
+            // it moves at every down change, which is this log's trigger. The
+            // field-goal distance the play picker shows is yards-to-goal + 17,
+            // so finding this slot is what unlocks FG distance on the bug.
             Dictionary<string, object> wideWindow = new Dictionary<string, object>();
             List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
             string coreSignature = ConfiguredCoreSignature();
-            if (quarterAddresses.Count == 1 && coreSignature.EndsWith(":W", StringComparison.Ordinal))
+            if (quarterAddresses.Count != 1
+                || !coreSignature.EndsWith(":W", StringComparison.Ordinal)) return;
+            try
             {
-                try
+                long block = quarterAddresses[0] - 0xC8;
+                byte[] bytes = scanner.ReadBytes(block, 0x300);
+                for (int offset = 0; offset + 4 <= bytes.Length; offset += 4)
                 {
-                    long block = quarterAddresses[0] - 0xC8;
-                    byte[] bytes = scanner.ReadBytes(block + 0x80, 0x110);
-                    for (int offset = 0; offset + 4 <= bytes.Length; offset += 8)
-                    {
-                        int value = BitConverter.ToInt32(bytes, offset);
-                        if (value >= 0 && value <= 120)
-                            wideWindow["0x" + (0x80 + offset).ToString("X", CultureInfo.InvariantCulture)] = value;
-                    }
+                    if (KnownWideBlockOffsets.Contains(offset)) continue;
+                    int value = BitConverter.ToInt32(bytes, offset);
+                    if (value >= 1 && value <= 120)
+                        wideWindow["0x" + offset.ToString("X", CultureInfo.InvariantCulture)] = value;
                 }
-                catch { wideWindow["error"] = "unreadable"; }
             }
-            if (catalogWindow.Count == 0 && wideWindow.Count == 0) return;
+            catch { return; }
+            if (wideWindow.Count == 0) return;
 
             Dictionary<string, object> entry = new Dictionary<string, object>
             {
@@ -1009,7 +1006,6 @@ namespace CollegeFootballRamDiagnostic
                 // ground truth this log actually needs.
                 { "scoreHudDisplay", scoreHudDownDistance != null ? scoreHudDownDistance.Display
                     : (lastScoreHudDownDistance != null ? lastScoreHudDownDistance.Display : null) },
-                { "catalog", catalogWindow },
                 { "wide", wideWindow }
             };
             AppendProbeLine(screenJsonPath, "ballspot-probe.jsonl", entry);
