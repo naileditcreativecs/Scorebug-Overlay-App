@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { spawn, execFile } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const {
@@ -69,6 +70,11 @@ const {
   CustomTeamLogoStore,
   normalizedCustomTeamLogos,
 } = require('./team-logo-library');
+const {
+  normalizeCustomTeams,
+  removeCustomTeam,
+  upsertCustomTeam,
+} = require('./custom-teams');
 const {
   DEFAULT_LOGO_TRANSFORM,
   logoLayoutKey,
@@ -1569,6 +1575,7 @@ function loadSettings() {
   settings.teamLogos.preferences = normalizedPreferences(settings.teamLogos.preferences);
   settings.teamLogos.custom = normalizedCustomTeamLogos(settings.teamLogos.custom);
   settings.teamLogos.layouts = normalizedLogoLayouts(settings.teamLogos.layouts);
+  settings.customTeams = normalizeCustomTeams(settings.customTeams);
   const portableCalibrationRestore = restorePortableReaderCalibration(settings);
   if (!portableCalibrationRestore.valid && portableCalibrationRestore.reason) {
     runtime.support.calibrationRestore = {
@@ -1993,6 +2000,7 @@ function inGameEditorState() {
     chromaKey: normalizeGreenScreen(settings.theme?.chromaKey),
     readerMode: settings.recognition?.mode || 'local-ocr',
     teams: scoreboardTeamOptions(teamAssetResolver),
+    customTeams: customTeamsForEditor(),
     teamOverrides: cloneJson(runtime.manualTeamOverrides),
     scorebugColors: scorebugColorState(),
     logoChoices: {
@@ -3266,6 +3274,130 @@ function deleteImportedTeamLogo(payload = {}) {
   sendToInGameEditor('in-game-editor:state', inGameEditorState());
   logMessage(`${context.state.teamName} imported logo removed. Automatic team detection remains active.`);
   return inGameEditorState();
+}
+
+// ---- Custom teams -------------------------------------------------------
+// TeamBuilder schools and anything else the bundled roster lacks. Stored in
+// settings.customTeams; logo PNGs live in UserData/custom-teams/<id>.png.
+
+function customTeamsRoot() {
+  return path.join(app.getPath('userData'), 'custom-teams');
+}
+
+function syncCustomTeamsToResolver() {
+  if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
+  teamAssetResolver?.setCustomTeams(settings.customTeams, customTeamsRoot());
+}
+
+function customTeamsForEditor() {
+  if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
+  return (settings.customTeams || []).map((team) => ({
+    ...team,
+    logo: teamAssetResolver?.resolveTeamId(team.id)?.logo || null,
+  }));
+}
+
+function customTeamById(id) {
+  const target = String(id || '').trim();
+  const team = (settings.customTeams || []).find((entry) => entry.id === target);
+  if (!team) throw new Error('That custom team no longer exists.');
+  return team;
+}
+
+function afterCustomTeamsChanged(message) {
+  persistSettings();
+  syncCustomTeamsToResolver();
+  publishCurrentScoreboardState();
+  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  if (message) logMessage(message);
+  return inGameEditorState();
+}
+
+function saveCustomTeam(payload = {}) {
+  const { teams, team } = upsertCustomTeam(settings.customTeams, payload, {
+    makeId: () => crypto.randomBytes(6).toString('hex'),
+  });
+  settings.customTeams = teams;
+  const applyTo = String(payload.applyTo || '').toLowerCase();
+  const state = afterCustomTeamsChanged(`Custom team saved: ${team.name}.`);
+  if (['away', 'home'].includes(applyTo)) {
+    const current = runtime.manualTeamOverrides[applyTo] || {};
+    return setManualTeamOverride({ ...current, side: applyTo, teamId: team.id });
+  }
+  return state;
+}
+
+function deleteCustomTeam(payload = {}) {
+  const { teams, removed } = removeCustomTeam(settings.customTeams, payload.id);
+  if (!removed) throw new Error('That custom team no longer exists.');
+  settings.customTeams = teams;
+  for (const side of ['away', 'home']) {
+    if (String(runtime.manualTeamOverrides[side]?.teamId || '') === removed.id) {
+      runtime.manualTeamOverrides[side] = { ...runtime.manualTeamOverrides[side], teamId: null };
+    }
+  }
+  if (settings.teamLogos?.preferences) delete settings.teamLogos.preferences[removed.id];
+  if (removed.logoFile) {
+    try { fs.unlinkSync(path.join(customTeamsRoot(), removed.logoFile)); } catch { /* already gone */ }
+  }
+  return afterCustomTeamsChanged(`Custom team removed: ${removed.name}.`);
+}
+
+async function importCustomTeamLogo(payload = {}) {
+  const team = customTeamById(payload.id);
+  const parent = inGameEditorWindow && !inGameEditorWindow.isDestroyed()
+    ? inGameEditorWindow
+    : controlWindow;
+  const result = await dialog.showOpenDialog(parent || undefined, {
+    title: `Choose a logo for ${team.name}`,
+    properties: ['openFile'],
+    filters: [
+      { name: 'Logo images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'gif', 'bmp'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (result.canceled || !result.filePaths?.[0]) return inGameEditorState();
+  const sourcePath = path.resolve(result.filePaths[0]);
+  const stats = fs.statSync(sourcePath);
+  if (!stats.isFile() || stats.size > 25 * 1024 * 1024) {
+    throw new Error('Choose a logo image smaller than 25 MB.');
+  }
+  let image = nativeImage.createFromPath(sourcePath);
+  if (image.isEmpty()) throw new Error('That file is not a readable logo image.');
+  let size = image.getSize();
+  if (size.width < 1 || size.height < 1) throw new Error('That logo has no usable pixels.');
+  if (size.width > 2048 || size.height > 2048) {
+    const ratio = Math.min(2048 / size.width, 2048 / size.height);
+    image = image.resize({
+      width: Math.max(1, Math.round(size.width * ratio)),
+      height: Math.max(1, Math.round(size.height * ratio)),
+      quality: 'best',
+    });
+    size = image.getSize();
+  }
+  const root = customTeamsRoot();
+  fs.mkdirSync(root, { recursive: true });
+  const logoFile = `${team.id}.png`;
+  const temporary = path.join(root, `${logoFile}.tmp`);
+  fs.writeFileSync(temporary, image.toPNG());
+  fs.renameSync(temporary, path.join(root, logoFile));
+  const { teams } = upsertCustomTeam(settings.customTeams, {
+    id: team.id, name: team.name, logoFile, logoWidth: size.width, logoHeight: size.height,
+  });
+  settings.customTeams = teams;
+  return afterCustomTeamsChanged(`${team.name} logo imported.`);
+}
+
+function clearCustomTeamLogo(payload = {}) {
+  const team = customTeamById(payload.id);
+  if (team.logoFile) {
+    try { fs.unlinkSync(path.join(customTeamsRoot(), team.logoFile)); } catch { /* already gone */ }
+  }
+  const { teams } = upsertCustomTeam(settings.customTeams, {
+    id: team.id, name: team.name, logoFile: null, logoWidth: null, logoHeight: null,
+  });
+  settings.customTeams = teams;
+  return afterCustomTeamsChanged(`${team.name} logo removed.`);
 }
 
 function previewTeamLogoTransform(payload = {}) {
@@ -4784,6 +4916,7 @@ function resolveBundledTeamIdentity(name, rank) {
     teamAssetResolverAttempted = true;
     try {
       teamAssetResolver = TeamAssetResolver.fromAppRoot(app.getAppPath());
+      teamAssetResolver.setCustomTeams(settings.customTeams, customTeamsRoot());
       teamLogoVariantResolver = TeamLogoVariantResolver.fromAppRoot(app.getAppPath());
       customTeamLogoStore = new CustomTeamLogoStore(path.join(app.getPath('userData'), 'team-logos'));
       teamLogoVariantResolver.setAdditionalChoiceSource({
@@ -5903,6 +6036,14 @@ async function executeCommand(command, payload) {
       return setTeamLogoPreference(payload);
     case 'import-team-logo':
       return importTeamLogo(payload);
+    case 'save-custom-team':
+      return saveCustomTeam(payload);
+    case 'delete-custom-team':
+      return deleteCustomTeam(payload);
+    case 'import-custom-team-logo':
+      return importCustomTeamLogo(payload);
+    case 'clear-custom-team-logo':
+      return clearCustomTeamLogo(payload);
     case 'delete-imported-team-logo':
       return deleteImportedTeamLogo(payload);
     case 'preview-team-logo-transform':

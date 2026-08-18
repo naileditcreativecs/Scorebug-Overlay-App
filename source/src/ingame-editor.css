@@ -501,6 +501,116 @@ button { font: inherit; }
 .choice-picker-list button.selected { border-color: var(--orange); color: #ffedd5; background: #7c2d12; }
 .choice-picker-list button.auto-choice { border-color: rgba(52, 211, 153, .45); color: #a7f3d0; }
 .choice-picker-list.logo-choice-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.choice-picker-list .picker-group {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.choice-picker-list .picker-group:first-child { margin-top: 0; }
+.choice-picker-list button.custom-new { border-style: dashed; border-color: rgba(250, 204, 21, .55); color: #fde68a; }
+.choice-picker-list .custom-team-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+}
+.choice-picker-list .custom-team-row > button:first-child {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+.choice-picker-list .custom-team-row > button:first-child img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .08);
+}
+.choice-picker-list .custom-team-row > button:first-child i {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--custom-primary, #334155) 50%, var(--custom-secondary, #94a3b8) 50%);
+}
+.choice-picker-list .custom-team-row > button.custom-edit { min-width: 38px; text-align: center; color: #fde68a; }
+
+.custom-team-editor {
+  position: absolute;
+  z-index: 56;
+  top: 50%;
+  left: 50%;
+  width: min(420px, calc(100% - 30px));
+  max-height: calc(100% - 30px);
+  transform: translate(-50%, -50%);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 1px solid rgba(250, 204, 21, .6);
+  border-radius: 11px;
+  color: #e5edf8;
+  background: rgba(7, 15, 27, .995);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, .72);
+  overflow: hidden;
+}
+.custom-team-editor header, .custom-team-editor footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.custom-team-editor header { justify-content: space-between; border-bottom: 1px solid rgba(148, 163, 184, .25); }
+.custom-team-editor header strong { color: #fde68a; font-size: 12px; letter-spacing: .08em; }
+.custom-team-editor footer { border-top: 1px solid rgba(148, 163, 184, .25); }
+.custom-team-editor footer .spacer { flex: 1; }
+.custom-team-editor button {
+  min-height: 32px;
+  border: 1px solid rgba(148, 163, 184, .36);
+  border-radius: 6px;
+  padding: 5px 12px;
+  color: #f8fafc;
+  background: #1e293b;
+  font: 600 12px "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+.custom-team-editor button.primary { border-color: rgba(52, 211, 153, .65); background: #047857; }
+.custom-team-editor button.danger { border-color: rgba(248, 113, 113, .55); background: #7f1d1d; }
+.custom-team-editor button:disabled { opacity: .5; cursor: default; }
+.custom-team-body { display: grid; gap: 10px; padding: 12px; overflow: auto; }
+.custom-team-body label { display: grid; gap: 4px; font-size: 11px; color: #cbd5e1; }
+.custom-team-body input[type="text"] {
+  min-height: 34px;
+  border: 2px solid #45506b;
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #f2f6fc;
+  background: #0d1320;
+  font: 700 14px "Segoe UI", sans-serif;
+}
+.custom-team-body input[type="text"]:focus { border-color: #58a6ff; outline: none; }
+.custom-team-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.custom-color-row { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px; align-items: center; }
+.custom-color-row input[type="color"] {
+  width: 44px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid #45506b;
+  border-radius: 8px;
+  background: #0d1320;
+  cursor: pointer;
+}
+.custom-logo-row { display: grid; grid-template-columns: 56px auto auto; gap: 8px; align-items: center; justify-content: start; }
+.custom-logo-row img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: repeating-conic-gradient(rgba(255, 255, 255, .12) 0 25%, transparent 0 50%) 0 0 / 12px 12px;
+}
+.custom-logo-row img:not([src]) { visibility: hidden; }
+#custom-team-logo-hint { color: #94a3b8; font-size: 10px; }
 .logo-number-pad {
   position: absolute;
   z-index: 55;

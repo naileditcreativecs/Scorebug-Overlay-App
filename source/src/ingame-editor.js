@@ -894,13 +894,189 @@ function openTeamPicker(side) {
     selected: !current.teamId,
     onClick: () => applyPickerChoice(side, { teamId: null }),
   }));
+  const customTeams = appState?.customTeams || [];
+  const customGroup = document.createElement('div');
+  customGroup.className = 'picker-group';
+  customGroup.textContent = 'Custom teams';
+  list.append(customGroup);
+  const newButton = pickerButton('+ New custom team', { onClick: () => openCustomTeamEditor(side, null) });
+  newButton.classList.add('custom-new');
+  list.append(newButton);
+  for (const team of customTeams) {
+    const row = document.createElement('div');
+    row.className = 'custom-team-row';
+    const choose = document.createElement('button');
+    choose.type = 'button';
+    choose.classList.toggle('selected', String(current.teamId || '') === team.id);
+    if (team.logo) {
+      const image = document.createElement('img');
+      image.src = team.logo;
+      image.alt = '';
+      choose.append(image);
+    } else {
+      const swatch = document.createElement('i');
+      swatch.style.setProperty('--custom-primary', team.primary || '#334155');
+      swatch.style.setProperty('--custom-secondary', team.secondary || '#94a3b8');
+      choose.append(swatch);
+    }
+    const text = document.createElement('span');
+    text.textContent = team.name;
+    choose.append(text);
+    choose.addEventListener('click', () => applyPickerChoice(side, { teamId: team.id }));
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'custom-edit';
+    edit.textContent = 'Edit';
+    edit.title = `Edit ${team.name}`;
+    edit.addEventListener('click', () => openCustomTeamEditor(side, team.id));
+    row.append(choose, edit);
+    list.append(row);
+  }
+  const rosterGroup = document.createElement('div');
+  rosterGroup.className = 'picker-group';
+  rosterGroup.textContent = 'CFB27 roster';
+  list.append(rosterGroup);
   for (const team of appState?.teams || []) {
+    if (team.custom) continue;
     list.append(pickerButton(team.name, {
       selected: String(current.teamId || '') === String(team.id),
       onClick: () => applyPickerChoice(side, { teamId: String(team.id) }),
     }));
   }
   document.getElementById('choice-picker').classList.remove('hidden');
+}
+
+// ---- Custom team editor -------------------------------------------------
+// One small form: name, nickname, abbreviation, two colors, logo. Saving a
+// new team also picks it for the side whose picker was open. Edits to a team
+// that is already on the bug preview live while typing.
+let customTeamEditing = { side: null, id: null };
+let customTeamLiveTimer = null;
+
+function customTeamElements() {
+  return {
+    panel: document.getElementById('custom-team-editor'),
+    title: document.getElementById('custom-team-title'),
+    name: document.getElementById('custom-team-name'),
+    nickname: document.getElementById('custom-team-nickname'),
+    abbreviation: document.getElementById('custom-team-abbreviation'),
+    primary: document.getElementById('custom-team-primary'),
+    primaryHex: document.getElementById('custom-team-primary-hex'),
+    secondary: document.getElementById('custom-team-secondary'),
+    secondaryHex: document.getElementById('custom-team-secondary-hex'),
+    logoPreview: document.getElementById('custom-team-logo-preview'),
+    importLogo: document.getElementById('custom-team-import-logo'),
+    clearLogo: document.getElementById('custom-team-clear-logo'),
+    logoHint: document.getElementById('custom-team-logo-hint'),
+    remove: document.getElementById('custom-team-delete'),
+    save: document.getElementById('custom-team-save'),
+  };
+}
+
+function customTeamFromState(id) {
+  return (appState?.customTeams || []).find((team) => team.id === id) || null;
+}
+
+function customTeamPayloadFromForm() {
+  const el = customTeamElements();
+  const hex = (input, picker) => {
+    const typed = String(input.value || '').trim();
+    if (/^#[0-9a-f]{6}$/i.test(typed)) return typed.toLowerCase();
+    if (typed === '') return null;
+    return picker.value;
+  };
+  return {
+    id: customTeamEditing.id || undefined,
+    name: el.name.value,
+    nickname: el.nickname.value,
+    abbreviation: el.abbreviation.value,
+    primary: hex(el.primaryHex, el.primary),
+    secondary: hex(el.secondaryHex, el.secondary),
+  };
+}
+
+function renderCustomTeamEditor() {
+  const el = customTeamElements();
+  const team = customTeamEditing.id ? customTeamFromState(customTeamEditing.id) : null;
+  el.title.textContent = team ? `EDIT ${team.name.toUpperCase()}` : 'NEW CUSTOM TEAM';
+  el.remove.classList.toggle('hidden', !team);
+  el.importLogo.disabled = !team;
+  el.clearLogo.classList.toggle('hidden', !team?.logo);
+  el.logoHint.textContent = team
+    ? (team.logo ? 'Shown wherever this team is on the bug.' : 'PNG with transparency looks best.')
+    : 'Save the team first, then choose its logo. PNG with transparency looks best.';
+  if (team?.logo) el.logoPreview.src = team.logo;
+  else el.logoPreview.removeAttribute('src');
+  el.save.textContent = team ? 'Save' : 'Save & use';
+}
+
+function openCustomTeamEditor(side, id) {
+  const el = customTeamElements();
+  const team = id ? customTeamFromState(id) : null;
+  customTeamEditing = { side, id: team ? team.id : null };
+  el.name.value = team?.name || '';
+  el.nickname.value = team?.nickname || '';
+  el.abbreviation.value = team?.abbreviation || '';
+  el.primary.value = team?.primary || '#1e3a8a';
+  el.primaryHex.value = team?.primary || '';
+  el.secondary.value = team?.secondary || '#ffffff';
+  el.secondaryHex.value = team?.secondary || '';
+  renderCustomTeamEditor();
+  el.panel.classList.remove('hidden');
+  setTypeFocus(true);
+  setTimeout(() => { el.name.focus(); if (!team) el.name.select(); }, 40);
+}
+
+function closeCustomTeamEditor() {
+  clearTimeout(customTeamLiveTimer);
+  customTeamLiveTimer = null;
+  customTeamEditing = { side: null, id: null };
+  document.getElementById('custom-team-editor').classList.add('hidden');
+  setTypeFocus(false);
+}
+
+function customTeamAppliedToSide(id) {
+  if (!id) return null;
+  for (const side of ['away', 'home']) {
+    if (String(appState?.teamOverrides?.[side]?.teamId || '') === id) return side;
+  }
+  return null;
+}
+
+async function saveCustomTeamFromForm({ live = false } = {}) {
+  const payload = customTeamPayloadFromForm();
+  if (live && !String(payload.name || '').trim()) return;
+  const isNew = !customTeamEditing.id;
+  const appliedSide = customTeamAppliedToSide(customTeamEditing.id);
+  if (isNew || (customTeamEditing.side && (appliedSide === customTeamEditing.side || !appliedSide))) {
+    payload.applyTo = customTeamEditing.side;
+  }
+  try {
+    const next = await api.saveCustomTeam(payload);
+    acceptState(next);
+    if (isNew) {
+      const created = (next?.customTeams || []).find((team) => team.name.toLowerCase() === String(payload.name).trim().toLowerCase());
+      if (created) customTeamEditing.id = created.id;
+    }
+    renderCustomTeamEditor();
+    if (!live) {
+      setToast(isNew ? `${payload.name.trim()} created and put on the ${customTeamEditing.side || ''} side.` : `${payload.name.trim()} saved.`);
+      if (isNew) {
+        // Keep the form open so the logo can be chosen right away.
+        customTeamElements().importLogo.focus();
+      }
+      if (pickerTarget?.type === 'team') openTeamPicker(pickerTarget.side);
+    }
+  } catch (error) {
+    if (!live) reportError(error);
+  }
+}
+
+function scheduleCustomTeamLiveSave() {
+  if (!customTeamEditing.id) return;
+  if (!customTeamAppliedToSide(customTeamEditing.id)) return;
+  clearTimeout(customTeamLiveTimer);
+  customTeamLiveTimer = setTimeout(() => saveCustomTeamFromForm({ live: true }), 250);
 }
 
 function openRankPicker(side) {
@@ -1795,6 +1971,58 @@ for (const side of ['away', 'home']) {
   });
 }
 document.getElementById('close-choice-picker').addEventListener('click', closeChoicePicker);
+document.getElementById('close-custom-team').addEventListener('click', closeCustomTeamEditor);
+document.getElementById('custom-team-save').addEventListener('click', () => saveCustomTeamFromForm());
+document.getElementById('custom-team-delete').addEventListener('click', async () => {
+  const team = customTeamFromState(customTeamEditing.id);
+  if (!team) return;
+  try {
+    acceptState(await api.deleteCustomTeam({ id: team.id }));
+    setToast(`${team.name} removed.`);
+    closeCustomTeamEditor();
+    if (pickerTarget?.type === 'team') openTeamPicker(pickerTarget.side);
+  } catch (error) {
+    reportError(error);
+  }
+});
+document.getElementById('custom-team-import-logo').addEventListener('click', async () => {
+  if (!customTeamEditing.id) return;
+  try {
+    acceptState(await api.importCustomTeamLogo({ id: customTeamEditing.id }));
+    renderCustomTeamEditor();
+    if (pickerTarget?.type === 'team') openTeamPicker(pickerTarget.side);
+  } catch (error) {
+    reportError(error);
+  }
+});
+document.getElementById('custom-team-clear-logo').addEventListener('click', async () => {
+  if (!customTeamEditing.id) return;
+  try {
+    acceptState(await api.clearCustomTeamLogo({ id: customTeamEditing.id }));
+    renderCustomTeamEditor();
+    if (pickerTarget?.type === 'team') openTeamPicker(pickerTarget.side);
+  } catch (error) {
+    reportError(error);
+  }
+});
+for (const [pickerId, hexId] of [['custom-team-primary', 'custom-team-primary-hex'], ['custom-team-secondary', 'custom-team-secondary-hex']]) {
+  const picker = document.getElementById(pickerId);
+  const hex = document.getElementById(hexId);
+  picker.addEventListener('input', () => { hex.value = picker.value; scheduleCustomTeamLiveSave(); });
+  hex.addEventListener('input', () => {
+    if (/^#[0-9a-f]{6}$/i.test(hex.value.trim())) { picker.value = hex.value.trim().toLowerCase(); scheduleCustomTeamLiveSave(); }
+  });
+}
+for (const id of ['custom-team-name', 'custom-team-nickname', 'custom-team-abbreviation']) {
+  document.getElementById(id).addEventListener('input', scheduleCustomTeamLiveSave);
+}
+document.getElementById('custom-team-editor').addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && event.target?.tagName === 'INPUT' && event.target.type === 'text') {
+    event.preventDefault();
+    saveCustomTeamFromForm();
+  }
+  if (event.key === 'Escape') { event.preventDefault(); closeCustomTeamEditor(); }
+});
 document.getElementById('close-logo-number-pad').addEventListener('click', closeLogoNumberPad);
 document.getElementById('clear-logo-number').addEventListener('click', () => {
   logoNumberPadValue = '';
@@ -1870,7 +2098,7 @@ document.addEventListener('pointerdown', (event) => {
     // The window may only become focusable after the call lands; refocus the
     // box on the next tick so the first click already starts typing.
     setTimeout(() => input.focus(), 30);
-  } else if (typeFocusHeld && !event.target.closest?.('.choice-picker, .logo-number-pad')) {
+  } else if (typeFocusHeld && !event.target.closest?.('.choice-picker, .logo-number-pad, .custom-team-editor')) {
     setTypeFocus(false);
   }
 }, true);

@@ -16,7 +16,7 @@ function normalizeManualTeamOverride(resolver, payload = {}) {
     ? null
     : String(payload.teamId);
   if (teamId && !resolver?.resolveTeamId(teamId)) {
-    throw new Error('The selected team is not in the bundled CFB27 roster.');
+    throw new Error('The selected team is not in the CFB27 roster or your custom teams.');
   }
 
   const rankMode = String(payload.rankMode || 'auto').toLowerCase();

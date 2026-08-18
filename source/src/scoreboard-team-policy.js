@@ -81,6 +81,7 @@ function scoreboardTeamOptions(resolver) {
       id: String(team.id),
       name: String(team.name || '').trim(),
       nickname: String(team.nickname || '').trim(),
+      custom: Boolean(resolver.isCustomTeam?.(team.id)),
     }))
     .filter((team) => team.id && team.name)
     .sort((left, right) => left.name.localeCompare(right.name));

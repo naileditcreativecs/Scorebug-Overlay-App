@@ -328,6 +328,55 @@ class TeamAssetResolver {
     }
     this.dataUrlCache = new Map();
     this.assetCache = new Map();
+    this.customTeamIds = new Set();
+    this.customAliasKeys = new Set();
+  }
+
+  // User-defined teams layered over the bundled roster. Only exact-name
+  // (and abbreviation) matching is registered for them - the fuzzy OCR
+  // structures built above stay untouched so custom names can never pull a
+  // misread bundled team toward themselves. Calling again replaces the
+  // previous custom set.
+  setCustomTeams(teams = [], logoRoot = null) {
+    for (const id of this.customTeamIds) {
+      this.byId.delete(id);
+      this.assetCache.delete(id);
+    }
+    for (const key of this.customAliasKeys) this.aliasLookup.delete(key);
+    this.customTeamIds = new Set();
+    this.customAliasKeys = new Set();
+    for (const team of Array.isArray(teams) ? teams : []) {
+      const id = String(team?.id || '').trim();
+      const name = String(team?.name || '').trim();
+      if (!id || !name || this.byId.has(id)) continue;
+      const logoPath = team.logoFile && logoRoot && !/[\/]/.test(team.logoFile)
+        ? path.join(logoRoot, team.logoFile)
+        : null;
+      this.byId.set(id, {
+        id,
+        name,
+        nickname: String(team.nickname || '').trim() || null,
+        abbreviation: String(team.abbreviation || '').trim() || null,
+        primary: team.primary || null,
+        secondary: team.secondary || null,
+        file: null,
+        customLogoPath: logoPath,
+        width: Number(team.logoWidth) || null,
+        height: Number(team.logoHeight) || null,
+        source: 'custom',
+      });
+      this.customTeamIds.add(id);
+      for (const alias of [name, team.abbreviation]) {
+        const key = normalizeTeamName(alias);
+        if (!key || this.aliasLookup.has(key)) continue;
+        this.aliasLookup.set(key, id);
+        this.customAliasKeys.add(key);
+      }
+    }
+  }
+
+  isCustomTeam(id) {
+    return this.customTeamIds.has(String(id));
   }
 
   static fromAppRoot(appRoot) {
@@ -367,11 +416,12 @@ class TeamAssetResolver {
       nickname: String(team.nickname || '').trim() || null,
       primary: isHexColor(team.primary) ? team.primary.toLowerCase() : null,
       secondary: isHexColor(team.secondary) ? team.secondary.toLowerCase() : null,
-      logo: this.logoDataUrl(team.file),
+      logo: team.customLogoPath ? this.customLogoDataUrl(team.customLogoPath) : this.logoDataUrl(team.file),
       width: Number(team.width) || null,
       height: Number(team.height) || null,
       preCropped: team.preCropped === true,
       source: team.source || 'bundled',
+      abbreviation: team.abbreviation || null,
     });
     this.assetCache.set(teamId, asset);
     return asset;
@@ -670,6 +720,18 @@ class TeamAssetResolver {
     }
 
     return { name: displayName || null, rank, asset: null, match: null };
+  }
+
+  // Custom logos live outside the bundled asset root and can be replaced
+  // while the app runs, so they are read fresh (not cached) each time the
+  // asset is (re)built - the asset cache is dropped whenever they change.
+  customLogoDataUrl(fullPath) {
+    try {
+      if (!fullPath || !fs.existsSync(fullPath)) return null;
+      return `data:image/png;base64,${fs.readFileSync(fullPath).toString('base64')}`;
+    } catch {
+      return null;
+    }
   }
 
   logoDataUrl(file) {
