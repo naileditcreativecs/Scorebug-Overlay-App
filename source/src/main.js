@@ -2947,6 +2947,29 @@ function scorebugColorState() {
   };
 }
 
+// One full-resolution grab of the display the editor covers, for the
+// in-panel eyedropper. Returned as a data URL plus the display geometry so
+// the editor can map its own client coordinates onto capture pixels.
+async function captureScreenForEyedropper() {
+  const bounds = inGameEditorBounds();
+  const display = screen.getDisplayMatching(bounds) || screen.getPrimaryDisplay();
+  const scale = display.scaleFactor || 1;
+  const size = {
+    width: Math.round(display.bounds.width * scale),
+    height: Math.round(display.bounds.height * scale),
+  };
+  const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: size });
+  const match = sources.find((source) => String(source.display_id) === String(display.id)) || sources[0];
+  if (!match) throw new Error('No display could be captured.');
+  return {
+    dataUrl: match.thumbnail.toDataURL(),
+    displayX: display.bounds.x,
+    displayY: display.bounds.y,
+    displayWidth: display.bounds.width,
+    displayHeight: display.bounds.height,
+  };
+}
+
 function deleteScorebugColorRuleCommand(payload = {}) {
   const rule = payload.rule || {};
   return publishScorebugColors(
@@ -5900,6 +5923,8 @@ async function executeCommand(command, payload) {
       return clearScorebugColorScopeCommand(payload);
     case 'delete-scorebug-color-rule':
       return deleteScorebugColorRuleCommand(payload);
+    case 'capture-screen-for-eyedropper':
+      return captureScreenForEyedropper();
     case 'save-scorebug-color-preset':
       return saveScorebugColorPresetCommand(payload);
     case 'apply-scorebug-color-preset':

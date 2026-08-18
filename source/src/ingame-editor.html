@@ -189,16 +189,21 @@
           <div class="color-profile-row"><strong>SAVED</strong><span id="color-profile-list" class="color-profile-list"><em>Nothing saved yet</em></span></div>
         </div>
         <div id="color-wheel-popover" class="color-wheel-popover hidden" role="dialog" aria-label="Color wheel">
-          <div class="color-wheel-head"><strong id="color-wheel-title">COLOR WHEEL</strong><button id="color-wheel-close" type="button" aria-label="Close">&times;</button></div>
+          <div class="color-wheel-head"><strong id="color-wheel-title">COLOR WHEEL</strong><span class="color-wheel-hint">Hover to preview on the bug</span><button id="color-wheel-close" type="button" title="Cancel and keep the previous color" aria-label="Cancel">&times;</button></div>
           <div class="color-wheel-body">
             <canvas id="color-wheel-canvas" width="180" height="180"></canvas>
             <div class="color-wheel-side">
               <label>Brightness<input id="color-wheel-value" type="range" min="0" max="100" step="1" value="100"></label>
               <label>Hex<input id="color-wheel-hex" type="text" maxlength="7" spellcheck="false" placeholder="#rrggbb"></label>
-              <span id="color-wheel-preview" class="color-wheel-preview"></span>
+              <span id="color-wheel-preview" class="color-wheel-preview" title="Current pick"></span>
+              <div class="color-wheel-actions">
+                <button id="color-wheel-eyedropper" type="button" title="Pick a color from anywhere on the screen">&#128167; Eyedropper</button>
+                <button id="color-wheel-done" type="button" class="primary">Done</button>
+              </div>
             </div>
           </div>
         </div>
+        <div id="eyedropper-layer" class="eyedropper-layer hidden" aria-hidden="true"><span id="eyedropper-loupe" class="eyedropper-loupe"></span><span class="eyedropper-help">Move over the screen to preview - click to keep - Esc to cancel</span></div>
         <footer class="team-panel-footer">
           <span>Team/rank overrides last for this session. Colors, imported logos and placement are remembered without changing the reader.</span>
           <button id="clear-team-overrides" type="button">Return both teams to Auto</button>

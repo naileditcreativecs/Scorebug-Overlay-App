@@ -507,7 +507,7 @@ let selectedColorScope = 'team-away';
 // window that cannot take focus - so <input type=color> never showed a
 // picker. This popover is plain DOM: a hue/saturation wheel on a canvas, a
 // brightness slider and a hex box; every move applies to the bug live.
-const wheelState = { side: null, h: 0, s: 0, v: 1, timer: null };
+const wheelState = { side: null, h: 0, s: 0, v: 1, timer: null, committed: null, openedWith: null };
 function hsvToHex(h, s, v) {
   const f = (n) => { const k = (n + h / 60) % 6; const c = v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); return Math.round(c * 255); };
   return '#' + [f(5), f(3), f(1)].map((x) => x.toString(16).padStart(2, '0')).join('');
@@ -548,11 +548,10 @@ function paintColorWheel() {
   ctx.beginPath(); ctx.arc(mx, my, 7.5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1; ctx.stroke();
 }
 function currentWheelHex() { return hsvToHex(wheelState.h, wheelState.s, wheelState.v); }
-function applyWheelColorLive() {
-  const hex = currentWheelHex();
-  document.getElementById('color-wheel-preview').style.background = hex;
-  const hexInput = document.getElementById('color-wheel-hex');
-  if (document.activeElement !== hexInput) hexInput.value = hex;
+// Push a color to the real bug immediately (throttled). Used for the drag,
+// for hover previews and for the eyedropper - the bug always shows what is
+// under the pointer, so the user judges the color on the actual scorebug.
+function pushColorToBug(hex) {
   const swatch = document.getElementById(`${wheelState.side}-color-wheel`);
   if (swatch) swatch.style.background = hex;
   clearTimeout(wheelState.timer);
@@ -560,15 +559,31 @@ function applyWheelColorLive() {
     const side = wheelState.side;
     if (!side) return;
     api.setScorebugColor({ side, mode: 'custom', color: hex }).then(acceptState).catch(reportError);
-  }, 60);
+  }, 40);
+}
+function applyWheelColorLive(commit = true) {
+  const hex = currentWheelHex();
+  document.getElementById('color-wheel-preview').style.background = hex;
+  const hexInput = document.getElementById('color-wheel-hex');
+  if (document.activeElement !== hexInput) hexInput.value = hex;
+  if (commit) wheelState.committed = hex;
+  pushColorToBug(hex);
+}
+function restoreCommittedColor() {
+  if (!wheelState.side) return;
+  const hex = wheelState.committed;
+  if (hex) pushColorToBug(hex);
 }
 function openColorWheel(side) {
   const popover = document.getElementById('color-wheel-popover');
   const swatch = document.getElementById(`${side}-color-wheel`);
   if (!popover || !swatch) return;
   wheelState.side = side;
-  const start = hexToHsv(swatch.dataset.color || '') || { h: 0, s: 0, v: 1 };
+  const startHex = swatch.dataset.color || '';
+  const start = hexToHsv(startHex) || { h: 0, s: 0, v: 1 };
   wheelState.h = start.h; wheelState.s = start.s; wheelState.v = start.v;
+  wheelState.openedWith = hexToHsv(startHex) ? startHex : null;
+  wheelState.committed = wheelState.openedWith || currentWheelHex();
   document.getElementById('color-wheel-value').value = String(Math.round(wheelState.v * 100));
   document.getElementById('color-wheel-title').textContent = `${side === 'away' ? 'LEFT' : 'RIGHT'} TEAM COLOR`;
   popover.classList.remove('hidden');
@@ -578,17 +593,103 @@ function openColorWheel(side) {
   const box = swatch.getBoundingClientRect();
   let left = box.left - panelBox.left + panel.scrollLeft;
   let top = box.bottom - panelBox.top + panel.scrollTop + 6;
-  if (left + 340 > panel.clientWidth) left = Math.max(8, panel.clientWidth - 348);
-  if (top + 230 > panel.clientHeight) top = Math.max(8, box.top - panelBox.top + panel.scrollTop - 236);
+  if (left + 470 > panel.clientWidth) left = Math.max(8, panel.clientWidth - 478);
+  if (top + 250 > panel.clientHeight) top = Math.max(8, box.top - panelBox.top + panel.scrollTop - 256);
   popover.style.left = `${Math.round(left)}px`;
   popover.style.top = `${Math.round(top)}px`;
   paintColorWheel();
   document.getElementById('color-wheel-preview').style.background = currentWheelHex();
   document.getElementById('color-wheel-hex').value = currentWheelHex();
 }
-function closeColorWheel() {
+// Done keeps whatever the bug is showing; the x cancels back to the color the
+// wheel opened with (or auto if there was none).
+function closeColorWheel({ cancel = false } = {}) {
+  stopEyedropper({ cancel });
+  if (cancel && wheelState.side) {
+    const side = wheelState.side;
+    clearTimeout(wheelState.timer);
+    if (wheelState.openedWith) api.setScorebugColor({ side, mode: 'custom', color: wheelState.openedWith }).then(acceptState).catch(reportError);
+    else api.setScorebugColor({ side, mode: 'auto' }).then(acceptState).catch(reportError);
+  }
   document.getElementById('color-wheel-popover')?.classList.add('hidden');
   wheelState.side = null;
+}
+
+// ---- Eyedropper. The browser's EyeDropper cannot open from this
+// non-activating window, so: grab the display once, then sample the pixel
+// under the pointer as it moves anywhere over the screen (the editor covers
+// it), pushing each sample to the bug live. Click keeps it, Esc cancels.
+const eyedropper = { active: false, canvas: null, ctx: null, capture: null, lastHex: null };
+async function startEyedropper() {
+  if (eyedropper.active || !wheelState.side) return;
+  const layer = document.getElementById('eyedropper-layer');
+  try {
+    const capture = await api.captureScreenForEyedropper();
+    if (!capture?.dataUrl) throw new Error('No screen capture available');
+    const image = new Image();
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = capture.dataUrl; });
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0);
+    eyedropper.canvas = canvas; eyedropper.ctx = ctx; eyedropper.capture = capture;
+    eyedropper.active = true;
+    document.getElementById('color-wheel-eyedropper')?.classList.add('active');
+    layer.classList.remove('hidden');
+  } catch (error) {
+    setToast(`Eyedropper unavailable: ${error.message}`, true);
+  }
+}
+function eyedropperSample(clientX, clientY) {
+  if (!eyedropper.active || !eyedropper.ctx) return null;
+  const { capture, canvas } = eyedropper;
+  const bounds = appState?.editorBounds || { x: 0, y: 0 };
+  const screenX = bounds.x + clientX;
+  const screenY = bounds.y + clientY;
+  const px = Math.round((screenX - capture.displayX) * (canvas.width / capture.displayWidth));
+  const py = Math.round((screenY - capture.displayY) * (canvas.height / capture.displayHeight));
+  if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) return null;
+  const [r, g, b] = eyedropper.ctx.getImageData(px, py, 1, 1).data;
+  return '#' + [r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+function stopEyedropper({ cancel = false } = {}) {
+  if (!eyedropper.active) return;
+  eyedropper.active = false;
+  eyedropper.ctx = null; eyedropper.canvas = null; eyedropper.capture = null;
+  document.getElementById('eyedropper-layer')?.classList.add('hidden');
+  document.getElementById('color-wheel-eyedropper')?.classList.remove('active');
+  if (cancel) restoreCommittedColor();
+}
+function wireEyedropper() {
+  const layer = document.getElementById('eyedropper-layer');
+  const loupe = document.getElementById('eyedropper-loupe');
+  if (!layer) return;
+  layer.addEventListener('pointermove', (event) => {
+    if (!eyedropper.active) return;
+    loupe.style.left = `${event.clientX}px`;
+    loupe.style.top = `${event.clientY}px`;
+    const hex = eyedropperSample(event.clientX, event.clientY);
+    if (!hex) return;
+    eyedropper.lastHex = hex;
+    loupe.style.background = hex;
+    const parsed = hexToHsv(hex);
+    if (parsed) {
+      wheelState.h = parsed.h; wheelState.s = parsed.s; wheelState.v = parsed.v;
+      document.getElementById('color-wheel-value').value = String(Math.round(parsed.v * 100));
+      paintColorWheel();
+    }
+    applyWheelColorLive(false);
+  });
+  layer.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    if (!eyedropper.active) return;
+    const hex = eyedropperSample(event.clientX, event.clientY) || eyedropper.lastHex;
+    if (hex) { wheelState.committed = hex; pushColorToBug(hex); }
+    stopEyedropper();
+  });
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && eyedropper.active) { event.preventDefault(); stopEyedropper({ cancel: true }); }
+  });
 }
 function wireColorWheel() {
   const canvas = document.getElementById('color-wheel-canvas');
@@ -606,10 +707,23 @@ function wireColorWheel() {
     paintColorWheel();
     applyWheelColorLive();
   };
+  // Hover previews on the real bug without committing; a press commits.
+  const hover = (event) => {
+    const box = canvas.getBoundingClientRect();
+    const r = box.width / 2;
+    const dx = event.clientX - box.left - r, dy = event.clientY - box.top - r;
+    if (Math.sqrt(dx * dx + dy * dy) > r) return;
+    const h = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
+    const s = Math.min(1, Math.sqrt(dx * dx + dy * dy) / r);
+    const hex = hsvToHex(h, s, wheelState.v);
+    document.getElementById('color-wheel-preview').style.background = hex;
+    pushColorToBug(hex);
+  };
   canvas.addEventListener('pointerdown', (event) => { dragging = true; canvas.setPointerCapture?.(event.pointerId); pick(event); });
-  canvas.addEventListener('pointermove', (event) => { if (dragging) pick(event); });
+  canvas.addEventListener('pointermove', (event) => { if (dragging) pick(event); else hover(event); });
   canvas.addEventListener('pointerup', () => { dragging = false; });
   canvas.addEventListener('pointercancel', () => { dragging = false; });
+  canvas.addEventListener('pointerleave', () => { if (!dragging) { restoreCommittedColor(); document.getElementById('color-wheel-preview').style.background = wheelState.committed || currentWheelHex(); } });
   value.addEventListener('input', () => { wheelState.v = Number(value.value) / 100; paintColorWheel(); applyWheelColorLive(); });
   hex.addEventListener('input', () => {
     const parsed = hexToHsv(hex.value);
@@ -619,7 +733,20 @@ function wireColorWheel() {
     paintColorWheel();
     applyWheelColorLive();
   });
-  document.getElementById('color-wheel-close')?.addEventListener('click', closeColorWheel);
+  document.getElementById('color-wheel-close')?.addEventListener('click', () => closeColorWheel({ cancel: true }));
+  document.getElementById('color-wheel-done')?.addEventListener('click', () => {
+    if (wheelState.side) {
+      const hex = wheelState.committed || currentWheelHex();
+      pushColorToBug(hex);
+      setToast(`${wheelState.side === 'away' ? 'Left' : 'Right'} team color: ${hex}`);
+    }
+    closeColorWheel();
+  });
+  document.getElementById('color-wheel-eyedropper')?.addEventListener('click', () => {
+    if (eyedropper.active) stopEyedropper({ cancel: true });
+    else startEyedropper();
+  });
+  wireEyedropper();
   for (const side of ['away', 'home']) {
     document.getElementById(`${side}-color-wheel`)?.addEventListener('click', () => {
       if (wheelState.side === side && !document.getElementById('color-wheel-popover').classList.contains('hidden')) closeColorWheel();
