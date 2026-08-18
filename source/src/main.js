@@ -3249,7 +3249,7 @@ function previewTeamLogoTransform(payload = {}) {
   const context = currentLogoContext(payload);
   const transform = normalizeLogoTransform(payload.transform);
   runtime.logoTransformDrafts.set(context.key, transform);
-  sendToOverlay('overlay:team-logo-transform', { side: context.side, transform });
+  sendToOverlay('overlay:team-logo-transform', { side: context.side, transform, seq: Number(payload.seq) || 0 });
   return transform;
 }
 
@@ -3331,6 +3331,7 @@ function reportTeamLogoGeometry(payload = {}) {
   }
   sendToInGameEditor('in-game-editor:logo-geometry', {
     side,
+    seq: Number(payload.seq) || 0,
     bounds: cloneJson(runtime.logoGeometry[side]),
   });
   return runtime.logoGeometry[side];
