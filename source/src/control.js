@@ -81,9 +81,6 @@
   let lastLiveScoreboardStateAt = null;
   let readerFindingSince = null;
   let calibrationWarningShown = false;
-  let setupWizardActive = false;
-  let setupWizardStep = 0;
-  let setupWizardAutoResolutionApplied = false;
   let previewObservers = [];
   const logLines = [];
 
@@ -397,7 +394,6 @@
     $('state-confidence').textContent = confidencePercent !== null
       ? `${Math.round(confidencePercent)}% ${state.meta?.source || ''}`
       : 'No live read';
-    updateSetupWizardFeedback();
   }
 
   const READER_STATUS_LABELS = {
@@ -694,7 +690,6 @@
       }
     }
     if (status.version) $('app-version').textContent = `v${status.version}`;
-    updateSetupWizardFeedback();
   }
 
   function populateSettings(value) {
@@ -901,221 +896,26 @@
     }
   }
 
-  function setupWizardRecognitionSummary() {
-    // Judged against the last LIVE local-ocr state only; the startup
-    // placeholder and manual test values can never count as verification,
-    // and null scores are rejected instead of coercing to 0.
-    return verificationApi.scoreboardVerificationSummary(lastLiveScoreboardState, {
-      liveAt: lastLiveScoreboardStateAt,
-    });
+  // The first-launch welcome replaces the old five-step setup wizard. It is
+  // shown once per install and remembered in settings.onboarding.
+  function openWelcomePopup() {
+    const popup = $('welcome-popup');
+    if (!popup) return;
+    popup.hidden = false;
+    $('welcome-dialog').focus({ preventScroll: true });
   }
 
-  function setSetupWizardFeedback(status, detail, state = 'warn') {
-    if (!$('setup-wizard-feedback')) return;
-    $('setup-wizard-status').textContent = status;
-    $('setup-wizard-detail').textContent = detail;
-    const dot = $('setup-wizard-feedback').querySelector('.dot');
-    if (dot) dot.className = `dot ${state}`.trim();
-  }
-
-  function updateSetupWizardFeedback() {
-    if (!setupWizardActive || !$('setup-wizard')) return;
-    const sourceWidth = Number(currentStatus.capture?.sourceWidth || currentStatus.game?.bounds?.width);
-    const sourceHeight = Number(currentStatus.capture?.sourceHeight || currentStatus.game?.bounds?.height);
-    if (setupWizardStep === 0) {
-      const detected = Boolean(currentStatus.game?.detected || currentStatus.game?.running);
-      setSetupWizardFeedback(
-        detected ? 'Game window detected' : 'Waiting for the game window',
-        detected
-          ? (currentStatus.game?.title || 'The selected College Football 27 window is ready.')
-          : 'Open the game yourself, enter a game, then use the Game window selector underneath this guide.',
-        detected ? 'ok' : 'warn',
-      );
-      return;
-    }
-    if (setupWizardStep === 1) {
-      if (sourceWidth > 0 && sourceHeight > 0) {
-        if (!setupWizardAutoResolutionApplied) {
-          stageSelectedResolution(recommendedResolutionForSource(sourceWidth, sourceHeight));
-          setupWizardAutoResolutionApplied = true;
-        }
-        setSetupWizardFeedback(
-          `Detected game shape: ${sourceWidth} x ${sourceHeight}`,
-          `${resolutionProfileLabel(recommendedResolutionForSource(sourceWidth, sourceHeight))} was chosen from the game-window dimensions.`,
-          'ok',
-        );
-      } else {
-        setSetupWizardFeedback(
-          'Waiting for a native game frame',
-          'Keep the game visible. Next will capture a game picture without forcing it to 16:9.',
-          'warn',
-        );
-      }
-      return;
-    }
-    if (setupWizardStep === 2) {
-      const region = fixedReadRegionPlacer?.getRegion();
-      setSetupWizardFeedback(
-        presetPlacementReady ? 'Live reader picture is ready' : 'Capture a game picture first',
-        region
-          ? `The detected box is ${(region.width * 100).toFixed(2)}% wide by ${(region.height * 100).toFixed(2)}% high. No manual placement or export is required; choose Next to verify live values.`
-          : 'Go back once and capture the game picture with the complete native scorebug visible.',
-        presetPlacementReady ? 'ok' : 'warn',
-      );
-      return;
-    }
-    if (setupWizardStep === 3) {
-      const summary = setupWizardRecognitionSummary();
-      setSetupWizardFeedback(
-        summary.complete
-          ? 'All required live fields are updating'
-          : (summary.liveSource
-            ? `${summary.ready} of ${summary.total} required live fields are present`
-            : 'Waiting for live reader data'),
-        summary.complete
-          ? 'Both teams and scores, quarter, clock, and down-and-distance are coming from the local reader.'
-          : (summary.liveSource
-            ? `Still missing: ${summary.missing.join(', ') || 'a fresh visible read'}. You can go Back to adjust the box.`
-            : 'Wait for local OCR data from a visible in-game scorebug; preview or manual values do not count as verification.'),
-        summary.complete ? 'ok' : 'warn',
-      );
-      return;
-    }
-    const visible = Boolean(currentStatus.overlay?.visible);
-    const placementMode = currentStatus.overlay?.placementMode || 'follow-game';
-    setSetupWizardFeedback(
-      visible ? 'Overlay is visible' : 'Show the overlay to place it',
-      visible
-        ? `Placement mode: ${String(placementMode).replaceAll('-', ' ')}. Use the Home controls underneath this guide, then Finish.`
-        : 'Choose Show overlay now, move it if needed, and save its position before finishing.',
-      visible ? 'ok' : 'warn',
-    );
-  }
-
-  async function persistSetupWizardState(next = {}) {
-    settings ||= {};
-    const state = {
-      version: 1,
-      completed: next.completed === true,
-      skipped: next.skipped === true,
-      step: Math.max(0, Math.min(4, Number.isInteger(next.step) ? next.step : setupWizardStep)),
-    };
+  async function closeWelcomePopup() {
+    const popup = $('welcome-popup');
+    if (!popup || popup.hidden) return;
+    popup.hidden = true;
+    const state = { ...(settings.onboarding || {}), welcomeShown: true, skipped: true };
     settings.onboarding = state;
-    if (typeof api.saveOnboarding === 'function') await api.saveOnboarding(state);
-    return state;
-  }
-
-  function renderSetupWizard({ focus = true } = {}) {
-    if (!setupWizardActive || !$('setup-wizard')) return;
-    const displayStep = setupWizardStep + 1;
-    $('setup-wizard-progress').textContent = `Step ${displayStep} of 5`;
-    for (let step = 1; step <= 5; step += 1) {
-      const active = step === displayStep;
-      const progress = $(`setup-wizard-progress-step-${step}`);
-      const content = $(`setup-wizard-step-${step}`);
-      content.hidden = !active;
-      progress.classList.toggle('is-complete', step < displayStep);
-      if (active) progress.setAttribute('aria-current', 'step');
-      else progress.removeAttribute('aria-current');
-    }
-    $('btn-setup-wizard-back').disabled = setupWizardStep === 0;
-    $('btn-setup-wizard-next').hidden = setupWizardStep === 4;
-    $('btn-setup-wizard-finish').hidden = setupWizardStep !== 4;
-    activatePanel(setupWizardStep <= 2 ? 'calibration' : 'dashboard');
-    updateSetupWizardFeedback();
-    if (focus) $('setup-wizard-dialog').focus({ preventScroll: true });
-  }
-
-  async function openSetupWizard({ restart = false } = {}) {
-    if (!$('setup-wizard')) return;
-    setupWizardStep = restart
-      ? 0
-      : Math.max(0, Math.min(4, Number(settings?.onboarding?.step) || 0));
-    setupWizardAutoResolutionApplied = false;
-    setupWizardActive = true;
-    $('setup-wizard').hidden = false;
-    $('setup-wizard').classList.add('is-guiding');
-    $('setup-wizard').setAttribute('aria-modal', 'false');
-    renderSetupWizard();
-    if (restart) await persistSetupWizardState({ step: 0 });
-  }
-
-  function closeSetupWizard() {
-    setupWizardActive = false;
-    if (!$('setup-wizard')) return;
-    $('setup-wizard').hidden = true;
-    $('setup-wizard').classList.remove('is-guiding');
-    $('setup-wizard').setAttribute('aria-modal', 'true');
-  }
-
-  async function advanceSetupWizard() {
-    const nextButton = $('btn-setup-wizard-next');
-    nextButton.disabled = true;
     try {
-      if (setupWizardStep === 0) {
-        if (!currentStatus.started) await runAction('start');
-        try { await refreshSources(); } catch (error) { reportSourceRefreshError(error); }
-      } else if (setupWizardStep === 1) {
-        const sourceWidth = Number(currentStatus.capture?.sourceWidth || currentStatus.game?.bounds?.width);
-        const sourceHeight = Number(currentStatus.capture?.sourceHeight || currentStatus.game?.bounds?.height);
-        if (sourceHeight > 0) stageSelectedResolution(recommendedResolutionForSource(sourceWidth, sourceHeight));
-        const key = await activateSelectedResolution();
-        if (!await takeSnapshot(key)) {
-          setSetupWizardFeedback('Game picture was not captured', 'Keep the game visible, choose its window underneath this guide, and try Next again.', 'bad');
-          return;
-        }
-      } else if (setupWizardStep === 2) {
-        if (!presetPlacementReady) {
-          setSetupWizardFeedback(
-            'Live reader picture is not ready',
-            'Go Back and capture the game picture with the complete scorebug visible.',
-            'bad',
-          );
-          return;
-        }
-      } else if (setupWizardStep === 3) {
-        // Setup must never advance past live verification without a fresh,
-        // visible local-ocr read proving both teams, both scores, quarter,
-        // clock, and down-and-distance. Skip setup remains available for
-        // testers who cannot verify right now.
-        const summary = setupWizardRecognitionSummary();
-        if (!summary.complete) {
-          setSetupWizardFeedback(
-            'Live verification has not passed',
-            summary.liveSource
-              ? `Still missing: ${summary.missing.join(', ') || 'a fresh visible read'}. Adjust the reader box or wait for the scorebug, then try Next again.`
-              : 'No fresh local reader data yet. Keep the in-game scorebug visible with the reader running, or use Skip setup to finish later.',
-            'bad',
-          );
-          return;
-        }
-      }
-      setupWizardStep = Math.min(4, setupWizardStep + 1);
-      await persistSetupWizardState({ step: setupWizardStep });
-      renderSetupWizard();
-    } finally {
-      nextButton.disabled = false;
+      if (typeof api.saveOnboarding === 'function') await api.saveOnboarding(state);
+    } catch (error) {
+      appendLog(`Welcome state could not be saved: ${error.message}`);
     }
-  }
-
-  async function finishSetupWizard() {
-    // A resumed wizard can open directly at the final step, so Finish
-    // re-checks the same live verification the step-3 gate enforces.
-    const summary = setupWizardRecognitionSummary();
-    if (!summary.complete) {
-      setSetupWizardFeedback(
-        'Live verification has not passed',
-        'Setup can only complete after a fresh local reader read shows both teams, both scores, quarter, clock, and down-and-distance. Go Back to verify, or use Skip setup.',
-        'bad',
-      );
-      return;
-    }
-    if (currentStatus.overlay?.placementMode === 'move') await runAction('lock-position');
-    if (currentStatus.automatic === false) await runAction('automatic');
-    await persistSetupWizardState({ completed: true, skipped: false, step: 4 });
-    closeSetupWizard();
-    activatePanel('dashboard');
-    toast('Setup complete');
   }
 
   function fitThemePreview(shell, iframe, dimensions = {}) {
@@ -2031,7 +1831,6 @@
         setCalibrationZoom(calibrationZoom, { preserveCenter: false, focusRegion: true });
         drawCalibration();
         appendLog(`Captured ${result.profileKey} placement frame ${canvas.width}x${canvas.height}.`);
-        updateSetupWizardFeedback();
         resolve(true);
       };
       image.onerror = () => {
@@ -2087,7 +1886,6 @@
     $('preset-box-status').textContent = exported
       ? 'Saved on this PC and exported as one portable reader file.'
       : 'Saved on this PC. Reader-file export was canceled.';
-    updateSetupWizardFeedback();
     return { key, result };
   }
 
@@ -2115,7 +1913,6 @@
     syncReadRegionInputs();
     drawCalibration();
     $('preset-box-status').textContent = `Reader is in use on this PC for ${resolutionProfileLabel(key)} only.`;
-    updateSetupWizardFeedback();
     return { key, result };
   }
 
@@ -2132,7 +1929,6 @@
     syncReadRegionInputs();
     drawCalibration();
     $('preset-box-status').textContent = `Imported reader file applied to ${resolutionProfileLabel(key)} only.`;
-    updateSetupWizardFeedback();
     return result;
   }
 
@@ -2159,22 +1955,9 @@
       }
     }));
     $('btn-open-advanced').addEventListener('click', () => activatePanel('data'));
-    $('btn-run-setup-wizard').addEventListener('click', () => openSetupWizard({ restart: true }));
-    $('btn-setup-wizard-next').addEventListener('click', advanceSetupWizard);
-    $('btn-setup-wizard-back').addEventListener('click', async () => {
-      setupWizardStep = Math.max(0, setupWizardStep - 1);
-      await persistSetupWizardState({ step: setupWizardStep });
-      renderSetupWizard();
-    });
-    $('btn-setup-wizard-skip').addEventListener('click', async () => {
-      await persistSetupWizardState({ completed: false, skipped: true, step: setupWizardStep });
-      closeSetupWizard();
-      activatePanel('dashboard');
-      toast('Setup skipped - you can run it anytime from Home');
-    });
-    $('btn-setup-wizard-finish').addEventListener('click', finishSetupWizard);
+    $('btn-welcome-close').addEventListener('click', closeWelcomePopup);
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && setupWizardActive) closeSetupWizard();
+      if (event.key === 'Escape' && !$('welcome-popup').hidden) closeWelcomePopup();
     });
 
     $('btn-start').addEventListener('click', () => runAction('start', 'Reader started'));
@@ -2759,9 +2542,7 @@
     } catch (error) {
       appendLog(`Status initialization error: ${error.message}`);
     }
-    if (settings?.onboarding?.completed !== true && settings?.onboarding?.skipped !== true) {
-      await openSetupWizard();
-    }
+    if (settings?.onboarding?.welcomeShown !== true) openWelcomePopup();
     api.onStatus?.(renderStatus);
     let dismissedRamProblem = null;
     api.onRamProblem?.((problem) => {

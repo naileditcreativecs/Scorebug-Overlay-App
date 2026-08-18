@@ -14,7 +14,7 @@
       <h1>Scoreboard Overlay</h1>
       <p class="header-subtitle">Every overlay tool has its own tab.</p>
     </div>
-    <span id="app-version" class="version">v1.4.36</span>
+    <span id="app-version" class="version">v1.4.37</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -45,15 +45,6 @@
 
   <main>
     <section class="panel active" data-panel="dashboard">
-      <article class="setup-wizard-callout" aria-labelledby="setup-wizard-callout-title">
-        <div>
-          <p class="eyebrow">FIRST-TIME SETUP</p>
-          <h2 id="setup-wizard-callout-title">Get a reliable live read in five steps</h2>
-          <p>Choose the game window, let the app find the scorebug, verify the values, and position the overlay.</p>
-        </div>
-        <button id="btn-run-setup-wizard" class="primary" type="button">Run setup wizard</button>
-      </article>
-
       <div class="simple-dashboard" aria-label="Simple overlay controls">
         <article class="card quick-card runtime-card">
           <div class="step-heading">
@@ -420,94 +411,15 @@
     </section>
   </main>
 
-  <section id="setup-wizard" class="setup-wizard" role="dialog" aria-modal="true" aria-labelledby="setup-wizard-title" aria-describedby="setup-wizard-detail" hidden>
-    <div id="setup-wizard-dialog" class="setup-wizard-dialog" tabindex="-1">
-      <header class="setup-wizard-header">
-        <div>
-          <p class="eyebrow">GUIDED SETUP</p>
-          <h1 id="setup-wizard-title">Set up the live scoreboard reader</h1>
-        </div>
-        <span id="setup-wizard-progress" class="badge neutral" aria-live="polite">Step 1 of 5</span>
-      </header>
-
-      <nav class="setup-wizard-progress" aria-label="Setup progress">
-        <ol id="setup-wizard-progress-list">
-          <li id="setup-wizard-progress-step-1" data-wizard-progress-step="1" aria-current="step"><span>1</span><strong>Window</strong></li>
-          <li id="setup-wizard-progress-step-2" data-wizard-progress-step="2"><span>2</span><strong>Capture</strong></li>
-          <li id="setup-wizard-progress-step-3" data-wizard-progress-step="3"><span>3</span><strong>Auto-detect</strong></li>
-          <li id="setup-wizard-progress-step-4" data-wizard-progress-step="4"><span>4</span><strong>Live reads</strong></li>
-          <li id="setup-wizard-progress-step-5" data-wizard-progress-step="5"><span>5</span><strong>Overlay</strong></li>
-        </ol>
-      </nav>
-
-      <div class="setup-wizard-body">
-        <section id="setup-wizard-step-1" class="setup-wizard-step" data-wizard-step="1" aria-labelledby="setup-wizard-step-1-title">
-          <p class="eyebrow">WELCOME &amp; GAME WINDOW</p>
-          <h2 id="setup-wizard-step-1-title">Start with the correct game window</h2>
-          <p>Open College Football 27 in Borderless mode, enter a game, and select its window underneath this guide. Keep the supported native scorebug visible while you set up the reader.</p>
-          <ul class="setup-wizard-checklist">
-            <li>Use the same supported scorebug layout as the reader profile.</li>
-            <li>Keep the game visible and choose its window, not a launcher.</li>
-          </ul>
-        </section>
-
-        <section id="setup-wizard-step-2" class="setup-wizard-step" data-wizard-step="2" aria-labelledby="setup-wizard-step-2-title" hidden>
-          <p class="eyebrow">CAPTURE GEOMETRY</p>
-          <h2 id="setup-wizard-step-2-title">Confirm the native game-window shape</h2>
-          <p>The app reads the game window at its real aspect ratio and chooses the closest height preset. A 3440 x 1440 ultrawide window uses the 1440p size preset without being stretched to 16:9.</p>
-          <ul class="setup-wizard-checklist">
-            <li>Use the game render height, not only the monitor label.</li>
-            <li>Ultrawide, widescreen, and custom window widths are supported.</li>
-          </ul>
-        </section>
-
-        <section id="setup-wizard-step-3" class="setup-wizard-step" data-wizard-step="3" aria-labelledby="setup-wizard-step-3-title" hidden>
-          <p class="eyebrow">AUTOMATIC SCOREBUG DETECTION</p>
-          <h2 id="setup-wizard-step-3-title">Confirm the app found the scorebug</h2>
-          <p>The amber box shows the outer crop measured from the current game pixels. No manual placement or reader-file export is required for normal use.</p>
-          <ul class="setup-wizard-checklist">
-            <li>The complete scorebug should sit inside the amber outline.</li>
-            <li>Use optional tuning only if an individual inner field box needs adjustment.</li>
-          </ul>
-        </section>
-
-        <section id="setup-wizard-step-4" class="setup-wizard-step" data-wizard-step="4" aria-labelledby="setup-wizard-step-4-title" hidden>
-          <p class="eyebrow">VERIFY LIVE READS</p>
-          <h2 id="setup-wizard-step-4-title">Confirm the reader sees the scoreboard</h2>
-          <p>With the scorebug visible, confirm both teams and scores, quarter, game clock, and down-and-distance appear in the Home preview.</p>
-          <ul class="setup-wizard-checklist">
-            <li>Wait for several complete reads on a slower computer.</li>
-            <li>If values stay blank, check the CAPTURE tile and refresh the live reader view.</li>
-          </ul>
-        </section>
-
-        <section id="setup-wizard-step-5" class="setup-wizard-step" data-wizard-step="5" aria-labelledby="setup-wizard-step-5-title" hidden>
-          <p class="eyebrow">PLACE OVERLAY &amp; FINISH</p>
-          <h2 id="setup-wizard-step-5-title">Put the overlay where you want it</h2>
-          <p>Show the overlay, choose Move overlay, drag it into position, and save that position. Turn Automatic visibility back on if you want it to follow the native scorebug.</p>
-          <ul class="setup-wizard-checklist">
-            <li>Verify the overlay appears on the same display as the game.</li>
-            <li>Finish only after its position and live values look correct.</li>
-          </ul>
-        </section>
-      </div>
-
-      <div id="setup-wizard-feedback" class="setup-wizard-feedback" role="status" aria-live="polite" aria-atomic="true">
-        <span class="dot warn" aria-hidden="true"></span>
-        <div>
-          <strong id="setup-wizard-status">Ready to begin</strong>
-          <p id="setup-wizard-detail">Open the game in Borderless mode and keep its live scorebug visible.</p>
-        </div>
-      </div>
-
-      <footer class="setup-wizard-actions">
-        <button id="btn-setup-wizard-skip" class="quiet-button" type="button">Skip setup</button>
-        <div class="button-row">
-          <button id="btn-setup-wizard-back" type="button" disabled>Back</button>
-          <button id="btn-setup-wizard-next" class="primary" type="button">Next</button>
-          <button id="btn-setup-wizard-finish" class="primary" type="button" hidden>Finish</button>
-        </div>
-      </footer>
+  <section id="welcome-popup" class="welcome-popup" role="dialog" aria-modal="true" aria-labelledby="welcome-title" hidden>
+    <div id="welcome-dialog" class="welcome-dialog" tabindex="-1">
+      <p class="eyebrow">SCOREBUG CENTER</p>
+      <h1 id="welcome-title">Hello, and welcome to Scorebug Center!</h1>
+      <p>First of all, thank you to everyone who has helped with the app through testing, suggestions, bug reports, and feedback. Your help and support are greatly appreciated.</p>
+      <p>This is an early access version, so if you run into any issues or have suggestions for how we can improve, please join us on Discord and let us know. We'll continue working on the app and pushing out updates as we improve the experience.</p>
+      <p>Scorebug Center was created by Coffee and is brought to you by Nailed It Creative Services.</p>
+      <p>Thank you for being part of Scorebug Center!</p>
+      <footer><button id="btn-welcome-close" class="primary" type="button">Let's go</button></footer>
     </div>
   </section>
 

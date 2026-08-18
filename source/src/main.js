@@ -3705,6 +3705,7 @@ function normalizeOnboardingState(value = {}) {
     version: ONBOARDING_VERSION,
     completed: value?.completed === true,
     skipped: value?.skipped === true,
+    welcomeShown: value?.welcomeShown === true,
     step: Number.isInteger(step) ? Math.max(0, Math.min(4, step)) : 0,
   };
 }
@@ -3712,9 +3713,11 @@ function normalizeOnboardingState(value = {}) {
 function saveOnboarding(payload = {}) {
   settings.onboarding = normalizeOnboardingState(payload);
   persistSettings();
-  logMessage(settings.onboarding.completed
-    ? 'First-run setup completed.'
-    : (settings.onboarding.skipped ? 'First-run setup skipped.' : `First-run setup saved at step ${settings.onboarding.step + 1}.`));
+  logMessage(settings.onboarding.welcomeShown
+    ? 'Welcome message acknowledged.'
+    : (settings.onboarding.completed
+      ? 'First-run setup completed.'
+      : (settings.onboarding.skipped ? 'First-run setup skipped.' : `First-run setup saved at step ${settings.onboarding.step + 1}.`)));
   return cloneJson(settings.onboarding);
 }
 
