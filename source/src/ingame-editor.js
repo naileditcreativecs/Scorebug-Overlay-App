@@ -586,6 +586,10 @@ function openColorWheel(side) {
   wheelState.committed = wheelState.openedWith || currentWheelHex();
   document.getElementById('color-wheel-value').value = String(Math.round(wheelState.v * 100));
   document.getElementById('color-wheel-title').textContent = `${side === 'away' ? 'LEFT' : 'RIGHT'} TEAM COLOR`;
+  const noteTeam = appState?.scorebugColors?.swatches?.[side]?.teamName;
+  const noteId = appState?.scorebugColors?.context?.[`${side}TeamId`];
+  const note = document.getElementById('color-wheel-save-note');
+  if (note) note.textContent = noteId ? `Save keeps this color for ${noteTeam || 'this team'} in every game.` : 'Save keeps this color for this scorebug (no team identified yet).';
   popover.classList.remove('hidden');
   // Position beside the swatch, inside the panel.
   const panel = document.getElementById('team-panel');
@@ -741,6 +745,28 @@ function wireColorWheel() {
       setToast(`${wheelState.side === 'away' ? 'Left' : 'Right'} team color: ${hex}`);
     }
     closeColorWheel();
+  });
+  // Save straight from the wheel: the pick becomes a profile for this
+  // side's team (follows the team everywhere); with no identified team it
+  // saves for this scorebug only.
+  document.getElementById('color-wheel-save')?.addEventListener('click', async () => {
+    if (!wheelState.side) return;
+    const side = wheelState.side;
+    const hex = wheelState.committed || currentWheelHex();
+    const teamId = appState?.scorebugColors?.context?.[`${side}TeamId`];
+    const teamName = appState?.scorebugColors?.swatches?.[side]?.teamName;
+    try {
+      acceptState(await api.setScorebugColor({ side, mode: 'custom', color: hex }));
+      if (teamId) {
+        acceptState(await api.saveScorebugColorScope({ scope: side === 'away' ? 'team-away' : 'team-home' }));
+        setToast(`Saved ${hex} for ${teamName || 'this team'} - it follows them into every game.`);
+      } else {
+        acceptState(await api.saveScorebugColorScope({ scope: 'theme' }));
+        setToast(`Saved ${hex} for this scorebug (no team identified yet to save it for).`);
+      }
+    } catch (error) {
+      reportError(error);
+    }
   });
   document.getElementById('color-wheel-eyedropper')?.addEventListener('click', () => {
     if (eyedropper.active) stopEyedropper({ cancel: true });
