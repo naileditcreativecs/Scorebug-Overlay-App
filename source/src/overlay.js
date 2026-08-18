@@ -582,46 +582,7 @@ function applyTeamLogoTransformToDocument(payload = {}) {
   image.style.setProperty('transform-origin', 'center', 'important');
   image.style.setProperty('object-position', 'center center', 'important');
   image.style.setProperty('image-rendering', 'auto', 'important');
-  // A theme transition on transform made every re-applied placement slide
-  // in from the old spot; drags must track the pointer exactly.
-  image.style.setProperty('transition', 'none', 'important');
   return { applied: true, side, count: candidates.length };
-}
-
-// Fast path for drags: the full resolver above walks the whole document.
-// Once it has tagged the chosen image (data-cfb27-logo-side), later moves
-// only need to update that element's transform - a few microseconds
-// instead of a full DOM walk per pointer move.
-function applyTeamLogoTransformFast(payload = {}) {
-  const side = payload.side === 'home' ? 'home' : 'away';
-  const value = payload.transform && typeof payload.transform === 'object' ? payload.transform : {};
-  const finite = (candidate, fallback) => Number.isFinite(Number(candidate)) ? Number(candidate) : fallback;
-  const x = Math.max(-2000, Math.min(2000, finite(value.x, 0)));
-  const y = Math.max(-2000, Math.min(2000, finite(value.y, 0)));
-  const scale = Math.max(0.1, Math.min(5, finite(value.scale, 1.13)));
-  const rotation = Math.max(-180, Math.min(180, finite(value.rotation, 0)));
-  // Only a VISIBLE tagged image may take the fast path. Themes that keep
-  // the bound logo hidden and mirror it into a visible copy can leave the
-  // tag on the hidden one; moving that does nothing on screen. Prefer the
-  // live copy, then any painted tagged image; otherwise fall back to the
-  // full resolver.
-  const tagged = Array.from(document.querySelectorAll('[data-cfb27-logo-side="' + side + '"]'));
-  const painted = tagged.filter((candidate) => {
-    if (!candidate.isConnected) return false;
-    const box = candidate.getBoundingClientRect?.();
-    if (!box || (box.width === 0 && box.height === 0)) return false;
-    const style = getComputedStyle(candidate);
-    return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0.01;
-  });
-  const image = painted.find((candidate) => candidate.getAttribute('data-cfb27-live-logo') === side) || painted[0];
-  if (!image) return { applied: false, side, fast: false };
-  image.dataset.cfb27LogoScale = String(scale);
-  image.dataset.cfb27LogoX = String(x);
-  image.dataset.cfb27LogoY = String(y);
-  image.dataset.cfb27LogoRotation = String(rotation);
-  image.style.setProperty('transform', 'translate(' + x + 'px, ' + y + 'px) rotate(' + rotation + 'deg) scale(' + scale + ')', 'important');
-  image.style.setProperty('transition', 'none', 'important');
-  return { applied: true, side, fast: true };
 }
 
 // Serialized into the theme guest. It measures the real painted logo after
@@ -721,7 +682,6 @@ async function reportTeamLogoGeometry() {
       const box = result?.[side];
       return window.overlayControl.reportTeamLogoGeometry(box ? {
         side,
-        seq: lastAppliedLogoSeq[side],
         visible: true,
         bounds: {
           x: themeRect.left + (Number(box.x) * scaleX),
@@ -729,7 +689,7 @@ async function reportTeamLogoGeometry() {
           width: Number(box.width) * scaleX,
           height: Number(box.height) * scaleY,
         },
-      } : { side, seq: lastAppliedLogoSeq[side], visible: false });
+      } : { side, visible: false });
     }));
   } catch (error) {
     setStatus(`Logo position guide unavailable: ${error.message}`);
@@ -1440,38 +1400,18 @@ async function pushStateToTheme() {
   }
 }
 
-const logoPreviewInFlight = new Map();
-const logoPreviewWaiting = new Map();
-const lastAppliedLogoSeq = { away: 0, home: 0 };
 async function previewTeamLogoTransform(payload) {
   if (!themeReady || !currentState || !payload?.side) return;
   const side = payload.side === 'home' ? 'home' : 'away';
-  const request = { side, transform: payload.transform, seq: Number(payload.seq) || 0 };
-  // Newest wins; never let two round-trips race so the logo cannot jump
-  // backwards when an older move lands after a newer one.
-  if (logoPreviewInFlight.get(side)) {
-    logoPreviewWaiting.set(side, request);
-    return;
-  }
-  logoPreviewInFlight.set(side, true);
+  const request = {
+    side,
+    transform: payload.transform,
+  };
   try {
-    let current = request;
-    while (current) {
-      try {
-        const fast = await themeView.executeJavaScript(`(${applyTeamLogoTransformFast.toString()})(${JSON.stringify(current)})`);
-        if (!fast || !fast.applied) {
-          await themeView.executeJavaScript(`(${applyTeamLogoTransformToDocument.toString()})(${JSON.stringify(current)})`);
-        }
-        lastAppliedLogoSeq[side] = Math.max(lastAppliedLogoSeq[side], Number(current.seq) || 0);
-      } catch (error) {
-        setStatus(`Logo adjustment failed: ${error.message}`);
-      }
-      current = logoPreviewWaiting.get(side) || null;
-      logoPreviewWaiting.delete(side);
-    }
+    await themeView.executeJavaScript(`(${applyTeamLogoTransformToDocument.toString()})(${JSON.stringify(request)})`);
     scheduleTeamLogoGeometryReport();
-  } finally {
-    logoPreviewInFlight.set(side, false);
+  } catch (error) {
+    setStatus(`Logo adjustment failed: ${error.message}`);
   }
 }
 

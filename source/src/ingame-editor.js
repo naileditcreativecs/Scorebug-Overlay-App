@@ -936,16 +936,8 @@ function logoTransformRequest(side, transform = readLogoTransform(side)) {
   };
 }
 
-// Every logo move carries a sequence number; geometry measured for an
-// older move is ignored, so the drag handle (which draws a copy of the logo
-// at the measured spot) can never snap back to a stale position.
-const logoMoveSeq = { away: 0, home: 0 };
-const logoAwaitingFreshGeometry = new Set();
 function scheduleLogoPreview(side) {
-  logoMoveSeq[side] += 1;
-  const request = logoTransformRequest(side, updateLogoTransformOutputs(side));
-  request.seq = logoMoveSeq[side];
-  pendingLogoPreviews.set(side, request);
+  pendingLogoPreviews.set(side, logoTransformRequest(side, updateLogoTransformOutputs(side)));
   if (logoPreviewFrames.has(side)) return;
   const frame = requestAnimationFrame(() => {
     logoPreviewFrames.delete(side);
@@ -962,7 +954,6 @@ async function saveLogoTransform(side) {
   logoPreviewFrames.delete(side);
   pendingLogoPreviews.delete(side);
   logoSliderActive.delete(side);
-  logoAwaitingFreshGeometry.add(side);
   try {
     acceptState(await api.saveTeamLogoTransform(logoTransformRequest(side)));
     setToast(`${logoChoiceState(side).teamName || 'Team'} logo placement saved for this HTML.`);
@@ -1316,11 +1307,7 @@ function renderDirectLogoEditors() {
       && Number(geometry.height) > 0
       && appState?.outputBounds
       && appState?.editorBounds;
-    // While the logo is being moved from the mini preview, or until a fresh
-    // measurement arrives after a move, the handle would only lag behind the
-    // real logo - hide it rather than show a second logo at the old spot.
-    const previewDragging = Boolean(logoPreviewGesture && logoPreviewGesture.side === side);
-    element.classList.toggle('hidden', !usable || previewDragging || logoAwaitingFreshGeometry.has(side));
+    element.classList.toggle('hidden', !usable);
     if (choice?.logo) image.setAttribute('src', choice.logo);
     else image.removeAttribute('src');
     if (!usable || (logoDirectGesture && logoDirectGesture.side === side)) continue;
@@ -1749,9 +1736,6 @@ document.addEventListener('keydown', (event) => {
 api.onInGameEditorState(acceptState);
 api.onTeamLogoGeometry((update) => {
   if (!appState || !['away', 'home'].includes(update?.side)) return;
-  // Stale: measured for a move older than the latest one we sent.
-  if (Number(update.seq || 0) < logoMoveSeq[update.side]) return;
-  logoAwaitingFreshGeometry.delete(update.side);
   appState.logoGeometry ||= { away: null, home: null };
   appState.logoGeometry[update.side] = update.bounds || null;
   paintLogoGeometry(update.side);
