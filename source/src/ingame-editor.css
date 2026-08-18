@@ -287,6 +287,35 @@ button { font: inherit; }
 .logo-actions button:disabled, .reset-logo-transform:disabled { opacity: .45; cursor: not-allowed; }
 .logo-actions button.danger { border-color: rgba(248, 113, 113, .55); color: #fecaca; background: #7f1d1d; }
 .logo-actions button.restore-defaults { border-color: rgba(52, 211, 153, .48); color: #a7f3d0; background: #065f46; }
+/* Compact mode: when the panel must fit in less room than its content
+   (the bug sits low, so the panel lives above it), the logo placement
+   editor - the tallest part - folds behind a per-team button so nothing
+   needs scrolling. Opening it is the user's choice and may scroll. */
+.logo-placement-toggle {
+  display: none;
+  min-height: 34px;
+  border: 1px solid rgba(125, 211, 252, .35);
+  border-radius: 8px;
+  background: rgba(7, 15, 27, .65);
+  color: #7dd3fc;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.team-panel.compact .logo-placement-toggle { display: block; }
+.team-panel.compact .logo-transform { display: none; }
+.team-panel.compact .logo-transform.open { display: grid; }
+.team-panel.compact .team-card { gap: 6px; padding: 10px; }
+.team-panel.compact { padding: 8px 12px 10px; }
+.team-panel.compact .team-panel-heading { margin-bottom: 6px; }
+.team-panel.compact .team-panel-heading p { display: none; }
+.team-panel.compact .team-panel-footer { margin-top: 8px; }
+.team-panel.compact .team-panel-footer p,
+.team-panel.compact .team-panel-footer > span { display: none; }
+.team-panel.compact .color-presets { margin-top: 8px; }
+.team-panel.compact .ocr-status, .team-panel.compact .reader-value { display: none; }
+
 .logo-transform {
   display: grid;
   gap: 6px;
