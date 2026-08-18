@@ -95,6 +95,19 @@ namespace CollegeFootballRamDiagnostic
             return builder.ToString();
         }
 
+        public static List<int> Int16Window(byte[] bytes, int start, int count)
+        {
+            List<int> values = new List<int>();
+            if (bytes == null) return values;
+            for (int index = 0; index < count; index++)
+            {
+                int offset = start + index * 2;
+                if (offset < 0 || offset + 2 > bytes.Length) { values.Add(0); continue; }
+                values.Add(BitConverter.ToInt16(bytes, offset));
+            }
+            return values;
+        }
+
         public static List<int> Int32Window(byte[] bytes, int start, int count)
         {
             List<int> values = new List<int>();

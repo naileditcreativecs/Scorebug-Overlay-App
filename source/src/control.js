@@ -750,6 +750,7 @@
     $('clock-offset-seconds').value = settings.recognition.clockOffsetSeconds ?? 0;
     renderReadingProfile();
     $('auto-hide').checked = settings.overlay.autoHide !== false;
+    $('hide-during-play-call').checked = settings.overlay.hideDuringPlayCall === true;
     $('hide-unfocused').checked = settings.overlay.hideWhenGameUnfocused !== false;
     $('overlay-click-through').checked = settings.overlay.clickThrough !== false;
     $('overlay-always-on-top').checked = settings.overlay.alwaysOnTop !== false;
@@ -2162,6 +2163,24 @@
     }));
     $('btn-open-advanced').addEventListener('click', () => activatePanel('data'));
     $('btn-welcome-close').addEventListener('click', closeWelcomePopup);
+    $('btn-stats-search').addEventListener('click', async () => {
+      const ids = ['away-total', 'home-total', 'away-rush', 'home-rush', 'away-pass', 'home-pass', 'away-plays', 'home-plays', 'away-fd', 'home-fd', 'away-rushatt', 'home-rushatt', 'away-comp', 'home-comp', 'away-att', 'home-att', 'away-pen', 'home-pen', 'away-penyds', 'home-penyds', 'away-top', 'home-top'];
+      const request = {};
+      for (const id of ids) {
+        const raw = String($(`ss-${id}`).value || '').trim();
+        if (raw === '') continue;
+        const number = Number.parseInt(raw, 10);
+        if (Number.isInteger(number)) request[id.replace('-', '_')] = number;
+      }
+      if (!Object.keys(request).length) { toast('Type at least a few numbers from the stats screen first'); return; }
+      try {
+        const result = await api.requestStatsSearch(request);
+        $('stats-search-status').textContent = `Request written (${Object.keys(request).length} numbers). The reader searches within ~2 s and appends results to stats-search.jsonl in ${result?.folder || 'the data folder'}. Keep the game paused for ~30 s.`;
+        toast('Memory search requested');
+      } catch (error) {
+        toast(error.message || 'Could not write the search request');
+      }
+    });
     $('btn-favorite-skip').addEventListener('click', closeFavoritePopup);
     $('favorite-search').addEventListener('input', paintFavoriteGrid);
     document.addEventListener('keydown', (event) => {
@@ -2350,6 +2369,7 @@
       Object.assign(settings.hotkeys, nextHotkeys);
       settings.overlay ||= {};
       settings.overlay.autoHide = $('auto-hide').checked;
+      settings.overlay.hideDuringPlayCall = $('hide-during-play-call').checked;
       settings.overlay.hideWhenGameUnfocused = $('hide-unfocused').checked;
       settings.overlay.clickThrough = $('overlay-click-through').checked;
       settings.overlay.alwaysOnTop = $('overlay-always-on-top').checked;

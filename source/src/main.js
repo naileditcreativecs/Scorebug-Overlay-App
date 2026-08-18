@@ -329,6 +329,7 @@ let defaults = {};
 let settings = {};
 
 const runtime = {
+  playCallOpen: null,
   requestedVisible: false,
   autoVisible: true,
   editMode: false,
@@ -995,13 +996,60 @@ function clearRamScoreboardState() {
     : 'RAM scoreboard data became unavailable; the visible bug returned to screen-reader values.');
 }
 
+// Test 2 round 2: write the halftime numbers where the reader looks for
+// them; it searches the game heap and appends stats-search.jsonl.
+function requestStatsSearch(payload = {}) {
+  const request = {};
+  for (const [key, value] of Object.entries(payload || {})) {
+    if (!/^[a-z_]{1,32}$/.test(key)) continue;
+    const number = Number(value);
+    if (Number.isInteger(number) && Math.abs(number) < 100000) request[key] = number;
+  }
+  if (!Object.keys(request).length) throw new Error('No numbers to search for.');
+  const folder = dataExportRootPath();
+  fs.mkdirSync(folder, { recursive: true });
+  const target = path.join(folder, 'probe-request.json');
+  fs.writeFileSync(target, JSON.stringify({ ...request, requestedAt: new Date().toISOString() }));
+  logMessage(`Memory search requested for ${Object.keys(request).length} box-score numbers (results: stats-search.jsonl).`);
+  return { folder, count: Object.keys(request).length };
+}
+
+// EXPERIMENTAL play-call state from the reader (ram.playCallOpen). When the
+// user opts in, the bug hides the moment the play-call menu opens and
+// returns at the snap. Off by default until testers confirm the signal.
+function notePlayCallState(document) {
+  const open = document?.ram?.playCallOpen;
+  const next = open === true ? true : (open === false ? false : null);
+  if (next === runtime.playCallOpen) return;
+  runtime.playCallOpen = next;
+  if (settings.overlay?.hideDuringPlayCall !== true) return;
+  if (!overlayWindow || overlayWindow.isDestroyed()) return;
+  if (next === true) {
+    // Immediate: no show/hide delay for this transition.
+    visibilityTransitionGate.cancel();
+    if (overlayWindow.isVisible()) overlayWindow.hide();
+    runtime.lastVisibilityReason = 'play-call-open';
+    broadcastStatus();
+  } else {
+    visibilityTransitionGate.cancel();
+    if (desiredOverlayVisibility() && !overlayWindow.isVisible()) {
+      positionOverlay();
+      overlayWindow.showInactive();
+    }
+    runtime.lastVisibilityReason = 'play-call-closed';
+    broadcastStatus();
+  }
+}
+
 function pollRamScoreboardState() {
   if (!usesRamReader(scoreboardDataSourceMode())) return;
   try {
+    const liveDocument = ramLiveDocumentReader.read(ramLiveDataPath());
+    try { notePlayCallState(liveDocument); } catch { /* experimental */ }
     // The hold runs before the signature compare so a one-tick withhold
     // (value -> null -> value) neither blanks the bug nor publishes churn.
     const freshPayload = applyRamFieldHold(
-      ramScoreboardPayload(ramLiveDocumentReader.read(ramLiveDataPath())),
+      ramScoreboardPayload(liveDocument),
       ramFieldHoldCache,
       Date.now(),
     );
@@ -2659,6 +2707,7 @@ function applyWindowBehaviorSettings() {
 function desiredOverlayVisibility() {
   if (runtime.editMode || runtime.quickSettingsOpen) return true;
   if (!runtime.started || !runtime.requestedVisible) return false;
+  if (settings.overlay?.hideDuringPlayCall === true && runtime.playCallOpen === true) return false;
   // Manual/forced visibility is an explicit user decision and must survive a
   // reader restart, a profile save, or a capture outage. OCR-derived
   // autoVisible is consulted only while Automatic visibility is enabled.
@@ -6635,6 +6684,7 @@ async function scoreboardMethod(method, payload) {
     case 'copyDiagnostics': return copyDiagnostics();
     case 'ramReaderDoctor': return ramReaderDoctor();
     case 'copyRamReaderDoctor': return copyRamReaderDoctor();
+    case 'requestStatsSearch': return requestStatsSearch(payload);
     case 'openDiagnosis': {
       createDiagnosisWindow();
       buildDiagnosisReport({ deep: true }).then(sendDiagnosisReport).catch(() => {});

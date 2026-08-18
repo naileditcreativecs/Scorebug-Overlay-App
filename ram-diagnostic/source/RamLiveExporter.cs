@@ -678,6 +678,12 @@ namespace CollegeFootballRamDiagnostic
             // announcements, milestones): newest last, deduplicated, capped.
             // Consumers parse or ignore as they see fit.
             ram["recentMessages"] = new List<Dictionary<string, object>>(recentScoreHudMessages);
+            // EXPERIMENTAL (probe game 2026-08-18): a byte just below the live
+            // game record flips 1->0 when the play-call menu opens and back to
+            // 1 at the snap, in four mirrored copies. Published as a candidate
+            // for the app's optional hide-during-play-call; null unless all
+            // copies agree.
+            ram["playCallOpen"] = ReadPlayCallOpenCandidate();
             string publishedAwayName = matchupTransitionPending ? null : lastAwayTeamName;
             string publishedHomeName = matchupTransitionPending ? null : lastHomeTeamName;
             ram["awayTeamName"] = TeamNameDictionary(publishedAwayName, publishedAwayRead);
@@ -946,6 +952,7 @@ namespace CollegeFootballRamDiagnostic
                 MaybeRunPenaltyProbeBaseline(screenJsonPath, quarter, gameClock);
             }
             catch { }
+            try { MaybeRunStatsSearch(screenJsonPath); } catch { }
         }
 
         // ---- RESEARCH PROBE: live game/team stats -----------------------------
@@ -1057,6 +1064,57 @@ namespace CollegeFootballRamDiagnostic
             }
         }
 
+        // ---- Play-call menu candidate (from the toggle probe) ------------------
+        // Offsets relative to the live game record (quarter address - 0xC8):
+        // -0x118, -0xF8, -0x70, -0x50 read 0 while the picker is open, 1
+        // otherwise; -0xF0 and -0x48 are the inverse. All six must agree.
+        private static readonly int[] PlayCallZeroWhenOpen = new int[] { -0x118, -0xF8, -0x70, -0x50 };
+        private static readonly int[] PlayCallOneWhenOpen = new int[] { -0xF0, -0x48 };
+        private int lastPlayCallState = -1;
+        private object ReadPlayCallOpenCandidate()
+        {
+            try
+            {
+                List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
+                if (quarterAddresses.Count != 1) return null;
+                long block = quarterAddresses[0] - 0xC8;
+                byte[] bytes = scanner.ReadBytes(block - 0x120, 0x120);
+                int expectZero = -1;
+                foreach (int offset in PlayCallZeroWhenOpen)
+                {
+                    int value = bytes[offset + 0x120];
+                    if (value > 1) return null;
+                    if (expectZero == -1) expectZero = value;
+                    else if (expectZero != value) return null;
+                }
+                foreach (int offset in PlayCallOneWhenOpen)
+                {
+                    int value = bytes[offset + 0x120];
+                    if (value > 1 || value == expectZero) return null;
+                }
+                bool open = expectZero == 0;
+                int state = open ? 1 : 0;
+                if (state != lastPlayCallState)
+                {
+                    lastPlayCallState = state;
+                    RamReadResult quarter = Read("quarter", 1, 20);
+                    RamReadResult clock = Read("gameClockSeconds", 0, 3600);
+                    RamReadResult playClock = Read("playClock", 0, 99);
+                    Dictionary<string, object> entry = new Dictionary<string, object>
+                    {
+                        { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                        { "open", open },
+                        { "quarter", quarter.Available ? (object)quarter.Value : null },
+                        { "clock", clock.Available ? (object)clock.Value : null },
+                        { "playClock", playClock.Available ? (object)playClock.Value : null }
+                    };
+                    AppendProbeLine(probeOutputSeedPath, "playcall-probe.jsonl", entry);
+                }
+                return open;
+            }
+            catch { return null; }
+        }
+
         // ---- RESEARCH PROBE: play-call menu (byte toggles) -------------------
         // Every ~250 ms, the bytes within +-8 KB of the live game record that
         // flipped between tiny values (0..3). A menu-open flag flips exactly
@@ -1116,6 +1174,103 @@ namespace CollegeFootballRamDiagnostic
             AppendProbeLine(screenJsonPath, "toggle-probe.jsonl", entry);
         }
 
+        // ---- RESEARCH PROBE: box score by known values (round 2) ---------------
+        // Round 1 proved the box score does NOT live within 256 KB of the game
+        // record. Round 2 is tester-assisted: at halftime the tester types the
+        // stats screen into the app, which writes probe-request.json next to
+        // the live file; the reader searches the whole private heap below
+        // 4 GB for clusters of those exact numbers (int32 and int16 layouts)
+        // and dumps each cluster with its neighbourhood.
+        private DateTime statsRequestLastCheckUtc = DateTime.MinValue;
+        private DateTime statsRequestHandledUtc = DateTime.MinValue;
+        private int statsSearchRunning;
+
+        private void MaybeRunStatsSearch(string screenJsonPath)
+        {
+            if (String.IsNullOrWhiteSpace(screenJsonPath)) return;
+            if ((DateTime.UtcNow - statsRequestLastCheckUtc).TotalSeconds < 2) return;
+            statsRequestLastCheckUtc = DateTime.UtcNow;
+            string folder = Path.GetDirectoryName(screenJsonPath);
+            if (String.IsNullOrWhiteSpace(folder)) return;
+            string requestPath = Path.Combine(folder, "probe-request.json");
+            if (!File.Exists(requestPath)) return;
+            DateTime written = File.GetLastWriteTimeUtc(requestPath);
+            if (written <= statsRequestHandledUtc) return;
+            statsRequestHandledUtc = written;
+            if (Interlocked.CompareExchange(ref statsSearchRunning, 1, 0) != 0) return;
+            string json;
+            try { json = File.ReadAllText(requestPath); } catch { Interlocked.Exchange(ref statsSearchRunning, 0); return; }
+            RamReadResult quarter = Read("quarter", 1, 20);
+            RamReadResult clock = Read("gameClockSeconds", 0, 3600);
+            int quarterValue = quarter.Available ? quarter.Value : -1;
+            int clockValue = clock.Available ? clock.Value : -1;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try { RunStatsSearch(screenJsonPath, json, quarterValue, clockValue); }
+                catch (Exception error)
+                {
+                    Dictionary<string, object> failed = new Dictionary<string, object>
+                    {
+                        { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                        { "kind", "error" }, { "error", error.Message }
+                    };
+                    AppendProbeLine(screenJsonPath, "stats-search.jsonl", failed);
+                }
+                finally { Interlocked.Exchange(ref statsSearchRunning, 0); }
+            });
+        }
+
+        private void RunStatsSearch(string screenJsonPath, string requestJson, int quarter, int clock)
+        {
+            Stopwatch watch = Stopwatch.StartNew();
+            Dictionary<string, object> request = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(requestJson);
+            List<int> values = new List<int>();
+            Dictionary<string, object> echo = new Dictionary<string, object>();
+            foreach (KeyValuePair<string, object> item in request)
+            {
+                int parsed;
+                if (item.Value != null && Int32.TryParse(Convert.ToString(item.Value, CultureInfo.InvariantCulture), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed))
+                {
+                    values.Add(parsed);
+                    echo[item.Key] = parsed;
+                }
+            }
+            Dictionary<string, object> header = new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "kind", "start" }, { "quarter", quarter }, { "clock", clock }, { "request", echo }
+            };
+            AppendProbeLine(screenJsonPath, "stats-search.jsonl", header);
+            if (values.Count == 0) return;
+            List<MemoryScanner.ValueCluster> clusters = scanner.FindValueClustersBelow4G(values.ToArray(), 256, 4, 200);
+            int written = 0;
+            foreach (MemoryScanner.ValueCluster cluster in clusters)
+            {
+                byte[] around;
+                try { around = scanner.ReadBytes(Math.Max(0, cluster.Start - 64), 64 + 320); }
+                catch { continue; }
+                Dictionary<string, object> entry = new Dictionary<string, object>
+                {
+                    { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                    { "kind", "cluster" },
+                    { "start", "0x" + cluster.Start.ToString("X", CultureInfo.InvariantCulture) },
+                    { "width", cluster.Width },
+                    { "distinct", cluster.DistinctValues },
+                    { "hits", cluster.Hits },
+                    { "ints", ResearchProbeHelpers.Int32Window(around, 64, 80) },
+                    { "shorts", ResearchProbeHelpers.Int16Window(around, 64, 80) }
+                };
+                AppendProbeLine(screenJsonPath, "stats-search.jsonl", entry);
+                written++;
+            }
+            Dictionary<string, object> footer = new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "kind", "done" }, { "clusters", written }, { "elapsedMs", watch.ElapsedMilliseconds }
+            };
+            AppendProbeLine(screenJsonPath, "stats-search.jsonl", footer);
+        }
+
         // ---- RESEARCH PROBE: penalty card (type + player) ---------------------
         // The FLAG banner we already read carries no type or player. The
         // result card that shows "Holding - Offense - #72" must hold that data
@@ -1130,6 +1285,7 @@ namespace CollegeFootballRamDiagnostic
         // Text present at the flag but gone afterwards is the live card.
         private const int PenaltyFlagMessageId = 1150630092;
         private int penaltyProbeRunning;
+        private readonly Queue<KeyValuePair<string, string>> penaltyProbeQueue = new Queue<KeyValuePair<string, string>>();
         private bool penaltyProbeBaselineDone;
         private DateTime penaltyProbeFlagUtc = DateTime.MinValue;
         private bool penaltyProbeAfterQueued;
@@ -1166,7 +1322,16 @@ namespace CollegeFootballRamDiagnostic
         private void StartPenaltyProbe(string screenJsonPath, string phase)
         {
             if (String.IsNullOrWhiteSpace(screenJsonPath)) return;
-            if (Interlocked.CompareExchange(ref penaltyProbeRunning, 1, 0) != 0) return;
+            if (Interlocked.CompareExchange(ref penaltyProbeRunning, 1, 0) != 0)
+            {
+                // A scan is running (the baseline took ~25 s in the probe game
+                // and swallowed the flag scan). Queue it; the worker drains.
+                lock (penaltyProbeQueue)
+                {
+                    if (penaltyProbeQueue.Count < 6) penaltyProbeQueue.Enqueue(new KeyValuePair<string, string>(screenJsonPath, phase));
+                }
+                return;
+            }
             RamReadResult quarter = Read("quarter", 1, 20);
             RamReadResult clock = Read("gameClockSeconds", 0, 3600);
             int quarterValue = quarter.Available ? quarter.Value : -1;
@@ -1184,7 +1349,13 @@ namespace CollegeFootballRamDiagnostic
                     };
                     AppendProbeLine(screenJsonPath, "penalty-probe.jsonl", failed);
                 }
-                finally { Interlocked.Exchange(ref penaltyProbeRunning, 0); }
+                finally
+                {
+                    Interlocked.Exchange(ref penaltyProbeRunning, 0);
+                    KeyValuePair<string, string> next = new KeyValuePair<string, string>(null, null);
+                    lock (penaltyProbeQueue) { if (penaltyProbeQueue.Count > 0) next = penaltyProbeQueue.Dequeue(); }
+                    if (next.Key != null) StartPenaltyProbe(next.Key, next.Value);
+                }
             });
         }
 
@@ -4050,7 +4221,12 @@ namespace CollegeFootballRamDiagnostic
             for (int index = 0; index < messages.Count; index++)
             {
                 ScoreHudMessageCandidate message = messages[index];
-                string signature = message.MessageId + "|" + (message.DisplayText ?? "")
+                // The address is part of the identity: the game allocates a
+                // fresh object per banner, so a second FLAG with identical
+                // text is a new object. Without it every repeat of a banner
+                // was swallowed (probe game 2026-08-18: 3 flags, 1 logged).
+                string signature = message.Address.ToString("X", CultureInfo.InvariantCulture)
+                    + "|" + message.MessageId + "|" + (message.DisplayText ?? "")
                     + "|" + (message.InfoText ?? "") + "|" + message.PlayerId
                     + "|" + message.TeamId;
                 if (loggedScoreHudMessages.Count > 2000) loggedScoreHudMessages.Clear();

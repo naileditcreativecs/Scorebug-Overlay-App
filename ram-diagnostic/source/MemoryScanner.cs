@@ -656,14 +656,18 @@ namespace CollegeFootballRamDiagnostic
             EnsureAttached();
             if (values == null || values.Length == 0) throw new ArgumentException("Text values are required.");
             Dictionary<string, List<long>> result = new Dictionary<string, List<long>>(StringComparer.Ordinal);
-            List<KeyValuePair<string, byte[]>> patterns = new List<KeyValuePair<string, byte[]>>();
+            // First-byte dispatch: one pass over each chunk, only the patterns
+            // that start with the byte under the cursor are compared. The
+            // naive per-pattern loop took ~25 s per scan in the probe game.
+            List<KeyValuePair<string, byte[]>>[] byFirst = new List<KeyValuePair<string, byte[]>>[256];
             int longest = 1;
             for (int index = 0; index < values.Length; index++)
             {
                 if (String.IsNullOrWhiteSpace(values[index]) || result.ContainsKey(values[index])) continue;
                 byte[] pattern = Encoding.ASCII.GetBytes(values[index]);
-                patterns.Add(new KeyValuePair<string, byte[]>(values[index], pattern));
                 result.Add(values[index], new List<long>());
+                if (byFirst[pattern[0]] == null) byFirst[pattern[0]] = new List<KeyValuePair<string, byte[]>>();
+                byFirst[pattern[0]].Add(new KeyValuePair<string, byte[]>(values[index], pattern));
                 if (pattern.Length > longest) longest = pattern.Length;
             }
             List<MemoryRegion> regions = EnumerateRegions();
@@ -678,21 +682,23 @@ namespace CollegeFootballRamDiagnostic
                     int requested = (int)Math.Min(buffer.Length, region.Size - offset);
                     int bytesRead = Read(region.BaseAddress + offset, buffer, requested);
                     if (bytesRead <= 0) break;
-                    for (int patternIndex = 0; patternIndex < patterns.Count; patternIndex++)
+                    for (int position = 0; position < bytesRead; position++)
                     {
-                        byte[] pattern = patterns[patternIndex].Value;
-                        List<long> hits = result[patterns[patternIndex].Key];
-                        if (hits.Count >= maximumPerValue || bytesRead < pattern.Length) continue;
-                        int search = 0;
-                        while (search <= bytesRead - pattern.Length)
+                        List<KeyValuePair<string, byte[]>> candidates = byFirst[buffer[position]];
+                        if (candidates == null) continue;
+                        for (int candidateIndex = 0; candidateIndex < candidates.Count; candidateIndex++)
                         {
-                            int hit = Array.IndexOf(buffer, pattern[0], search, bytesRead - search);
-                            if (hit < 0 || hit > bytesRead - pattern.Length) break;
-                            search = hit + 1;
-                            if (!Matches(buffer, hit, pattern, -1, -1)) continue;
-                            long address = region.BaseAddress + offset + hit;
-                            if (hits.Count == 0 || hits[hits.Count - 1] != address) hits.Add(address);
-                            if (hits.Count >= maximumPerValue) break;
+                            byte[] pattern = candidates[candidateIndex].Value;
+                            if (position + pattern.Length > bytesRead) continue;
+                            bool match = true;
+                            for (int k = 1; k < pattern.Length; k++)
+                            {
+                                if (buffer[position + k] != pattern[k]) { match = false; break; }
+                            }
+                            if (!match) continue;
+                            List<long> hits = result[candidates[candidateIndex].Key];
+                            long address = region.BaseAddress + offset + position;
+                            if (hits.Count < maximumPerValue && (hits.Count == 0 || hits[hits.Count - 1] != address)) hits.Add(address);
                         }
                     }
                     if (requested <= longest) break;
@@ -700,6 +706,76 @@ namespace CollegeFootballRamDiagnostic
                 }
             }
             return result;
+        }
+
+        public sealed class ValueCluster
+        {
+            public long Start;
+            public int Width;
+            public int DistinctValues;
+            public List<string> Hits = new List<string>();
+        }
+
+        // Where do several known numbers sit close together? Scans the private
+        // heap below 4 GB for the given values as int32 (4-aligned) and int16
+        // (2-aligned) and returns windows of `windowBytes` holding at least
+        // `minimumDistinct` DISTINCT wanted values (values 0..5 are too
+        // common to count toward the minimum but are still reported).
+        public List<ValueCluster> FindValueClustersBelow4G(int[] values, int windowBytes, int minimumDistinct, int maximumClusters)
+        {
+            EnsureAttached();
+            HashSet<int> wanted = new HashSet<int>(values);
+            List<KeyValuePair<long, int>> hits = new List<KeyValuePair<long, int>>();
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize];
+            foreach (MemoryRegion region in regions)
+            {
+                if (region.BaseAddress < 0 || region.BaseAddress >= 0x100000000L) continue;
+                long offset = 0;
+                while (offset < region.Size)
+                {
+                    int requested = (int)Math.Min(buffer.Length, region.Size - offset);
+                    int bytesRead = Read(region.BaseAddress + offset, buffer, requested);
+                    if (bytesRead <= 0) break;
+                    long chunkAddress = region.BaseAddress + offset;
+                    int alignment = (int)((2 - (chunkAddress & 1)) & 1);
+                    for (int position = alignment; position + 2 <= bytesRead; position += 2)
+                    {
+                        long address = chunkAddress + position;
+                        short shortValue = BitConverter.ToInt16(buffer, position);
+                        if (wanted.Contains(shortValue) && Math.Abs(shortValue) > 5) hits.Add(new KeyValuePair<long, int>(address, shortValue));
+                        if ((address & 3) == 0 && position + 4 <= bytesRead)
+                        {
+                            int intValue = BitConverter.ToInt32(buffer, position);
+                            if (wanted.Contains(intValue) && Math.Abs(intValue) > 5) hits.Add(new KeyValuePair<long, int>(address, intValue));
+                        }
+                        if (hits.Count > 3000000) break;
+                    }
+                    if (requested <= 4) break;
+                    offset += requested - 4;
+                }
+            }
+            hits.Sort(delegate(KeyValuePair<long, int> a, KeyValuePair<long, int> b) { return a.Key.CompareTo(b.Key); });
+            List<ValueCluster> clusters = new List<ValueCluster>();
+            int start = 0;
+            long lastClusterEnd = -1;
+            for (int index = 0; index < hits.Count && clusters.Count < maximumClusters; index++)
+            {
+                while (hits[index].Key - hits[start].Key > windowBytes) start++;
+                HashSet<int> distinct = new HashSet<int>();
+                for (int k = start; k <= index; k++) distinct.Add(hits[k].Value);
+                if (distinct.Count < minimumDistinct) continue;
+                if (hits[start].Key <= lastClusterEnd) continue;
+                ValueCluster cluster = new ValueCluster();
+                cluster.Start = hits[start].Key;
+                cluster.Width = (int)(hits[index].Key - hits[start].Key) + 4;
+                cluster.DistinctValues = distinct.Count;
+                for (int k = start; k <= index && cluster.Hits.Count < 24; k++)
+                    cluster.Hits.Add("+0x" + (hits[k].Key - hits[start].Key).ToString("X", CultureInfo.InvariantCulture) + "=" + hits[k].Value);
+                clusters.Add(cluster);
+                lastClusterEnd = hits[index].Key;
+            }
+            return clusters;
         }
 
         // Every private-heap object (below 4 GB) whose first 8 bytes point at

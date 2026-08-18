@@ -1,5 +1,5 @@
-CFB27 SCOREBUG CENTER — DATA HUNT TESTS (v1.4.44)
-=================================================
+CFB27 SCOREBUG CENTER — DATA HUNT TESTS (v1.4.45, round 2)
+==========================================================
 
 These are research probes. They never change what the scorebug shows; they
 write extra log files while you play so we can find data the app does not
@@ -31,29 +31,34 @@ which side (offense/defense), jersey number, accepted/declined. Two or
 three flags in a game are plenty; more is better.
 
 ------------------------------------------------------------------------
-TEST 2 — Live team stats                              -> stats-probe.jsonl
+TEST 2 — Live team stats (round 2)     -> stats-search.jsonl (+ stats-probe.jsonl)
 ------------------------------------------------------------------------
-Hunting the running box score in memory. Every down change the reader
-snapshots 512 KB around the live game record and logs the numbers that
-ROSE like a stat and never went down all game ("steady" candidates every
-8 ticks).
+Round 1 proved the box score is NOT near the live game record, so round 2
+searches the whole game heap for the numbers you type in:
 
-Please note at HALFTIME and at FINAL: both teams' total yards, passing
-yards, rushing yards, first downs, penalties (count + yards), time of
-possession, 3rd-down conversions — straight from the game's stats screen.
-A photo of the stats screen is ideal.
+  1. At halftime (or any stoppage) open the game's STATS screen.
+  2. In the app: Diagnostics tab -> "Find the live box score in memory".
+     Type the numbers exactly as the screen shows them (left team / right
+     team). Blank fields are fine.
+  3. Press "Search memory now" and leave the game paused on the stats
+     screen for ~30 seconds. Take a photo of the stats screen too.
+  4. Do it once at halftime and once at final if you can.
+
+Results append to stats-search.jsonl next to live-game-data.json.
 
 ------------------------------------------------------------------------
-TEST 3 — Play-call menu detection      -> toggle-probe.jsonl (+ hudstate-probe.jsonl)
+TEST 3 — Play-call menu detection      -> playcall-probe.jsonl (+ toggle-probe.jsonl)
 ------------------------------------------------------------------------
-Hunting the flag that flips when the play picker opens/closes so the bug
-can slide out and back at the right time. Every 250 ms the reader logs
-tiny-value byte flips within +-8 KB of the game record; the round-2
-hud-state probe sweeps the game record's own block.
+Round 1 found a candidate: a byte just below the live game record that
+flips when the play picker opens and closes (it matched 4 of 5 noted
+moments in the probe game). The reader now publishes it, and
+playcall-probe.jsonl logs every flip with the game clock.
 
 Please note 5–10 moments with the game clock: "picker opened", "picker
-closed" (snap). Hurry-up / no-huddle plays are especially useful — note
-those too.
+closed" (snap) — hurry-up / no-huddle plays and DEFENSIVE play calls are
+especially useful. If you want to see it in action, tick Settings ->
+"Hide the scorebug while a play is being picked (experimental)" and tell
+us whether the bug leaves and returns at the right moments.
 
 ------------------------------------------------------------------------
 TEST 4 — Dynasty save context, season stats, player stats -> dynasty-probe.json
@@ -79,9 +84,8 @@ save to read; this is Dynasty only.
 WHAT TO SEND (zip the whole data-export folder if easier)
 ------------------------------------------------------------------------
   penalty-probe.jsonl      (test 1)
-  stats-probe.jsonl        (test 2)
-  toggle-probe.jsonl       (test 3)
-  hudstate-probe.jsonl     (test 3, round 2)
+  stats-search.jsonl       (test 2, round 2)  + stats-probe.jsonl
+  playcall-probe.jsonl     (test 3, round 2)  + toggle-probe.jsonl
   messages-probe.jsonl     (banner stream - always useful)
   dynasty-probe.json       (test 4)
   + your notes / photos with game-clock times

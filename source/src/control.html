@@ -14,7 +14,7 @@
       <h1>Scorebug Center</h1>
       <p class="header-subtitle">Every overlay tool has its own tab. In game, Ctrl+Alt+O opens the scorebug editor.</p>
     </div>
-    <span id="app-version" class="version">v1.4.44</span>
+    <span id="app-version" class="version">v1.4.45</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -354,6 +354,7 @@
         <article class="card">
           <div class="card-heading"><div><p class="eyebrow">OVERLAY BEHAVIOR</p><h2>How the app behaves in-game</h2></div></div>
           <label class="check"><input id="auto-hide" type="checkbox" checked><span>Hide when the donor scoreboard is absent</span></label>
+          <label class="check"><input id="hide-during-play-call" type="checkbox"><span>Hide the scorebug while a play is being picked <em>(experimental - reads the game's play-call state from memory; found in the 2026-08-18 probe game, still being confirmed)</em></span></label>
           <label class="check"><input id="hide-unfocused" type="checkbox" checked><span>Hide when CFB27 is not focused</span></label>
           <label class="check"><input id="overlay-click-through" type="checkbox" checked><span>Let mouse clicks pass through the overlay when it is locked</span></label>
           <label class="check"><input id="overlay-always-on-top" type="checkbox" checked><span>Keep the overlay above the game and other windows</span></label>
@@ -403,6 +404,24 @@
         <div class="card-heading"><div><p class="eyebrow">AUTOMATIC DATA EXTRACTION</p><h2>CSV, events, text, and screenshots</h2></div><div class="button-row"><button id="btn-open-data-export" class="primary">Open data folder</button></div></div>
         <p class="status-detail">The test build writes validated scorebug changes to <strong>scoreboard.csv</strong> and saves discovered touchdown, penalty, and statistics text while the reader runs.</p>
         <p id="ram-reader-status" class="status-detail">Read-only RAM reader is starting inside this app.</p>
+      </article>
+      <article class="card" id="stats-search-card">
+        <div class="card-heading"><div><p class="eyebrow">DATA HUNT · TEST 2 (ROUND 2)</p><h2>Find the live box score in memory</h2></div><div class="button-row"><button id="btn-stats-search" class="primary">Search memory now</button></div></div>
+        <p class="hint">Pause at halftime (or any stoppage), open the game's <strong>stats</strong> screen, type the numbers exactly as shown, then press <strong>Search memory now</strong>. The reader hunts the whole game heap for these numbers sitting together and writes <code>stats-search.jsonl</code> next to <code>live-game-data.json</code>. Leave the game paused on the stats screen for ~30 s. Blank fields are ignored.</p>
+        <div class="stats-search-grid">
+          <span></span><strong>Left team</strong><strong>Right team</strong>
+          <label>Total offense</label><input id="ss-away-total" inputmode="numeric" placeholder="35"><input id="ss-home-total" inputmode="numeric" placeholder="28">
+          <label>Rush yards</label><input id="ss-away-rush" inputmode="numeric" placeholder="29"><input id="ss-home-rush" inputmode="numeric" placeholder="-15">
+          <label>Pass yards</label><input id="ss-away-pass" inputmode="numeric" placeholder="6"><input id="ss-home-pass" inputmode="numeric" placeholder="43">
+          <label>Total plays</label><input id="ss-away-plays" inputmode="numeric" placeholder="7"><input id="ss-home-plays" inputmode="numeric" placeholder="14">
+          <label>First downs</label><input id="ss-away-fd" inputmode="numeric" placeholder="1"><input id="ss-home-fd" inputmode="numeric" placeholder="2">
+          <label>Rush attempts</label><input id="ss-away-rushatt" inputmode="numeric" placeholder="2"><input id="ss-home-rushatt" inputmode="numeric" placeholder="4">
+          <label>Completions</label><input id="ss-away-comp" inputmode="numeric" placeholder="1"><input id="ss-home-comp" inputmode="numeric" placeholder="4">
+          <label>Pass attempts</label><input id="ss-away-att" inputmode="numeric" placeholder="5"><input id="ss-home-att" inputmode="numeric" placeholder="10">
+          <label>Penalties · yards</label><span class="stats-pair"><input id="ss-away-pen" inputmode="numeric" placeholder="3"><input id="ss-away-penyds" inputmode="numeric" placeholder="20"></span><span class="stats-pair"><input id="ss-home-pen" inputmode="numeric" placeholder="1"><input id="ss-home-penyds" inputmode="numeric" placeholder="5"></span>
+          <label>Time of possession (sec)</label><input id="ss-away-top" inputmode="numeric" placeholder="612"><input id="ss-home-top" inputmode="numeric" placeholder="828">
+        </div>
+        <p id="stats-search-status" class="status-detail"></p>
       </article>
       <article class="card">
         <div class="card-heading"><div><p class="eyebrow">LIVE READER EVIDENCE</p><h2>Field reads</h2></div><div class="button-row"><button id="btn-save-debug-crops">Save reader debug images</button></div></div>
