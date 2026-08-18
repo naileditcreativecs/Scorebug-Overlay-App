@@ -323,7 +323,36 @@ namespace CollegeFootballRamDiagnostic
             ResetLogicalState();
         }
 
+        // Live-loop stall watchdog. Anything that blocks Refresh for longer
+        // than a tick or two shows on the bug as a sticking clock. Count the
+        // stalls and remember the worst so a report can say whether the
+        // export loop itself is what lagged, instead of guessing.
+        private int slowRefreshCount;
+        private long worstRefreshMs;
+        private DateTime lastSlowRefreshUtc = DateTime.MinValue;
+        private const long SlowRefreshThresholdMs = 350;
+
         public string Refresh(LiveScoreboard screen, string screenJsonPath)
+        {
+            System.Diagnostics.Stopwatch refreshTimer = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                return RefreshCore(screen, screenJsonPath);
+            }
+            finally
+            {
+                refreshTimer.Stop();
+                long elapsed = refreshTimer.ElapsedMilliseconds;
+                if (elapsed > worstRefreshMs) worstRefreshMs = elapsed;
+                if (elapsed >= SlowRefreshThresholdMs)
+                {
+                    slowRefreshCount++;
+                    lastSlowRefreshUtc = DateTime.UtcNow;
+                }
+            }
+        }
+
+        private string RefreshCore(LiveScoreboard screen, string screenJsonPath)
         {
             // The shipped overlay is RAM-only. Never let a stale/blank screen
             // snapshot influence discovery, validation, or published fields.
@@ -451,7 +480,17 @@ namespace CollegeFootballRamDiagnostic
             {
                 // Recovery only: do not clear published output or begin a
                 // matchup transition. Nothing about the current game changed.
-                RunAutomaticDiscovery(screen);
+                //
+                // This used to call RunAutomaticDiscovery here - a blocking
+                // multi-second sweep on the live thread, every 10s, for as long
+                // as timeouts or ranks stayed unbound. On the bug that read as
+                // the clock sticking for a couple of seconds and jumping, over
+                // and over (a Dynasty game with an unusable timeout catalog
+                // never binds timeouts, so it never stopped). The background
+                // sweep already installs timeouts and the ScoreHud discovery
+                // already binds ranks, both off-thread: pull them forward
+                // instead of freezing the export.
+                RequestBackgroundRecoverySweep();
             }
             if ((processNeedsDiscovery || matchupNeedsDiscovery)
                 && DateTime.UtcNow >= nextAutoDiscoveryUtc)
@@ -825,6 +864,12 @@ namespace CollegeFootballRamDiagnostic
                 { "screenBackedFields", new string[0] },
                 { "remainingRamWork", new string[0] },
                 { "automaticLocator", autoDiscoverySummary },
+                { "liveLoop", slowRefreshCount == 0
+                    ? "no slow ticks (worst " + worstRefreshMs.ToString(CultureInfo.InvariantCulture) + "ms)"
+                    : slowRefreshCount.ToString(CultureInfo.InvariantCulture) + " slow tick(s) >= "
+                        + SlowRefreshThresholdMs.ToString(CultureInfo.InvariantCulture) + "ms, worst "
+                        + worstRefreshMs.ToString(CultureInfo.InvariantCulture) + "ms, last "
+                        + ((int)(DateTime.UtcNow - lastSlowRefreshUtc).TotalSeconds).ToString(CultureInfo.InvariantCulture) + "s ago" },
                 { "coreCrossCheck", lastCoreCrossCheckUtc == DateTime.MinValue
                     ? "not yet re-verified by an independent full read"
                     : "independent full read agreed " + coreCrossCheckAgreements.ToString(CultureInfo.InvariantCulture)
@@ -2917,6 +2962,16 @@ namespace CollegeFootballRamDiagnostic
         {
             return transitionStarted || (!selectedIsSpecial
                 && (transitionActive || rawDistanceIsAmbiguous || downDistanceChanged));
+        }
+
+        private void RequestBackgroundRecoverySweep()
+        {
+            lock (teamNameDiscoverySync)
+            {
+                if (!teamNameDiscoveryRunning) nextTeamNameDiscoveryUtc = DateTime.MinValue;
+            }
+            RequestTeamNameDiscoveryIfNeeded();
+            if (!HasConfiguredField("awayRank")) RequestScoreHudDiscovery();
         }
 
         private void RequestTeamNameDiscoveryIfNeeded()

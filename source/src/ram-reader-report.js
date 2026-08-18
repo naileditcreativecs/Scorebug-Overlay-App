@@ -226,7 +226,7 @@ function buildRamReaderReport(input = {}) {
   text.push('  live data age: ' + (liveAtMs === null ? 'no live file' : Math.round((now - liveAtMs) / 1000) + 's'));
   if (live?.discovery) {
     const discovery = live.discovery;
-    for (const key of ['automaticLocator', 'coreCrossCheck', 'teamRole', 'matchupBind', 'rankBind', 'teamIdNames',
+    for (const key of ['automaticLocator', 'liveLoop', 'coreCrossCheck', 'teamRole', 'matchupBind', 'rankBind', 'teamIdNames',
       'timeoutBind', 'timeoutInstall', 'timeoutCatalog', 'possessionBind']) {
       if (discovery[key] !== undefined && discovery[key] !== null) {
         text.push('  ' + key + ': ' + String(discovery[key]));
