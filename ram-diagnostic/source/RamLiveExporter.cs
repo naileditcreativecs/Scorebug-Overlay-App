@@ -4088,8 +4088,15 @@ namespace CollegeFootballRamDiagnostic
             }
             else
             {
+                bool orientedByName = false;
                 if (!TrySelectFreshScoreHudSides(teams, awayScore, homeScore, possession,
-                    out away, out home, out distinctScoreEvidence))
+                        out away, out home, out distinctScoreEvidence)
+                    && TrySelectScoreHudSidesByName(teams, lastAwayTeamName, lastHomeTeamName,
+                        CatalogNameForTeamId, awayScore, homeScore, out away, out home))
+                {
+                    orientedByName = true;
+                }
+                if (away == null || home == null)
                 {
                     // Orientation needs either two different scores or a
                     // trusted possession bit to tell home from away. Say which
@@ -4106,7 +4113,7 @@ namespace CollegeFootballRamDiagnostic
                     nextRankScoreHudDiscoveryUtc = DateTime.UtcNow.AddSeconds(2);
                     return;
                 }
-                int requiredConfirmations = distinctScoreEvidence ? 1 : 3;
+                int requiredConfirmations = distinctScoreEvidence ? 1 : (orientedByName ? 2 : 3);
                 if (pendingAwayScoreHudTeamId == away.TeamId
                     && pendingHomeScoreHudTeamId == home.TeamId
                     && pendingAwayScoreHudRank == away.Rank
@@ -4158,6 +4165,73 @@ namespace CollegeFootballRamDiagnostic
             lastAwayRankGeneration = matchupGeneration;
             lastHomeRankGeneration = matchupGeneration;
             ApplyOrientedTimeoutFields(away, home);
+        }
+
+        // Orientation by team identity. Each ScoreHud team object carries a
+        // TeamId that resolves to a catalog name, and the matchup's away/home
+        // names are already known from the role buffers. When the two names
+        // differ and exactly one team's objects match each side, that IS the
+        // orientation - no score movement needed. This is what lets ranks and
+        // records show from the kickoff instead of after the first score
+        // (Dynasty games sat at 0-0 with both objects found and nothing
+        // published). Stale objects from previous games in the same process
+        // are filtered by requiring the object's score to match the live
+        // score; disagreeing clone ranks are treated as ambiguous.
+        internal static bool TrySelectScoreHudSidesByName(List<ScoreHudTeamCandidate> teams,
+            string awayName, string homeName, Func<int, string> catalogNameForTeamId,
+            RamReadResult awayScore, RamReadResult homeScore,
+            out ScoreHudTeamCandidate away, out ScoreHudTeamCandidate home)
+        {
+            away = null;
+            home = null;
+            if (teams == null || catalogNameForTeamId == null) return false;
+            string awaySlug = MemoryScanner.NormalizeSlug(awayName);
+            string homeSlug = MemoryScanner.NormalizeSlug(homeName);
+            if (String.IsNullOrEmpty(awaySlug) || String.IsNullOrEmpty(homeSlug)
+                || String.Equals(awaySlug, homeSlug, StringComparison.Ordinal)) return false;
+            Dictionary<int, string> slugByTeamId = new Dictionary<int, string>();
+            for (int index = 0; index < teams.Count; index++)
+            {
+                ScoreHudTeamCandidate candidate = teams[index];
+                if (awayScore.Available && candidate.Score != awayScore.Value
+                    && homeScore.Available && candidate.Score != homeScore.Value) continue;
+                string slug;
+                if (!slugByTeamId.TryGetValue(candidate.TeamId, out slug))
+                {
+                    string name = null;
+                    try { name = catalogNameForTeamId(candidate.TeamId); } catch { name = null; }
+                    slug = MemoryScanner.NormalizeSlug(name);
+                    slugByTeamId[candidate.TeamId] = slug;
+                }
+                if (String.IsNullOrEmpty(slug)) continue;
+                bool isAway = String.Equals(slug, awaySlug, StringComparison.Ordinal);
+                bool isHome = String.Equals(slug, homeSlug, StringComparison.Ordinal);
+                if (isAway == isHome) continue;
+                if (isAway && awayScore.Available && candidate.Score != awayScore.Value) continue;
+                if (isHome && homeScore.Available && candidate.Score != homeScore.Value) continue;
+                if (isAway)
+                {
+                    if (away == null) away = candidate;
+                    else if (away.TeamId != candidate.TeamId || away.Rank != candidate.Rank) { away = null; home = null; return false; }
+                    else if (candidate.Address > away.Address) away = candidate;
+                }
+                else
+                {
+                    if (home == null) home = candidate;
+                    else if (home.TeamId != candidate.TeamId || home.Rank != candidate.Rank) { away = null; home = null; return false; }
+                    else if (candidate.Address > home.Address) home = candidate;
+                }
+            }
+            if (away == null || home == null || away.TeamId == home.TeamId) { away = null; home = null; return false; }
+            return true;
+        }
+
+        private string CatalogNameForTeamId(int teamId)
+        {
+            long catalogBase = SingleConfiguredAddress("teamCatalogBase");
+            if (catalogBase == 0 || teamId < 0 || teamId > 4096) return null;
+            try { return scanner.ReadAsciiString(catalogBase + (long)teamId * 0xD8 + 32, 31); }
+            catch { return null; }
         }
 
         // All clone addresses for one bound team, selected side first. Clones

@@ -143,8 +143,10 @@ Rules of thumb
 Known limitations
 -----------------
 - Team names for TeamBuilder/custom teams are not read yet.
-- Ranks/records appear after the first score of a game (tied 0-0 gives
-  the reader no proof of which team is which).
+- Ranks/records normally show from the kickoff (the reader matches the
+  scoreboard team objects to the away/home names). If the two teams
+  cannot be told apart by name (identical or unreadable names), they
+  appear after the first score instead.
 - A game patch can break rank/record/timeout/possession reading until
   the reader is updated; scores/clock/downs survive patches.
 

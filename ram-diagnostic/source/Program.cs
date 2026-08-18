@@ -3927,6 +3927,53 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.HudPossessionCandidate(0, 0) != -1
                     || RamLiveExporter.HudPossessionCandidate(1, 1) != -1)
                     throw new Exception("HUD possession candidate rule is not complementary-only.");
+                // Name-based ScoreHud orientation (ranks/records from kickoff):
+                // objects bind by catalog name at a tied score; stale objects
+                // whose score disagrees are ignored; disagreeing clone ranks,
+                // an unknown name, or identical names refuse to orient.
+                {
+                    Func<int, string> names = delegate(int id)
+                    {
+                        if (id == 7) return "Air Force";
+                        if (id == 33) return "Fresno State";
+                        if (id == 9) return "Texas A&M";
+                        return null;
+                    };
+                    RamReadResult tied = new RamReadResult(true, 0, 1, 1, 1);
+                    List<ScoreHudTeamCandidate> pool = new List<ScoreHudTeamCandidate>
+                    {
+                        new ScoreHudTeamCandidate { Address = 0x1000, TeamId = 33, Rank = 20, Score = 0 },
+                        new ScoreHudTeamCandidate { Address = 0x2000, TeamId = 7, Rank = 8, Score = 0 },
+                        // stale object from an earlier game in the same process
+                        new ScoreHudTeamCandidate { Address = 0x3000, TeamId = 7, Rank = 8, Score = 24 },
+                    };
+                    ScoreHudTeamCandidate a, h;
+                    if (!RamLiveExporter.TrySelectScoreHudSidesByName(pool, "Air Force", "Fresno State", names, tied, tied, out a, out h)
+                        || a.TeamId != 7 || h.TeamId != 33 || a.Address != 0x2000)
+                        throw new Exception("Name orientation failed to bind a tied kickoff by catalog names.");
+                    // Punctuated name matches through the slug rule.
+                    List<ScoreHudTeamCandidate> punct = new List<ScoreHudTeamCandidate>
+                    {
+                        new ScoreHudTeamCandidate { Address = 0x1000, TeamId = 9, Rank = 3, Score = 0 },
+                        new ScoreHudTeamCandidate { Address = 0x2000, TeamId = 33, Rank = 0, Score = 0 },
+                    };
+                    if (!RamLiveExporter.TrySelectScoreHudSidesByName(punct, "TEXAS A&M", "fresno state", names, tied, tied, out a, out h)
+                        || a.TeamId != 9)
+                        throw new Exception("Name orientation did not match punctuated names by slug.");
+                    // Same name on both sides, or an unresolvable id: no orientation.
+                    if (RamLiveExporter.TrySelectScoreHudSidesByName(pool, "Air Force", "Air Force", names, tied, tied, out a, out h)
+                        || RamLiveExporter.TrySelectScoreHudSidesByName(pool, "Air Force", "Nowhere State", names, tied, tied, out a, out h))
+                        throw new Exception("Name orientation guessed without two distinct matching names.");
+                    // Clones of one team disagreeing on rank are ambiguous.
+                    List<ScoreHudTeamCandidate> ambiguous = new List<ScoreHudTeamCandidate>
+                    {
+                        new ScoreHudTeamCandidate { Address = 0x1000, TeamId = 33, Rank = 20, Score = 0 },
+                        new ScoreHudTeamCandidate { Address = 0x2000, TeamId = 7, Rank = 8, Score = 0 },
+                        new ScoreHudTeamCandidate { Address = 0x3000, TeamId = 7, Rank = 9, Score = 0 },
+                    };
+                    if (RamLiveExporter.TrySelectScoreHudSidesByName(ambiguous, "Air Force", "Fresno State", names, tied, tied, out a, out h))
+                        throw new Exception("Name orientation accepted clones with disagreeing ranks.");
+                }
                 // Message team attribution: only a positive id matching an
                 // oriented side resolves; unknown ids and the -1/0 "no team"
                 // sentinels stay null rather than guessing a side.
