@@ -1045,6 +1045,38 @@ function croppedPreview(activeGesture, screenX, screenY) {
   };
 }
 
+// The Teams panel used to sit dead-center, which is exactly where most bugs
+// live - so every team/rank/logo pick was invisible until Done closed the
+// panel. Place the panel in whichever screen half the bug is NOT in, so
+// changes are visible the instant they apply. Overridable per open by
+// dragging is not needed: the panel just follows the bug's opposite side.
+function placeTeamPanelClearOfBug() {
+  const panel = document.getElementById('team-panel');
+  if (!panel || !appState?.editorBounds || !appState?.outputBounds) return;
+  const bug = appState.outputBounds;
+  const localTop = bug.y - appState.editorBounds.y;
+  const localBottom = localTop + bug.height;
+  const viewportH = window.innerHeight;
+  const toolbarClear = 76;
+  const gap = 14;
+  const roomAbove = localTop - toolbarClear - gap;
+  const roomBelow = viewportH - localBottom - gap - 12;
+  // Prefer the side with more room; the panel needs ~520px to be useful,
+  // otherwise it will just overlap and scroll like before.
+  const belowWins = roomBelow > roomAbove;
+  panel.style.bottom = '';
+  if (belowWins && roomBelow >= 320) {
+    panel.style.top = `${Math.round(localBottom + gap)}px`;
+    panel.style.maxHeight = `${Math.max(320, Math.round(roomBelow))}px`;
+  } else if (roomAbove >= 320) {
+    panel.style.top = `${toolbarClear}px`;
+    panel.style.maxHeight = `${Math.max(320, Math.round(roomAbove))}px`;
+  } else {
+    panel.style.top = `${toolbarClear}px`;
+    panel.style.maxHeight = `calc(100vh - ${toolbarClear + 20}px)`;
+  }
+}
+
 function renderOutput() {
   if (!appState?.editorBounds || !appState?.outputBounds) return;
   const rectangle = appState.outputBounds;
@@ -1052,6 +1084,7 @@ function renderOutput() {
   outputBox.style.top = `${rectangle.y - appState.editorBounds.y}px`;
   outputBox.style.width = `${rectangle.width}px`;
   outputBox.style.height = `${rectangle.height}px`;
+  placeTeamPanelClearOfBug();
   const crop = Boolean(appState.cropMode);
   editor.classList.toggle('crop-active', crop);
   const cropButton = document.getElementById('crop-toggle');
