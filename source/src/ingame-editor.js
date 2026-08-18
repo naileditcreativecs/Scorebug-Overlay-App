@@ -1064,11 +1064,6 @@ function placeTeamPanelClearOfBug() {
   // Prefer the side with more room; the panel needs ~520px to be useful,
   // otherwise it will just overlap and scroll like before.
   const belowWins = roomBelow > roomAbove;
-  // The full panel needs roughly this much height; below it, fold the
-  // logo placement editors so the core rows fit without a scrollbar.
-  const FULL_PANEL_HEIGHT = 980;
-  const chosenRoom = belowWins ? roomBelow : roomAbove;
-  panel.classList.toggle('compact', chosenRoom < FULL_PANEL_HEIGHT);
   panel.style.bottom = '';
   if (belowWins && roomBelow >= 320) {
     panel.style.top = `${Math.round(localBottom + gap)}px`;
@@ -1480,18 +1475,6 @@ document.getElementById('clear-team-overrides').addEventListener('click', async 
     teamUpdateRunning = false;
   }
 });
-for (const side of ['away', 'home']) {
-  const toggle = document.getElementById(`${side}-logo-placement-toggle`);
-  const section = document.querySelector(`.logo-transform[data-side="${side}"]`);
-  if (!toggle || !section) continue;
-  toggle.hidden = false;
-  toggle.addEventListener('click', () => {
-    const open = !section.classList.contains('open');
-    section.classList.toggle('open', open);
-    toggle.setAttribute('aria-expanded', String(open));
-    toggle.innerHTML = open ? 'Logo placement &#9662;' : 'Logo placement &#9656;';
-  });
-}
 document.getElementById('new-game')?.addEventListener('click', () => {
   setToast('Re-reading the game from scratch - names, ranks and records will return in a few seconds.');
   api.freshRead().catch(reportError);

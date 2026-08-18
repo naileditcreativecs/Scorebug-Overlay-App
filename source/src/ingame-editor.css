@@ -193,11 +193,18 @@ button { font: inherit; }
 .team-panel {
   position: fixed;
   z-index: 950;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
   top: 76px;
   left: 50%;
   /* Wide enough for both team cards side by side with no horizontal
      scrolling: the record row and color swatches set the minimum. */
-  width: min(calc(100vw - 28px), 1120px);
+  /* Wide, not tall: each team card lays its core rows beside its logo
+     placement editor, so the whole panel fits above a low bug with every
+     control expanded - nothing folds, nothing scrolls. */
+  width: min(calc(100vw - 28px), 1700px);
   transform: translateX(-50%);
   border: 1px solid rgba(56, 189, 248, .52);
   border-radius: 13px;
@@ -215,7 +222,11 @@ button { font: inherit; }
   justify-content: space-between;
   gap: 12px;
 }
-.team-panel-heading { margin-bottom: 10px; }
+.team-panel-heading { margin-bottom: 8px; grid-column: 1 / -1; }
+.team-panel > .team-grid { grid-column: 1 / -1; }
+.team-panel > .color-presets { grid-column: 1; margin-top: 8px; border-top: 0; padding: 4px 0 0; }
+.team-panel > .team-panel-footer { grid-column: 2; margin-top: 8px; }
+.team-panel > .choice-picker { grid-column: 1 / -1; }
 .team-panel-heading strong { color: #7dd3fc; font-size: 13px; letter-spacing: .1em; }
 .team-panel-heading p, .team-panel-footer, .reader-value {
   margin: 4px 0 0;
@@ -235,8 +246,11 @@ button { font: inherit; }
 .team-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
 .team-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-auto-flow: row;
+  column-gap: 12px;
   min-width: 0;
-  gap: 7px;
+  gap: 7px 12px;
   border: 1px solid rgba(148, 163, 184, .25);
   border-radius: 10px;
   padding: 12px;
@@ -287,35 +301,10 @@ button { font: inherit; }
 .logo-actions button:disabled, .reset-logo-transform:disabled { opacity: .45; cursor: not-allowed; }
 .logo-actions button.danger { border-color: rgba(248, 113, 113, .55); color: #fecaca; background: #7f1d1d; }
 .logo-actions button.restore-defaults { border-color: rgba(52, 211, 153, .48); color: #a7f3d0; background: #065f46; }
-/* Compact mode: when the panel must fit in less room than its content
-   (the bug sits low, so the panel lives above it), the logo placement
-   editor - the tallest part - folds behind a per-team button so nothing
-   needs scrolling. Opening it is the user's choice and may scroll. */
-.logo-placement-toggle {
-  display: none;
-  min-height: 34px;
-  border: 1px solid rgba(125, 211, 252, .35);
-  border-radius: 8px;
-  background: rgba(7, 15, 27, .65);
-  color: #7dd3fc;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  cursor: pointer;
-}
-.team-panel.compact .logo-placement-toggle { display: block; }
-.team-panel.compact .logo-transform { display: none; }
-.team-panel.compact .logo-transform.open { display: grid; }
-.team-panel.compact .team-card { gap: 6px; padding: 10px; }
-.team-panel.compact { padding: 8px 12px 10px; }
-.team-panel.compact .team-panel-heading { margin-bottom: 6px; }
-.team-panel.compact .team-panel-heading p { display: none; }
-.team-panel.compact .team-panel-footer { margin-top: 8px; }
-.team-panel.compact .team-panel-footer p,
-.team-panel.compact .team-panel-footer > span { display: none; }
-.team-panel.compact .color-presets { margin-top: 8px; }
-.team-panel.compact .ocr-status, .team-panel.compact .reader-value { display: none; }
-
+/* The placement editor takes the card's right column, spanning every
+   row of the core controls on the left. */
+.team-card > .logo-transform { grid-column: 2; grid-row: 1 / span 12; align-self: start; }
+.team-card > :not(.logo-transform) { grid-column: 1; }
 .logo-transform {
   display: grid;
   gap: 6px;
@@ -568,7 +557,7 @@ button { font: inherit; }
   border-radius: 5px;
   background: rgba(255, 255, 255, .08);
 }
-.team-panel-footer { margin-top: 13px; }
+.team-panel-footer { margin-top: 0; }
 .team-panel-footer button {
   min-height: 32px;
   border: 1px solid rgba(251, 146, 60, .55);
@@ -617,6 +606,9 @@ button { font: inherit; }
   .view-tabs button { flex: 1; }
   .team-panel { top: 132px; }
   .team-grid { grid-template-columns: 1fr; }
+  .team-card { grid-template-columns: minmax(0, 1fr); }
+  .team-card > .logo-transform { grid-column: 1; grid-row: auto; }
+  .team-card > :not(.logo-transform) { grid-column: 1; }
   .choice-picker { inset: 62px 10px 54px; }
   .choice-picker-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .team-panel-footer { align-items: stretch; flex-direction: column; }
