@@ -25,7 +25,8 @@
     edit: 'edit-hotkey',
     reload: 'reload-hotkey',
     automatic: 'automatic-hotkey',
-    calibrationCapture: 'calibration-capture-hotkey',
+    // calibrationCapture keeps its default in the main process; its field
+    // left the Settings tab with the calibration panel.
     quickSettings: 'quick-settings-hotkey',
     freshRead: 'fresh-read-hotkey',
   });
@@ -669,6 +670,14 @@
       $(id).textContent = placementMode === 'locked' ? 'Position saved' : 'Save current position';
     });
     ['btn-follow-game', 'btn-follow-theme'].forEach((id) => { $(id).disabled = placementMode === 'follow-game'; });
+    const bounds = status.overlay?.bounds;
+    if ($('placement-readout-size')) {
+      $('placement-readout-size').textContent = bounds ? `${Math.round(bounds.width)} × ${Math.round(bounds.height)} px` : '—';
+      $('placement-readout-position').textContent = bounds ? `${Math.round(bounds.x)}, ${Math.round(bounds.y)}${bounds.displayLabel ? ` on ${bounds.displayLabel}` : ''}` : '—';
+      const themeLabel = status.overlay?.themeName || (status.overlay?.themePath ? String(status.overlay.themePath).split(/[\\/]/).pop() : '') || 'Built-in ESPN 2013';
+      $('placement-readout-theme').textContent = themeLabel;
+      $('placement-readout-theme').title = themeLabel;
+    }
     $('simple-position-help').textContent = placementMode === 'move'
       ? 'Move mode is ON. Drag the green handles to resize, or choose Crop and drag the orange edges inward.'
       : (placementMode === 'locked'
@@ -743,7 +752,7 @@
     $('overlay-click-through').checked = settings.overlay.clickThrough !== false;
     $('overlay-always-on-top').checked = settings.overlay.alwaysOnTop !== false;
     Object.entries(APP_HOTKEY_FIELDS).forEach(([name, id]) => {
-      $(id).value = settings.hotkeys[name] ?? DEFAULT_APP_HOTKEYS[name];
+      if ($(id)) $(id).value = settings.hotkeys[name] ?? DEFAULT_APP_HOTKEYS[name];
     });
     updateThemeSummary(settings.theme.path);
     updateCalibrationProfileSummary();
@@ -2324,7 +2333,7 @@
     $('btn-save-app-settings').addEventListener('click', async () => {
       settings.hotkeys ||= {};
       const nextHotkeys = Object.fromEntries(
-        Object.entries(APP_HOTKEY_FIELDS).map(([name, id]) => [name, $(id).value.trim()]),
+        Object.entries(APP_HOTKEY_FIELDS).filter(([, id]) => $(id)).map(([name, id]) => [name, $(id).value.trim()]),
       );
       const usedAccelerators = new Map();
       for (const [name, accelerator] of Object.entries(nextHotkeys)) {
@@ -2346,7 +2355,7 @@
     });
     $('btn-reset-app-shortcuts').addEventListener('click', () => {
       Object.entries(APP_HOTKEY_FIELDS).forEach(([name, id]) => {
-        $(id).value = DEFAULT_APP_HOTKEYS[name];
+        if ($(id)) $(id).value = DEFAULT_APP_HOTKEYS[name];
       });
       toast('Default shortcuts restored in the fields — save to apply them');
     });

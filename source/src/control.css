@@ -350,3 +350,12 @@ body.setup-wizard-open { overflow: hidden; }
 .theme-profile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; color: var(--muted); }
 .theme-profile .badge { flex: 0 0 auto; }
 .theme-profile button { width: auto; padding: 4px 9px; font-size: 11px; }
+
+/* Placement readout on the Home position card */
+.placement-readout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin: 0 0 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #0c111a; }
+.placement-readout > div { display: grid; gap: 2px; min-width: 0; }
+.placement-readout > div:last-child { grid-column: 1 / -1; }
+.placement-readout dt { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.placement-readout dd { margin: 0; font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.placement-readout > div:last-child dd { white-space: normal; color: #cbd5e1; }
+.favorite-inline { margin: 0 0 16px; }

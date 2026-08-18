@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob: file:; img-src 'self' data: blob: file:; frame-src 'self' data: blob: file:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';">
-  <title>CFB27 Scoreboard Overlay Version 1.0</title>
+  <title>Scorebug Center</title>
   <link rel="stylesheet" href="control.css">
 </head>
 <body>
   <header class="app-header">
     <div>
-      <p class="eyebrow">COLLEGE FOOTBALL 27</p>
-      <h1>Scoreboard Overlay</h1>
-      <p class="header-subtitle">Every overlay tool has its own tab.</p>
+      <p class="eyebrow">COLLEGE FOOTBALL 27 SCOREBOARD OVERLAY</p>
+      <h1>Scorebug Center</h1>
+      <p class="header-subtitle">Every overlay tool has its own tab. In game, Ctrl+Alt+O opens the scorebug editor.</p>
     </div>
-    <span id="app-version" class="version">v1.4.40</span>
+    <span id="app-version" class="version">v1.4.41</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -77,6 +77,12 @@
             <div><p class="eyebrow">PLACE IT ONCE</p><h2>Position <span id="placement-mode" class="badge">Follow game</span></h2></div>
           </div>
           <p id="simple-position-help">Choose Move, drag the green header to place it, and drag any green edge or corner to resize it. Choose Crop in the overlay toolbar to trim empty edges.</p>
+          <dl id="placement-readout" class="placement-readout" aria-label="Current scorebug placement">
+            <div><dt>Scorebug</dt><dd id="placement-readout-theme">—</dd></div>
+            <div><dt>Size</dt><dd id="placement-readout-size">—</dd></div>
+            <div><dt>Position</dt><dd id="placement-readout-position">—</dd></div>
+            <div><dt>In game</dt><dd>Ctrl+Alt+O opens the editor: resize, teams, logos, colors, bug settings.</dd></div>
+          </dl>
           <div class="button-row placement-controls">
             <button id="btn-edit" class="primary action-button">Move overlay</button>
             <button id="btn-lock-position" class="action-button">Save current position</button>
@@ -311,8 +317,8 @@
 
 
     <section class="panel" data-panel="settings">
-      <div id="favorite-inline" class="favorite-inline" aria-label="Favorite team"></div>
       <div class="advanced-page-heading"><div><p class="eyebrow">APP PREFERENCES</p><h2>Settings</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <div id="favorite-inline" class="favorite-inline" aria-label="Favorite team"></div>
       <div class="grid two">
         <article class="card">
         <div class="card-heading"><div><p class="eyebrow">GREEN SCREEN</p><h2>Green-canvas scorebugs</h2></div></div>
@@ -350,7 +356,7 @@
           <label class="check"><input id="hide-unfocused" type="checkbox" checked><span>Hide when CFB27 is not focused</span></label>
           <label class="check"><input id="overlay-click-through" type="checkbox" checked><span>Let mouse clicks pass through the overlay when it is locked</span></label>
           <label class="check"><input id="overlay-always-on-top" type="checkbox" checked><span>Keep the overlay above the game and other windows</span></label>
-          <p class="hint">The scorebug resizer opens without taking keyboard focus from the game. It only moves, resizes, or crops the scorebug; adjust reader boxes from the Reading Areas tab.</p>
+          <p class="hint">The scorebug resizer opens without taking keyboard focus from the game. It only moves, resizes, or crops the scorebug; adjust reader boxes from the Reader &amp; live data tab.</p>
         </article>
       </div>
       <article class="card advanced-card">

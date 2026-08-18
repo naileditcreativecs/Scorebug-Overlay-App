@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { trimTransparentPng } = require('./png-alpha-trim');
 const { spawn, execFile } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const {
@@ -1570,6 +1571,12 @@ async function captureThemeSnapshot({ force = false } = {}) {
   try {
     let image = await overlayWindow.webContents.capturePage();
     if (image.isEmpty()) return null;
+    // The overlay window is mostly transparent canvas around the bug; trim to
+    // the painted artwork so the library card shows the bug, not the air.
+    try {
+      const trimmed = trimTransparentPng(image.toPNG(), { alphaThreshold: 8, padding: 12 });
+      if (trimmed?.buffer && trimmed.width >= 40 && trimmed.height >= 16) image = nativeImage.createFromBuffer(trimmed.buffer);
+    } catch { /* keep the untrimmed capture */ }
     const size = image.getSize();
     if (size.width > 900) {
       image = image.resize({ width: 900, height: Math.max(1, Math.round(size.height * 900 / size.width)), quality: 'best' });
@@ -1967,10 +1974,38 @@ function publicStatus() {
       clickThrough: runtime.quickSettingsOpen
         || (!runtime.editMode && settings.overlay?.clickThrough !== false),
       themePath: runtime.themePath,
+      themeName: activeThemeDisplayName(),
+      bounds: overlayBoundsForStatus(),
       chromaKey: normalizeGreenScreen(settings.theme?.chromaKey),
       layout: { ...runtime.layout },
     },
   };
+}
+
+function activeThemeDisplayName() {
+  if (!runtime.themePath) return '';
+  try {
+    const hash = currentThemeHash();
+    const entry = themeLibraryStore().list().find((theme) => samePath(theme.path, runtime.themePath) || (hash && theme.sha256 === hash));
+    if (entry?.name) return entry.name;
+  } catch { /* fall through */ }
+  return path.basename(runtime.themePath, path.extname(runtime.themePath));
+}
+
+function overlayBoundsForStatus() {
+  if (!overlayWindow || overlayWindow.isDestroyed()) return null;
+  try {
+    const bounds = overlayWindow.getBounds();
+    const displays = screen.getAllDisplays();
+    const display = displayForBounds(bounds);
+    const index = displays.findIndex((candidate) => candidate.id === display?.id);
+    return {
+      ...bounds,
+      displayLabel: displays.length > 1 && index >= 0 ? `display ${index + 1}` : '',
+    };
+  } catch {
+    return null;
+  }
 }
 
 function broadcastControlStatus() {
