@@ -1,9 +1,10 @@
 CFB27 SCOREBUG — custom settings for your bug
 =============================================
 
-STATUS: this feature is coming in an upcoming app version. You can add
-the settings block to your bug today - the app simply ignores it until
-the feature ships, and your bug keeps working exactly as it does now.
+STATUS: LIVE since app v1.4.38. Declared settings appear under
+"Bug settings" in the in-game editor (Ctrl+Alt+O) and are saved with
+the bug's profile in the HTML library. Older app versions ignore the
+block, so it is always safe to add.
 
 What this is
 ------------

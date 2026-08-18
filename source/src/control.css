@@ -326,3 +326,27 @@ body.setup-wizard-open { overflow: hidden; }
 .welcome-dialog p.eyebrow { margin: 0; color: var(--muted); font-size: 11px; }
 .welcome-dialog footer { display: flex; justify-content: flex-end; margin-top: 18px; }
 .welcome-dialog footer button { min-width: 140px; }
+
+/* Favorite team picker (first launch) */
+.favorite-dialog { width: min(860px, 100%); display: grid; grid-template-rows: auto auto auto auto minmax(0, 1fr) auto; }
+.favorite-dialog #favorite-search { width: 100%; box-sizing: border-box; margin: 4px 0 12px; border: 2px solid #45506b; border-radius: 8px; padding: 9px 12px; color: #f2f6fc; background: #0d1320; font: 700 14px "Segoe UI", sans-serif; }
+.favorite-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; max-height: min(52vh, 560px); overflow: auto; padding: 2px; }
+.favorite-grid .favorite-loading { color: var(--muted); font-size: 13px; }
+.favorite-grid button { display: flex; flex-direction: column; justify-content: flex-start; align-items: center; gap: 6px; min-height: 104px; height: auto; border: 1px solid #344157; border-radius: 10px; background: #111a28; color: #e8eef7; padding: 10px 6px 8px; font: 700 11px/1.2 "Segoe UI", sans-serif; text-align: center; cursor: pointer; overflow: hidden; }
+.favorite-grid button:hover { border-color: #58a6ff; background: #14243b; }
+.favorite-grid button.selected { border-color: #fbbf24; box-shadow: 0 0 0 2px rgba(251,191,36,.35); }
+.favorite-grid button img { width: 52px; height: 52px; object-fit: contain; flex: 0 0 52px; }
+.favorite-grid button i { width: 52px; height: 52px; border-radius: 8px; background: linear-gradient(135deg, var(--team-primary, #334155) 50%, var(--team-secondary, #64748b) 50%); }
+.favorite-grid button span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: normal; max-height: 2.4em; }
+.favorite-dialog footer { justify-content: space-between; align-items: center; }
+.favorite-dialog footer button { min-width: 0; }
+.favorite-inline { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; border: 1px solid var(--line); border-radius: 10px; background: #0c111a; padding: 8px 12px; font-size: 13px; }
+.favorite-inline img { width: 28px; height: 28px; object-fit: contain; }
+.favorite-inline .spacer { flex: 1; }
+
+/* Library previews + profiles */
+.theme-preview-shell img.theme-snapshot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.theme-preview-shell .snapshot-tag { position: absolute; right: 6px; bottom: 6px; border-radius: 999px; background: rgba(0,0,0,.6); color: #cfe5ff; font-size: 10px; padding: 2px 8px; }
+.theme-profile { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; color: var(--muted); }
+.theme-profile .badge { flex: 0 0 auto; }
+.theme-profile button { width: auto; padding: 4px 9px; font-size: 11px; }

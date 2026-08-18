@@ -896,6 +896,116 @@
     }
   }
 
+  // ---- Favorite team (first launch, and Settings) --------------------------
+  let favoriteCatalog = null;
+  async function loadFavoriteCatalog() {
+    if (!favoriteCatalog) favoriteCatalog = await api.getTeamCatalog();
+    return favoriteCatalog;
+  }
+  function paintFavoriteGrid() {
+    const grid = $('favorite-grid');
+    if (!grid || !favoriteCatalog) return;
+    const filter = String($('favorite-search').value || '').trim().toLowerCase();
+    const current = String(favoriteCatalog.favoriteTeamId || settings?.favoriteTeamId || '');
+    grid.replaceChildren();
+    for (const team of favoriteCatalog.teams || []) {
+      if (filter && !`${team.name} ${team.nickname || ''}`.toLowerCase().includes(filter)) continue;
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.classList.toggle('selected', String(team.id) === current);
+      if (team.logo) {
+        const image = document.createElement('img');
+        image.src = team.logo;
+        image.alt = '';
+        image.draggable = false;
+        tile.append(image);
+      } else {
+        const blank = document.createElement('i');
+        blank.style.setProperty('--team-primary', team.primary || '#334155');
+        blank.style.setProperty('--team-secondary', team.secondary || '#64748b');
+        tile.append(blank);
+      }
+      const label = document.createElement('span');
+      label.textContent = team.name;
+      tile.append(label);
+      tile.title = team.name;
+      tile.addEventListener('click', () => chooseFavoriteTeam(team));
+      grid.append(tile);
+    }
+    if (!grid.childElementCount) {
+      const none = document.createElement('span');
+      none.className = 'favorite-loading';
+      none.textContent = 'No team matches that.';
+      grid.append(none);
+    }
+  }
+  async function chooseFavoriteTeam(team) {
+    try {
+      const result = await api.setFavoriteTeam({ teamId: team ? team.id : null });
+      settings.favoriteTeamId = result?.favoriteTeamId ?? null;
+      if (result?.onboarding) settings.onboarding = result.onboarding;
+      if (favoriteCatalog) favoriteCatalog.favoriteTeamId = settings.favoriteTeamId;
+      closeFavoritePopup();
+      renderFavoriteInline();
+      toast(team ? `Favorite team: ${team.name}` : 'Favorite team cleared');
+    } catch (error) {
+      appendLog(`Favorite team could not be saved: ${error.message}`);
+      toast('Favorite team could not be saved');
+    }
+  }
+  async function openFavoritePopup() {
+    const popup = $('favorite-popup');
+    if (!popup) return;
+    popup.hidden = false;
+    $('favorite-search').value = '';
+    try {
+      await loadFavoriteCatalog();
+      paintFavoriteGrid();
+    } catch (error) {
+      $('favorite-grid').textContent = `Teams could not load: ${error.message}`;
+    }
+    $('favorite-search').focus();
+  }
+  async function closeFavoritePopup() {
+    const popup = $('favorite-popup');
+    if (!popup || popup.hidden) return;
+    popup.hidden = true;
+    if (settings?.onboarding?.favoritePicked !== true) {
+      const state = { ...(settings.onboarding || {}), favoritePicked: true };
+      settings.onboarding = state;
+      try { await api.saveOnboarding(state); } catch { /* remembered next time */ }
+    }
+  }
+  function renderFavoriteInline() {
+    const host = $('favorite-inline');
+    if (!host) return;
+    const id = String(settings?.favoriteTeamId || '');
+    const team = id && favoriteCatalog ? (favoriteCatalog.teams || []).find((candidate) => String(candidate.id) === id) : null;
+    host.replaceChildren();
+    if (team?.logo) {
+      const image = document.createElement('img');
+      image.src = team.logo;
+      image.alt = '';
+      host.append(image);
+    }
+    const text = document.createElement('span');
+    text.textContent = team ? `Favorite team: ${team.name}` : (id ? 'Favorite team saved' : 'No favorite team picked yet');
+    const spacer = document.createElement('span');
+    spacer.className = 'spacer';
+    const change = document.createElement('button');
+    change.className = 'quiet-button';
+    change.textContent = id ? 'Change' : 'Pick a team';
+    change.addEventListener('click', openFavoritePopup);
+    host.append(text, spacer, change);
+    if (id) {
+      const clear = document.createElement('button');
+      clear.className = 'quiet-button';
+      clear.textContent = 'Clear';
+      clear.addEventListener('click', () => chooseFavoriteTeam(null));
+      host.append(clear);
+    }
+  }
+
   // The first-launch welcome replaces the old five-step setup wizard. It is
   // shown once per install and remembered in settings.onboarding.
   function openWelcomePopup() {
@@ -916,6 +1026,7 @@
     } catch (error) {
       appendLog(`Welcome state could not be saved: ${error.message}`);
     }
+    if (settings?.onboarding?.favoritePicked !== true) openFavoritePopup();
   }
 
   function fitThemePreview(shell, iframe, dimensions = {}) {
@@ -965,15 +1076,49 @@
 
       const preview = document.createElement('div');
       preview.className = 'theme-preview-shell';
-      const iframe = document.createElement('iframe');
-      iframe.title = `Preview of ${theme.name || theme.fileName || 'imported theme'}`;
-      iframe.loading = 'eager';
-      iframe.referrerPolicy = 'no-referrer';
-      iframe.setAttribute('sandbox', '');
-      if (theme.previewHtml) iframe.srcdoc = theme.previewHtml;
-      else iframe.src = theme.previewUrl;
-      preview.appendChild(iframe);
-      fitThemePreview(preview, iframe, compatibility.preview);
+      if (theme.snapshotUrl) {
+        // A photograph of the real overlay taken while this bug was in use.
+        const shot = document.createElement('img');
+        shot.className = 'theme-snapshot';
+        shot.src = theme.snapshotUrl;
+        shot.alt = `Live snapshot of ${theme.name || theme.fileName || 'this bug'}`;
+        shot.draggable = false;
+        const tag = document.createElement('span');
+        tag.className = 'snapshot-tag';
+        tag.textContent = `Live snapshot · ${formatThemeDate(theme.snapshotAt)}`;
+        preview.append(shot, tag);
+      } else {
+        const iframe = document.createElement('iframe');
+        iframe.title = `Preview of ${theme.name || theme.fileName || 'imported theme'}`;
+        iframe.loading = 'eager';
+        iframe.referrerPolicy = 'no-referrer';
+        iframe.setAttribute('sandbox', '');
+        if (theme.previewHtml) iframe.srcdoc = theme.previewHtml;
+        else iframe.src = theme.previewUrl;
+        preview.appendChild(iframe);
+        fitThemePreview(preview, iframe, compatibility.preview);
+        const tag = document.createElement('span');
+        tag.className = 'snapshot-tag';
+        tag.textContent = theme.active ? 'Snapshot arrives once teams are on the bug' : 'Static preview - use it once for a real snapshot';
+        preview.append(tag);
+      }
+      if (theme.active) {
+        const refresh = document.createElement('button');
+        refresh.className = 'quiet-button';
+        refresh.textContent = 'Refresh preview';
+        refresh.title = 'Photograph the scorebug as it is on screen right now';
+        refresh.style.cssText = 'position:absolute;left:6px;bottom:6px;width:auto;padding:3px 8px;font-size:11px;';
+        refresh.addEventListener('click', async () => {
+          try {
+            const result = await api.snapshotActiveTheme();
+            renderThemeLibrary(result?.themes || await api.listThemeLibrary());
+            toast('Preview refreshed from the live scorebug');
+          } catch (error) {
+            toast(error.message || 'Could not photograph the scorebug');
+          }
+        });
+        preview.append(refresh);
+      }
 
       const info = document.createElement('div');
       info.className = 'theme-library-info';
@@ -995,6 +1140,56 @@
       compatibilityDetail.className = 'compatibility-detail';
       compatibilityDetail.textContent = compatibility.detail || 'The app will attempt automatic field matching.';
       compatibilityRow.append(compatibilityBadge, compatibilityDetail);
+      // Profile: this bug's own position, size, logo picks and settings.
+      const profileRow = document.createElement('div');
+      profileRow.className = 'theme-profile';
+      const profile = theme.profile || { saved: false };
+      const profileBadge = document.createElement('span');
+      profileBadge.className = `badge ${profile.saved ? 'ok' : 'neutral'}`;
+      profileBadge.textContent = profile.saved ? 'Profile saved' : 'No profile yet';
+      const profileText = document.createElement('span');
+      if (profile.saved) {
+        const bits = [];
+        if (profile.width && profile.height) bits.push(`${Math.round(profile.width)} × ${Math.round(profile.height)} px`);
+        if (profile.x !== null && profile.x !== undefined && profile.y !== null && profile.y !== undefined) bits.push(`at ${Math.round(profile.x)}, ${Math.round(profile.y)}`);
+        if (profile.logoPicks) bits.push(`${profile.logoPicks} logo pick${profile.logoPicks === 1 ? '' : 's'}`);
+        if (profile.themeSettings) bits.push(`${profile.themeSettings} setting${profile.themeSettings === 1 ? '' : 's'}`);
+        profileText.textContent = `${bits.join(' · ')}${profile.updatedAt ? ` · ${formatThemeDate(profile.updatedAt)}` : ''}`;
+      } else {
+        profileText.textContent = theme.active
+          ? 'Place and size the bug, then save.'
+          : 'Position, size, logo picks and settings are saved when this bug is used.';
+      }
+      profileRow.append(profileBadge, profileText);
+      if (theme.active) {
+        const saveProfile = document.createElement('button');
+        saveProfile.textContent = profile.saved ? 'Save current' : 'Save profile';
+        saveProfile.title = 'Save the current position, size and settings to this bug';
+        saveProfile.addEventListener('click', async () => {
+          try {
+            const result = await api.saveThemeProfile(theme.id);
+            if (result?.status) renderStatus(result.status);
+            renderThemeLibrary(result?.themes || await api.listThemeLibrary());
+            toast(`Profile saved for ${theme.name || theme.fileName}`);
+          } catch (error) { toast(error.message || 'Profile could not be saved'); }
+        });
+        profileRow.append(saveProfile);
+      }
+      if (profile.saved) {
+        const forget = document.createElement('button');
+        forget.className = 'quiet-button';
+        forget.textContent = 'Forget';
+        forget.title = 'Clear this bug\'s saved position, size, logo picks and settings';
+        forget.addEventListener('click', async () => {
+          if (!window.confirm(`Forget the saved profile for "${theme.name || theme.fileName}"?`)) return;
+          try {
+            const result = await api.clearThemeProfile(theme.id);
+            renderThemeLibrary(result?.themes || await api.listThemeLibrary());
+            toast('Profile cleared');
+          } catch (error) { toast(error.message || 'Profile could not be cleared'); }
+        });
+        profileRow.append(forget);
+      }
       const use = document.createElement('button');
       use.className = theme.active ? 'state-on' : 'primary';
       use.textContent = theme.active
@@ -1043,7 +1238,7 @@
       const actions = document.createElement('div');
       actions.className = 'theme-library-actions';
       actions.append(use, remove);
-      info.append(name, details, compatibilityRow, actions);
+      info.append(name, details, compatibilityRow, profileRow, actions);
       card.append(preview, info);
       grid.appendChild(card);
     }
@@ -1956,8 +2151,11 @@
     }));
     $('btn-open-advanced').addEventListener('click', () => activatePanel('data'));
     $('btn-welcome-close').addEventListener('click', closeWelcomePopup);
+    $('btn-favorite-skip').addEventListener('click', closeFavoritePopup);
+    $('favorite-search').addEventListener('input', paintFavoriteGrid);
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && !$('welcome-popup').hidden) closeWelcomePopup();
+      else if (event.key === 'Escape' && !$('favorite-popup').hidden) closeFavoritePopup();
     });
 
     $('btn-start').addEventListener('click', () => runAction('start', 'Reader started'));
@@ -2543,6 +2741,8 @@
       appendLog(`Status initialization error: ${error.message}`);
     }
     if (settings?.onboarding?.welcomeShown !== true) openWelcomePopup();
+    else if (settings?.onboarding?.favoritePicked !== true) openFavoritePopup();
+    loadFavoriteCatalog().then(renderFavoriteInline).catch(() => renderFavoriteInline());
     api.onStatus?.(renderStatus);
     let dismissedRamProblem = null;
     api.onRamProblem?.((problem) => {

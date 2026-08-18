@@ -76,6 +76,10 @@ const {
   upsertCustomTeam,
 } = require('./custom-teams');
 const {
+  parseThemeSettingsDeclaration,
+  resolveThemeSettingValues,
+} = require('./theme-settings');
+const {
   DEFAULT_LOGO_TRANSFORM,
   logoLayoutKey,
   normalizeLogoTransform,
@@ -1500,12 +1504,192 @@ function restoreThemeSizing(themePath, preferred = {}, { usePreferredCrop = true
   return { ...canvas, restored: Boolean(saved) };
 }
 
+function themeProfileSummary(theme) {
+  const key = `sha256:${String(theme.sha256 || '').toLowerCase()}`;
+  const sizing = themeSizingMap()[key];
+  const logoPicks = Object.keys(normalizedPreferences(themeLogoPreferenceMap()[key])).length;
+  const themeSettings = isPlainObject(settings.theme?.settingsByHtml?.[key]) ? Object.keys(settings.theme.settingsByHtml[key]).length : 0;
+  if (!isPlainObject(sizing) && !logoPicks && !themeSettings) return { saved: false };
+  return {
+    saved: true,
+    updatedAt: sizing?.updatedAt || null,
+    width: sizing?.placement?.width ?? null,
+    height: sizing?.placement?.height ?? null,
+    x: sizing?.placement?.x ?? null,
+    y: sizing?.placement?.y ?? null,
+    scale: sizing?.scale ?? null,
+    anchor: sizing?.anchor || null,
+    positionLocked: sizing?.positionLocked === true,
+    logoPicks,
+    themeSettings,
+  };
+}
+
+// ---- Rendered snapshots of each bug (the library preview) ----------------
+// A sandboxed static preview cannot run the bug's script, so it shows the
+// author's placeholder markup. Instead the app photographs the REAL overlay
+// window while a theme is in use and keeps one PNG per HTML.
+function themeSnapshotsRoot() {
+  return path.join(app.getPath('userData'), 'theme-snapshots');
+}
+
+function themeSnapshotPath(sha) {
+  const clean = String(sha || '').toLowerCase().replace(/[^a-f0-9]/g, '');
+  return clean ? path.join(themeSnapshotsRoot(), `${clean}.png`) : null;
+}
+
+function themeSnapshotInfo(sha) {
+  const file = themeSnapshotPath(sha);
+  try {
+    if (!file || !fs.existsSync(file)) return { snapshotUrl: null, snapshotAt: null };
+    const stat = fs.statSync(file);
+    return {
+      snapshotUrl: `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`,
+      snapshotAt: stat.mtime.toISOString(),
+    };
+  } catch {
+    return { snapshotUrl: null, snapshotAt: null };
+  }
+}
+
+let themeSnapshotTimer = null;
+let themeSnapshotLastAt = 0;
+let themeSnapshotBusy = false;
+const THEME_SNAPSHOT_MIN_INTERVAL_MS = 30000;
+
+async function captureThemeSnapshot({ force = false } = {}) {
+  if (themeSnapshotBusy) return null;
+  if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) return null;
+  const hash = currentThemeHash();
+  if (!hash) return null;
+  const state = runtime.scoreboardState || {};
+  const hasTeams = Boolean(state.away?.name && state.home?.name);
+  if (!force && !hasTeams) return null;
+  if (!force && Date.now() - themeSnapshotLastAt < THEME_SNAPSHOT_MIN_INTERVAL_MS) return null;
+  themeSnapshotBusy = true;
+  try {
+    let image = await overlayWindow.webContents.capturePage();
+    if (image.isEmpty()) return null;
+    const size = image.getSize();
+    if (size.width > 900) {
+      image = image.resize({ width: 900, height: Math.max(1, Math.round(size.height * 900 / size.width)), quality: 'best' });
+    }
+    const file = themeSnapshotPath(hash);
+    fs.mkdirSync(themeSnapshotsRoot(), { recursive: true });
+    const temporary = `${file}.tmp`;
+    fs.writeFileSync(temporary, image.toPNG());
+    fs.renameSync(temporary, file);
+    themeSnapshotLastAt = Date.now();
+    return file;
+  } catch (error) {
+    console.warn('[overlay] theme snapshot failed:', error.message);
+    return null;
+  } finally {
+    themeSnapshotBusy = false;
+  }
+}
+
+function scheduleThemeSnapshot(delayMs = 4000) {
+  if (themeSnapshotTimer) return;
+  themeSnapshotTimer = setTimeout(() => {
+    themeSnapshotTimer = null;
+    captureThemeSnapshot().catch(() => {});
+  }, delayMs);
+  themeSnapshotTimer.unref?.();
+}
+
+async function snapshotActiveTheme() {
+  const file = await captureThemeSnapshot({ force: true });
+  if (!file) throw new Error('The scorebug is not on screen right now, so it cannot be photographed.');
+  logMessage('Library preview refreshed from the live scorebug.');
+  return { themes: listLibraryThemes() };
+}
+
+// When an edited HTML is re-imported it gets a new content hash, which used
+// to orphan its saved position, size, logo picks and settings. Carry the
+// profile of a same-named earlier import forward to the new copy.
+function carryThemeProfileForward(newTheme, previousThemes) {
+  if (!newTheme?.sha256) return false;
+  const newKey = `sha256:${String(newTheme.sha256).toLowerCase()}`;
+  if (themeSizingMap()[newKey]) return false;
+  const name = String(newTheme.fileName || '').toLowerCase();
+  const title = String(newTheme.name || '').toLowerCase();
+  const candidates = (previousThemes || [])
+    .filter((theme) => theme.sha256 !== newTheme.sha256)
+    .filter((theme) => String(theme.fileName || '').toLowerCase() === name || (title && String(theme.name || '').toLowerCase() === title))
+    .sort((left, right) => String(right.importedAt || '').localeCompare(String(left.importedAt || '')));
+  for (const previous of candidates) {
+    const oldKey = `sha256:${String(previous.sha256).toLowerCase()}`;
+    const sizing = themeSizingMap()[oldKey];
+    const logoPicks = themeLogoPreferenceMap()[oldKey];
+    const themeSettings = settings.theme?.settingsByHtml?.[oldKey];
+    if (!sizing && !logoPicks && !themeSettings) continue;
+    if (sizing) themeSizingMap()[newKey] = cloneJson(sizing);
+    if (logoPicks) themeLogoPreferenceMap()[newKey] = cloneJson(logoPicks);
+    if (themeSettings) {
+      settings.theme.settingsByHtml ||= {};
+      settings.theme.settingsByHtml[newKey] = cloneJson(themeSettings);
+    }
+    const layouts = normalizedLogoLayouts(settings.teamLogos?.layouts);
+    for (const [key, value] of Object.entries(layouts)) {
+      if (key.startsWith(`${oldKey}::`)) {
+        const moved = `${newKey}${key.slice(oldKey.length)}`;
+        if (!layouts[moved]) layouts[moved] = value;
+      }
+    }
+    settings.teamLogos ||= {};
+    settings.teamLogos.layouts = layouts;
+    const colors = normalizeScorebugColors(settings.scorebugColors);
+    const oldId = String(previous.id || '').toLowerCase();
+    const newId = String(newTheme.id || '').toLowerCase();
+    if (oldId && newId && Array.isArray(colors.rules)) {
+      const extra = colors.rules
+        .filter((rule) => rule.scope === 'theme' && String(rule.themeId || '').toLowerCase() === oldId)
+        .map((rule) => ({ ...rule, themeId: newId }));
+      if (extra.length) {
+        settings.scorebugColors = { ...colors, rules: [...colors.rules, ...extra] };
+      }
+    }
+    const snapshot = themeSnapshotPath(previous.sha256);
+    const target = themeSnapshotPath(newTheme.sha256);
+    try { if (snapshot && target && fs.existsSync(snapshot) && !fs.existsSync(target)) fs.copyFileSync(snapshot, target); } catch { /* preview only */ }
+    persistSettings();
+    logMessage(`Profile carried forward from the earlier "${previous.name}" import (position, size, logo picks, settings).`);
+    return true;
+  }
+  return false;
+}
+
+function saveThemeProfile(id) {
+  const theme = themeLibraryStore().get(String(id || ''));
+  const active = runtime.themePath && (samePath(theme.path, runtime.themePath) || theme.sha256 === currentThemeHash());
+  if (!active) throw new Error('Use this bug first, place it, then save its profile.');
+  rememberThemeSizing(runtime.themePath);
+  persistSettings();
+  captureThemeSnapshot({ force: true }).catch(() => {});
+  logMessage(`Profile saved for ${theme.name}: current position, size, and settings.`);
+  return { themes: listLibraryThemes(), status: publicStatus() };
+}
+
+function clearThemeProfile(id) {
+  const theme = themeLibraryStore().get(String(id || ''));
+  const key = `sha256:${String(theme.sha256).toLowerCase()}`;
+  delete themeSizingMap()[key];
+  delete themeLogoPreferenceMap()[key];
+  if (settings.theme?.settingsByHtml) delete settings.theme.settingsByHtml[key];
+  persistSettings();
+  logMessage(`Profile cleared for ${theme.name}.`);
+  return { themes: listLibraryThemes(), status: publicStatus() };
+}
+
 function publicLibraryTheme(theme, activeHash = currentThemeHash()) {
   const preview = pathToFileURL(theme.path);
   preview.searchParams.set('cfb27LibraryPreview', theme.sha256 || String(Date.now()));
   return {
     ...theme,
     previewUrl: preview.href,
+    profile: themeProfileSummary(theme),
+    ...themeSnapshotInfo(theme.sha256),
     active: Boolean(
       runtime.themePath
       && (samePath(theme.path, runtime.themePath)
@@ -1576,6 +1760,8 @@ function loadSettings() {
   settings.teamLogos.custom = normalizedCustomTeamLogos(settings.teamLogos.custom);
   settings.teamLogos.layouts = normalizedLogoLayouts(settings.teamLogos.layouts);
   settings.customTeams = normalizeCustomTeams(settings.customTeams);
+  settings.teamPalettes = normalizedTeamPalettes(settings.teamPalettes);
+  settings.favoriteTeamId = settings.favoriteTeamId ? String(settings.favoriteTeamId) : null;
   const portableCalibrationRestore = restorePortableReaderCalibration(settings);
   if (!portableCalibrationRestore.valid && portableCalibrationRestore.reason) {
     runtime.support.calibrationRestore = {
@@ -1943,6 +2129,40 @@ function inGameEditorBounds() {
   };
 }
 
+// Logo choices are part of a scorebug's profile: a pick made while a theme
+// is active is saved for THAT HTML (an ESPN bug can use the "E" mark while
+// a FOX bug keeps the full logo). Older global picks stay as the fallback.
+function themeLogoPreferenceMap() {
+  settings.teamLogos ||= {};
+  if (!isPlainObject(settings.teamLogos.preferencesByTheme)) settings.teamLogos.preferencesByTheme = {};
+  return settings.teamLogos.preferencesByTheme;
+}
+
+function effectiveLogoPreferences() {
+  const global = normalizedPreferences(settings.teamLogos?.preferences);
+  const key = themeSizingKey(runtime.themePath);
+  const themed = key ? normalizedPreferences(themeLogoPreferenceMap()[key]) : {};
+  return { ...global, ...themed };
+}
+
+function writeLogoPreference(teamId, variantId) {
+  settings.teamLogos ||= {};
+  const key = themeSizingKey(runtime.themePath);
+  if (key) {
+    const map = themeLogoPreferenceMap();
+    const themed = normalizedPreferences(map[key]);
+    if (variantId) themed[teamId] = variantId;
+    else delete themed[teamId];
+    if (Object.keys(themed).length) map[key] = themed;
+    else delete map[key];
+    return;
+  }
+  const preferences = normalizedPreferences(settings.teamLogos.preferences);
+  if (variantId) preferences[teamId] = variantId;
+  else delete preferences[teamId];
+  settings.teamLogos.preferences = preferences;
+}
+
 function logoChoicesForSide(side) {
   const publishedTeamId = runtime.scoreboardState.meta?.teamAssets?.[side]?.id;
   const asset = publishedTeamId
@@ -1961,7 +2181,7 @@ function logoChoicesForSide(side) {
     };
   }
   const choices = teamLogoVariantResolver?.choicesForTeam(asset.id, teamAssetResolver) || [];
-  const selected = normalizedPreferences(settings.teamLogos?.preferences)[String(asset.id)] || null;
+  const selected = effectiveLogoPreferences()[String(asset.id)] || null;
   const themeVariantId = runtime.themeLogoLibrary === 'original'
     ? 'original'
     : (runtime.themeLogoLibrary === 'cropped' ? 'default' : null);
@@ -2001,6 +2221,8 @@ function inGameEditorState() {
     readerMode: settings.recognition?.mode || 'local-ocr',
     teams: scoreboardTeamOptions(teamAssetResolver),
     customTeams: customTeamsForEditor(),
+    favoriteTeamId: settings.favoriteTeamId || null,
+    themeSettings: themeSettingsForEditor(),
     teamOverrides: cloneJson(runtime.manualTeamOverrides),
     scorebugColors: scorebugColorState(),
     logoChoices: {
@@ -2807,6 +3029,59 @@ function applyTeamLogoLayouts(sourceState) {
   return payload;
 }
 
+// ---- Bug-declared settings (THEME-SETTINGS.md) -------------------------
+// Parsed from the active HTML once per theme revision; values are part of
+// the bug's profile (settings.theme.settingsByHtml[<sha key>]).
+let themeSettingsCache = { path: null, revision: -1, declaration: [] };
+
+function themeSettingsDeclaration() {
+  if (themeSettingsCache.path === runtime.themePath && themeSettingsCache.revision === runtime.themeRevision) {
+    return themeSettingsCache.declaration;
+  }
+  let declaration = [];
+  try {
+    if (runtime.themePath && fs.existsSync(runtime.themePath)) {
+      declaration = parseThemeSettingsDeclaration(fs.readFileSync(runtime.themePath, 'utf8'));
+    }
+  } catch { declaration = []; }
+  themeSettingsCache = { path: runtime.themePath, revision: runtime.themeRevision, declaration };
+  return declaration;
+}
+
+function themeSettingsMap() {
+  settings.theme ||= {};
+  if (!isPlainObject(settings.theme.settingsByHtml)) settings.theme.settingsByHtml = {};
+  return settings.theme.settingsByHtml;
+}
+
+function currentThemeSettingValues() {
+  const declaration = themeSettingsDeclaration();
+  if (!declaration.length) return null;
+  const key = themeSizingKey(runtime.themePath);
+  return resolveThemeSettingValues(declaration, key ? themeSettingsMap()[key] : null);
+}
+
+function themeSettingsForEditor() {
+  return { declaration: themeSettingsDeclaration(), values: currentThemeSettingValues() || {} };
+}
+
+function setThemeSetting(payload = {}) {
+  const declaration = themeSettingsDeclaration();
+  const control = declaration.find((entry) => entry.key === String(payload.key || ''));
+  if (!control) throw new Error('This scorebug does not declare that setting.');
+  const key = themeSizingKey(runtime.themePath);
+  if (!key) throw new Error('No scorebug HTML is active.');
+  const map = themeSettingsMap();
+  const current = resolveThemeSettingValues(declaration, map[key]);
+  if (payload.reset === true) delete current[control.key];
+  else current[control.key] = payload.value;
+  map[key] = resolveThemeSettingValues(declaration, current);
+  persistSettings();
+  publishCurrentScoreboardState();
+  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  return inGameEditorState();
+}
+
 function publishCurrentScoreboardState() {
   if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
   runtime.scoreboardState = applyTeamLogoLayouts(
@@ -2825,7 +3100,7 @@ function publishCurrentScoreboardState() {
           settings.scorebugColors,
           { themeId: scorebugThemeIdentity() },
         ),
-        settings.teamLogos?.preferences,
+        effectiveLogoPreferences(),
         teamAssetResolver,
         teamLogoVariantResolver,
       ),
@@ -2834,8 +3109,12 @@ function publishCurrentScoreboardState() {
       teamLogoVariantResolver,
     ),
   );
+  const themeSettingValues = currentThemeSettingValues();
+  if (themeSettingValues) runtime.scoreboardState.themeSettings = themeSettingValues;
+  else delete runtime.scoreboardState.themeSettings;
   sendToOverlay('overlay:scoreboard-state', runtime.scoreboardState);
   sendToControl('scoreboard:state', runtime.scoreboardState);
+  if (runtime.scoreboardState?.away?.name && runtime.scoreboardState?.home?.name) scheduleThemeSnapshot();
   if (automaticExtractionEnabled()) {
     try {
       const extractor = automaticDataExtractor();
@@ -2930,6 +3209,7 @@ function scorebugColorState() {
       primary: asset?.primary || null,
       secondary: asset?.secondary || null,
       live: runtime.scoreboardState?.[side]?.color || null,
+      paletteCount: id ? teamPaletteList(id).length : 0,
     };
   }
   const teamName = (id) => (id && teamAssetResolver ? teamAssetResolver.resolveTeamId(id)?.name : null) || id || '?';
@@ -3166,11 +3446,7 @@ function setTeamLogoPreference(payload = {}) {
     throw new Error(`That logo is not installed for ${asset.name}.`);
   }
 
-  settings.teamLogos ||= {};
-  const preferences = normalizedPreferences(settings.teamLogos.preferences);
-  if (requested) preferences[teamId] = requested;
-  else delete preferences[teamId];
-  settings.teamLogos.preferences = preferences;
+  writeLogoPreference(teamId, requested);
   persistSettings();
   publishCurrentScoreboardState();
   sendToInGameEditor('in-game-editor:state', inGameEditorState());
@@ -3242,9 +3518,7 @@ async function importTeamLogo(payload = {}) {
     catalog: settings.teamLogos.custom,
   });
   settings.teamLogos.custom = imported.catalog;
-  const preferences = normalizedPreferences(settings.teamLogos.preferences);
-  preferences[context.teamId] = imported.entry.id;
-  settings.teamLogos.preferences = preferences;
+  writeLogoPreference(context.teamId, imported.entry.id);
   persistSettings();
   publishCurrentScoreboardState();
   sendToInGameEditor('in-game-editor:state', inGameEditorState());
@@ -3263,6 +3537,12 @@ function deleteImportedTeamLogo(payload = {}) {
   const preferences = normalizedPreferences(settings.teamLogos.preferences);
   if (preferences[context.teamId] === context.variantId) delete preferences[context.teamId];
   settings.teamLogos.preferences = preferences;
+  for (const [key, themed] of Object.entries(themeLogoPreferenceMap())) {
+    if (themed?.[context.teamId] === context.variantId) {
+      delete themed[context.teamId];
+      if (!Object.keys(themed).length) delete themeLogoPreferenceMap()[key];
+    }
+  }
   const layouts = normalizedLogoLayouts(settings.teamLogos.layouts);
   for (const key of Object.keys(layouts)) {
     if (key.includes(`::${context.teamId}::${context.variantId}::`)) delete layouts[key];
@@ -3274,6 +3554,167 @@ function deleteImportedTeamLogo(payload = {}) {
   sendToInGameEditor('in-game-editor:state', inGameEditorState());
   logMessage(`${context.state.teamName} imported logo removed. Automatic team detection remains active.`);
   return inGameEditorState();
+}
+
+// ---- Team catalog with logo thumbnails ------------------------------------
+// Pickers show every team's mark, not just its name. Full logos are ~100 KB
+// each, so a 72 px thumbnail per team is built once and cached on disk.
+const teamThumbCache = new Map();
+
+function logoThumbsRoot() {
+  return path.join(app.getPath('userData'), 'logo-thumbs');
+}
+
+function teamLogoThumb(asset) {
+  if (!asset?.logo) return null;
+  const digest = crypto.createHash('sha1').update(asset.logo.length > 4096 ? asset.logo.slice(-4096) + asset.logo.length : asset.logo).digest('hex').slice(0, 10);
+  const cacheKey = `${asset.id}-${digest}`;
+  if (teamThumbCache.has(cacheKey)) return teamThumbCache.get(cacheKey);
+  const file = path.join(logoThumbsRoot(), `${cacheKey}.png`);
+  try {
+    if (fs.existsSync(file)) {
+      const url = `data:image/png;base64,${fs.readFileSync(file).toString('base64')}`;
+      teamThumbCache.set(cacheKey, url);
+      return url;
+    }
+    const image = nativeImage.createFromDataURL(asset.logo);
+    if (image.isEmpty()) return null;
+    const size = image.getSize();
+    const ratio = Math.min(1, 72 / Math.max(size.width, size.height));
+    const thumb = ratio < 1
+      ? image.resize({ width: Math.max(1, Math.round(size.width * ratio)), height: Math.max(1, Math.round(size.height * ratio)), quality: 'good' })
+      : image;
+    fs.mkdirSync(logoThumbsRoot(), { recursive: true });
+    const png = thumb.toPNG();
+    fs.writeFileSync(file, png);
+    const url = `data:image/png;base64,${png.toString('base64')}`;
+    teamThumbCache.set(cacheKey, url);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function teamCatalogForPicker() {
+  if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
+  const teams = scoreboardTeamOptions(teamAssetResolver).map((team) => {
+    const asset = teamAssetResolver?.resolveTeamId(team.id);
+    return {
+      ...team,
+      logo: teamLogoThumb(asset),
+      primary: asset?.primary || null,
+      secondary: asset?.secondary || null,
+    };
+  });
+  return { teams, favoriteTeamId: settings.favoriteTeamId || null };
+}
+
+function setFavoriteTeam(payload = {}) {
+  const teamId = payload?.teamId === null || payload?.teamId === undefined || payload?.teamId === ''
+    ? null
+    : String(payload.teamId);
+  if (teamId) {
+    if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
+    if (!teamAssetResolver?.resolveTeamId(teamId)) throw new Error('That team is not in the roster.');
+  }
+  settings.favoriteTeamId = teamId;
+  settings.onboarding = normalizeOnboardingState({ ...(settings.onboarding || {}), favoritePicked: true });
+  persistSettings();
+  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  broadcastStatus();
+  logMessage(teamId ? `Favorite team: ${teamAssetResolver.resolveTeamId(teamId).name}.` : 'Favorite team cleared.');
+  return { favoriteTeamId: settings.favoriteTeamId, onboarding: cloneJson(settings.onboarding) };
+}
+
+// ---- Team palette images ---------------------------------------------------
+// A team can carry its own color-palette pictures (a brand sheet, a jersey
+// photo). They are saved to the team and offered inside the color wheel, where
+// hovering the picture previews that pixel's color on the real bug.
+function teamPalettesRoot() {
+  return path.join(app.getPath('userData'), 'team-palettes');
+}
+
+function normalizedTeamPalettes(value) {
+  const out = {};
+  if (!isPlainObject(value)) return out;
+  for (const [teamId, list] of Object.entries(value)) {
+    if (!Array.isArray(list)) continue;
+    const clean = list.filter((entry) => entry && /^pal-[a-z0-9]{6,32}$/.test(String(entry.id || '')) && /^pal-[a-z0-9]{6,32}\.png$/.test(String(entry.file || '')))
+      .map((entry) => ({ id: String(entry.id), file: String(entry.file), label: String(entry.label || '').slice(0, 60), width: Number(entry.width) || null, height: Number(entry.height) || null, addedAt: String(entry.addedAt || '') }));
+    if (clean.length) out[String(teamId)] = clean;
+  }
+  return out;
+}
+
+function teamPaletteList(teamId) {
+  return normalizedTeamPalettes(settings.teamPalettes)[String(teamId || '')] || [];
+}
+
+function teamPaletteImages(payload = {}) {
+  const teamId = String(payload.teamId || '').trim();
+  return teamPaletteList(teamId).map((entry) => {
+    let image = null;
+    try { image = `data:image/png;base64,${fs.readFileSync(path.join(teamPalettesRoot(), entry.file)).toString('base64')}`; } catch { }
+    return { ...entry, image };
+  }).filter((entry) => entry.image);
+}
+
+async function importTeamPalette(payload = {}) {
+  const teamId = String(payload.teamId || '').trim();
+  if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
+  const asset = teamAssetResolver?.resolveTeamId(teamId);
+  if (!asset) throw new Error('Palette images are saved to a team - wait for the team to be identified (or pick it) first.');
+  const parent = inGameEditorWindow && !inGameEditorWindow.isDestroyed() ? inGameEditorWindow : controlWindow;
+  const result = await dialog.showOpenDialog(parent || undefined, {
+    title: `Add a color palette image for ${asset.name}`,
+    properties: ['openFile'],
+    filters: [
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (result.canceled || !result.filePaths?.[0]) return { canceled: true };
+  const sourcePath = path.resolve(result.filePaths[0]);
+  const stats = fs.statSync(sourcePath);
+  if (!stats.isFile() || stats.size > 25 * 1024 * 1024) throw new Error('Choose an image smaller than 25 MB.');
+  let image = nativeImage.createFromPath(sourcePath);
+  if (image.isEmpty()) throw new Error('That file is not a readable image.');
+  let size = image.getSize();
+  if (size.width > 1024 || size.height > 1024) {
+    const ratio = Math.min(1024 / size.width, 1024 / size.height);
+    image = image.resize({ width: Math.max(1, Math.round(size.width * ratio)), height: Math.max(1, Math.round(size.height * ratio)), quality: 'best' });
+    size = image.getSize();
+  }
+  const id = `pal-${crypto.randomBytes(5).toString('hex')}`;
+  const file = `${id}.png`;
+  fs.mkdirSync(teamPalettesRoot(), { recursive: true });
+  const temporary = path.join(teamPalettesRoot(), `${file}.tmp`);
+  fs.writeFileSync(temporary, image.toPNG());
+  fs.renameSync(temporary, path.join(teamPalettesRoot(), file));
+  const palettes = normalizedTeamPalettes(settings.teamPalettes);
+  palettes[teamId] = [...(palettes[teamId] || []), {
+    id, file, label: path.parse(sourcePath).name.slice(0, 60), width: size.width, height: size.height, addedAt: new Date().toISOString(),
+  }].slice(-12);
+  settings.teamPalettes = palettes;
+  persistSettings();
+  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  logMessage(`${asset.name}: palette image added.`);
+  return { canceled: false, teamId, palettes: teamPaletteImages({ teamId }) };
+}
+
+function deleteTeamPalette(payload = {}) {
+  const teamId = String(payload.teamId || '').trim();
+  const id = String(payload.id || '').trim();
+  const palettes = normalizedTeamPalettes(settings.teamPalettes);
+  const entry = (palettes[teamId] || []).find((candidate) => candidate.id === id);
+  if (!entry) throw new Error('That palette image is already gone.');
+  try { fs.unlinkSync(path.join(teamPalettesRoot(), entry.file)); } catch { /* already gone */ }
+  palettes[teamId] = palettes[teamId].filter((candidate) => candidate.id !== id);
+  if (!palettes[teamId].length) delete palettes[teamId];
+  settings.teamPalettes = palettes;
+  persistSettings();
+  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  return { teamId, palettes: teamPaletteImages({ teamId }) };
 }
 
 // ---- Custom teams -------------------------------------------------------
@@ -3706,6 +4147,7 @@ function normalizeOnboardingState(value = {}) {
     completed: value?.completed === true,
     skipped: value?.skipped === true,
     welcomeShown: value?.welcomeShown === true,
+    favoritePicked: value?.favoritePicked === true,
     step: Number.isInteger(step) ? Math.max(0, Math.min(4, step)) : 0,
   };
 }
@@ -5554,8 +5996,10 @@ async function chooseThemePath() {
 async function importThemeToLibrary() {
   const selected = await chooseThemePath();
   if (!selected) return { canceled: true, themes: listLibraryThemes() };
+  const previous = themeLibraryStore().list();
   const theme = themeLibraryStore().importFile(selected);
   logMessage(`Theme imported into the library: ${theme.name}.`);
+  carryThemeProfileForward(theme, previous);
   return { canceled: false, theme: publicLibraryTheme(theme), themes: listLibraryThemes() };
 }
 
@@ -5965,6 +6409,11 @@ async function scoreboardMethod(method, payload) {
     case 'importThemeToLibrary': return importThemeToLibrary();
     case 'useLibraryTheme': return useLibraryTheme(payload);
     case 'deleteLibraryTheme': return deleteLibraryTheme(payload);
+    case 'saveThemeProfile': return saveThemeProfile(payload);
+    case 'clearThemeProfile': return clearThemeProfile(payload);
+    case 'snapshotActiveTheme': return snapshotActiveTheme();
+    case 'getTeamCatalog': return teamCatalogForPicker();
+    case 'setFavoriteTeam': return setFavoriteTeam(payload);
     case 'openLogs': return openLogs();
     case 'openDataExport': return openDataExport();
     case 'copyDiagnostics': return copyDiagnostics();
@@ -6039,6 +6488,18 @@ async function executeCommand(command, payload) {
       return setTeamLogoPreference(payload);
     case 'import-team-logo':
       return importTeamLogo(payload);
+    case 'get-team-catalog':
+      return teamCatalogForPicker();
+    case 'set-theme-setting':
+      return setThemeSetting(payload);
+    case 'set-favorite-team':
+      return setFavoriteTeam(payload);
+    case 'get-team-palettes':
+      return teamPaletteImages(payload);
+    case 'import-team-palette':
+      return importTeamPalette(payload);
+    case 'delete-team-palette':
+      return deleteTeamPalette(payload);
     case 'save-custom-team':
       return saveCustomTeam(payload);
     case 'delete-custom-team':

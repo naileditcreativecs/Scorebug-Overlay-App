@@ -604,6 +604,7 @@ function openColorWheel(side) {
   paintColorWheel();
   document.getElementById('color-wheel-preview').style.background = currentWheelHex();
   document.getElementById('color-wheel-hex').value = currentWheelHex();
+  loadPaletteStrip();
 }
 // Done keeps whatever the bug is showing; the x cancels back to the color the
 // wheel opened with (or auto if there was none).
@@ -617,6 +618,158 @@ function closeColorWheel({ cancel = false } = {}) {
   }
   document.getElementById('color-wheel-popover')?.classList.add('hidden');
   wheelState.side = null;
+}
+
+// ---- Palette images. Pictures saved to a team (brand sheets, jerseys);
+// hovering one previews that pixel's color on the real bug, click keeps it.
+const palette = { teamId: null, items: [], selectedId: null, image: null, drawn: null };
+function paletteTeamId() {
+  return wheelState.side ? (appState?.scorebugColors?.context?.[`${wheelState.side}TeamId`] || null) : null;
+}
+async function loadPaletteStrip() {
+  const strip = document.getElementById('palette-strip');
+  const stage = document.getElementById('palette-stage');
+  const note = document.getElementById('palette-note');
+  const add = document.getElementById('palette-add');
+  if (!strip) return;
+  const teamId = paletteTeamId();
+  palette.teamId = teamId;
+  palette.items = [];
+  palette.selectedId = null;
+  palette.image = null;
+  stage.classList.add('hidden');
+  strip.replaceChildren();
+  add.disabled = !teamId;
+  if (!teamId) {
+    note.textContent = 'Palette images save to a team - pick or detect the team first.';
+    return;
+  }
+  note.textContent = 'Hover a picture to preview that color on the bug; click to keep it.';
+  try {
+    palette.items = await api.getTeamPalettes({ teamId });
+  } catch (error) {
+    note.textContent = `Palette images unavailable: ${error.message}`;
+    return;
+  }
+  if (palette.teamId !== teamId) return;
+  paintPaletteStrip();
+  if (palette.items.length) selectPalette(palette.items[0].id);
+}
+function paintPaletteStrip() {
+  const strip = document.getElementById('palette-strip');
+  strip.replaceChildren();
+  if (!palette.items.length) {
+    const empty = document.createElement('span');
+    empty.className = 'palette-empty';
+    empty.textContent = `No palette images saved for ${appState?.scorebugColors?.swatches?.[wheelState.side]?.teamName || 'this team'} yet.`;
+    strip.append(empty);
+    return;
+  }
+  for (const item of palette.items) {
+    const thumb = document.createElement('button');
+    thumb.type = 'button';
+    thumb.className = 'palette-thumb';
+    thumb.classList.toggle('selected', item.id === palette.selectedId);
+    thumb.title = item.label || 'Palette image';
+    const image = document.createElement('img');
+    image.src = item.image;
+    image.alt = '';
+    image.draggable = false;
+    const remove = document.createElement('i');
+    remove.textContent = '\u00d7';
+    remove.title = 'Remove this palette image';
+    remove.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      try {
+        const result = await api.deleteTeamPalette({ teamId: palette.teamId, id: item.id });
+        palette.items = result?.palettes || [];
+        if (palette.selectedId === item.id) { palette.selectedId = null; palette.image = null; document.getElementById('palette-stage').classList.add('hidden'); }
+        paintPaletteStrip();
+      } catch (error) { reportError(error); }
+    });
+    thumb.append(image, remove);
+    thumb.addEventListener('click', () => selectPalette(item.id));
+    strip.append(thumb);
+  }
+}
+function selectPalette(id) {
+  const item = palette.items.find((candidate) => candidate.id === id);
+  if (!item) return;
+  palette.selectedId = id;
+  paintPaletteStrip();
+  const stage = document.getElementById('palette-stage');
+  const canvas = document.getElementById('palette-canvas');
+  const image = new Image();
+  image.onload = () => {
+    if (palette.selectedId !== id) return;
+    palette.image = image;
+    stage.classList.remove('hidden');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const ratio = Math.min(canvas.width / image.width, canvas.height / image.height);
+    const w = Math.round(image.width * ratio), h = Math.round(image.height * ratio);
+    const x = Math.round((canvas.width - w) / 2), y = Math.round((canvas.height - h) / 2);
+    ctx.drawImage(image, x, y, w, h);
+    palette.drawn = { x, y, w, h };
+  };
+  image.src = item.image;
+}
+function paletteSample(clientX, clientY) {
+  const canvas = document.getElementById('palette-canvas');
+  if (!palette.image || !palette.drawn) return null;
+  const box = canvas.getBoundingClientRect();
+  const px = Math.floor((clientX - box.left) * canvas.width / box.width);
+  const py = Math.floor((clientY - box.top) * canvas.height / box.height);
+  const { x, y, w, h } = palette.drawn;
+  if (px < x || py < y || px >= x + w || py >= y + h) return null;
+  const [r, g, b, a] = canvas.getContext('2d').getImageData(px, py, 1, 1).data;
+  if (a < 40) return null;
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+function wirePalette() {
+  const stage = document.getElementById('palette-stage');
+  const canvas = document.getElementById('palette-canvas');
+  const loupe = document.getElementById('palette-loupe');
+  if (!stage || !canvas) return;
+  canvas.addEventListener('pointermove', (event) => {
+    const hex = paletteSample(event.clientX, event.clientY);
+    const box = stage.getBoundingClientRect();
+    loupe.style.left = `${event.clientX - box.left}px`;
+    loupe.style.top = `${event.clientY - box.top}px`;
+    if (!hex) { stage.classList.remove('sampling'); return; }
+    stage.classList.add('sampling');
+    loupe.style.background = hex;
+    document.getElementById('color-wheel-preview').style.background = hex;
+    pushColorToBug(hex);
+  });
+  canvas.addEventListener('pointerleave', () => {
+    stage.classList.remove('sampling');
+    restoreCommittedColor();
+    document.getElementById('color-wheel-preview').style.background = wheelState.committed || currentWheelHex();
+  });
+  canvas.addEventListener('click', (event) => {
+    const hex = paletteSample(event.clientX, event.clientY);
+    if (!hex) return;
+    const parsed = hexToHsv(hex);
+    if (parsed) { wheelState.h = parsed.h; wheelState.s = parsed.s; wheelState.v = parsed.v; }
+    document.getElementById('color-wheel-value').value = String(Math.round(wheelState.v * 100));
+    paintColorWheel();
+    applyWheelColorLive();
+    setToast(`Picked ${hex} from the palette image.`);
+  });
+  document.getElementById('palette-add')?.addEventListener('click', async () => {
+    const teamId = paletteTeamId();
+    if (!teamId) return;
+    try {
+      const result = await api.importTeamPalette({ teamId });
+      if (result?.canceled) return;
+      palette.items = result?.palettes || [];
+      paintPaletteStrip();
+      const newest = palette.items[palette.items.length - 1];
+      if (newest) selectPalette(newest.id);
+      setToast('Palette image saved to this team.');
+    } catch (error) { reportError(error); }
+  });
 }
 
 // ---- Eyedropper. The browser's EyeDropper cannot open from this
@@ -773,6 +926,7 @@ function wireColorWheel() {
     else startEyedropper();
   });
   wireEyedropper();
+  wirePalette();
   for (const side of ['away', 'home']) {
     document.getElementById(`${side}-color-wheel`)?.addEventListener('click', () => {
       if (wheelState.side === side && !document.getElementById('color-wheel-popover').classList.contains('hidden')) closeColorWheel();
@@ -881,6 +1035,51 @@ async function applyPickerChoice(side, changes) {
   }
 }
 
+// Team logos for the pickers: fetched once (72 px thumbnails), then reused.
+let teamCatalog = null;
+let teamCatalogPromise = null;
+function loadTeamCatalog() {
+  if (teamCatalog) return Promise.resolve(teamCatalog);
+  if (!teamCatalogPromise) {
+    teamCatalogPromise = api.getTeamCatalog().then((catalog) => {
+      teamCatalog = catalog || { teams: [] };
+      return teamCatalog;
+    }).catch((error) => { teamCatalogPromise = null; throw error; });
+  }
+  return teamCatalogPromise;
+}
+function teamLogoThumb(teamId) {
+  return teamCatalog?.teams?.find((team) => team.id === String(teamId))?.logo || null;
+}
+function teamChoiceButton(team, { selected = false, favorite = false, onClick }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'team-choice';
+  const logo = team.logo || teamLogoThumb(team.id);
+  if (logo) {
+    const image = document.createElement('img');
+    image.src = logo;
+    image.alt = '';
+    image.draggable = false;
+    button.append(image);
+  } else {
+    const blank = document.createElement('i');
+    blank.className = 'team-blank';
+    blank.style.setProperty('--team-primary', team.primary || '#334155');
+    blank.style.setProperty('--team-secondary', team.secondary || '#64748b');
+    button.append(blank);
+  }
+  const text = document.createElement('span');
+  text.textContent = team.name;
+  button.append(text);
+  button.classList.toggle('selected', selected);
+  button.classList.toggle('favorite', favorite);
+  if (favorite) button.title = `${team.name} - your favorite team`;
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+let teamPickerFilter = '';
 function openTeamPicker(side) {
   closeLogoNumberPad();
   pickerTarget = { side, type: 'team' };
@@ -889,11 +1088,34 @@ function openTeamPicker(side) {
   const list = document.getElementById('choice-picker-list');
   list.classList.remove('logo-choice-grid');
   list.replaceChildren();
+  if (!teamCatalog) {
+    // Paint names now, repaint with logos as soon as the catalog lands.
+    loadTeamCatalog().then(() => { if (pickerTarget?.type === 'team' && pickerTarget.side === side) openTeamPicker(side); }).catch(() => {});
+  }
+  const search = document.createElement('input');
+  search.type = 'text';
+  search.className = 'picker-search';
+  search.placeholder = 'Type to find a team';
+  search.value = teamPickerFilter;
+  search.addEventListener('input', () => {
+    teamPickerFilter = search.value;
+    paintTeamPickerRoster(side, list);
+  });
+  list.append(search);
   list.append(pickerButton('Auto (OCR)', {
     auto: true,
     selected: !current.teamId,
     onClick: () => applyPickerChoice(side, { teamId: null }),
   }));
+  const favoriteId = appState?.favoriteTeamId || null;
+  const favorite = favoriteId ? (appState?.teams || []).find((team) => String(team.id) === String(favoriteId)) : null;
+  if (favorite) {
+    list.append(teamChoiceButton(favorite, {
+      selected: String(current.teamId || '') === String(favorite.id),
+      favorite: true,
+      onClick: () => applyPickerChoice(side, { teamId: String(favorite.id) }),
+    }));
+  }
   const customTeams = appState?.customTeams || [];
   const customGroup = document.createElement('div');
   customGroup.className = 'picker-group';
@@ -935,15 +1157,29 @@ function openTeamPicker(side) {
   const rosterGroup = document.createElement('div');
   rosterGroup.className = 'picker-group';
   rosterGroup.textContent = 'CFB27 roster';
+  rosterGroup.dataset.rosterGroup = 'true';
   list.append(rosterGroup);
+  paintTeamPickerRoster(side, list);
+  document.getElementById('choice-picker').classList.remove('hidden');
+  if (teamPickerFilter) search.focus();
+}
+
+function paintTeamPickerRoster(side, list) {
+  const current = appState?.teamOverrides?.[side] || {};
+  const filter = teamPickerFilter.trim().toLowerCase();
+  const marker = list.querySelector('[data-roster-group]');
+  if (!marker) return;
+  while (marker.nextSibling) marker.nextSibling.remove();
+  const favoriteId = String(appState?.favoriteTeamId || '');
   for (const team of appState?.teams || []) {
     if (team.custom) continue;
-    list.append(pickerButton(team.name, {
+    if (filter && !`${team.name} ${team.nickname || ''}`.toLowerCase().includes(filter)) continue;
+    list.append(teamChoiceButton(team, {
       selected: String(current.teamId || '') === String(team.id),
+      favorite: String(team.id) === favoriteId,
       onClick: () => applyPickerChoice(side, { teamId: String(team.id) }),
     }));
   }
-  document.getElementById('choice-picker').classList.remove('hidden');
 }
 
 // ---- Custom team editor -------------------------------------------------
@@ -1434,9 +1670,116 @@ function finishLogoPreviewDrag(event) {
   saveLogoTransform(finished.side);
 }
 
+// ---- Bug-declared settings panel -------------------------------------
+let bugSettingsTimer = null;
+function pushBugSetting(key, value, { reset = false } = {}) {
+  clearTimeout(bugSettingsTimer);
+  bugSettingsTimer = setTimeout(() => {
+    api.setThemeSetting(reset ? { key, reset: true } : { key, value }).then(acceptState).catch(reportError);
+  }, 40);
+}
+function renderBugSettings() {
+  const list = document.getElementById('bug-settings-list');
+  const panel = document.getElementById('bug-settings-panel');
+  if (!list || panel.classList.contains('hidden')) return;
+  const declaration = appState?.themeSettings?.declaration || [];
+  const values = appState?.themeSettings?.values || {};
+  // Do not repaint under an active drag.
+  if (list.dataset.dragging === 'true') return;
+  list.replaceChildren();
+  if (!declaration.length) {
+    const empty = document.createElement('p');
+    empty.className = 'bug-settings-empty';
+    empty.textContent = 'This scorebug HTML declares no settings. Bug authors can add a <script type="application/json" data-cfb27-settings> block (see THEME-SETTINGS.md) to get sliders, switches, choices and colors here.';
+    list.append(empty);
+    return;
+  }
+  for (const control of declaration) {
+    const value = values[control.key];
+    const card = document.createElement('div');
+    card.className = 'bug-setting';
+    const label = document.createElement('label');
+    const text = document.createElement('span');
+    text.textContent = control.label;
+    label.append(text);
+    card.append(label);
+    if (control.type === 'slider') {
+      const out = document.createElement('output');
+      out.textContent = `${value}${control.unit || ''}`;
+      label.append(out);
+      const range = document.createElement('input');
+      range.type = 'range';
+      range.min = String(control.min); range.max = String(control.max); range.step = String(control.step);
+      range.value = String(value);
+      range.tabIndex = -1;
+      range.addEventListener('pointerdown', () => { list.dataset.dragging = 'true'; });
+      range.addEventListener('pointerup', () => { delete list.dataset.dragging; });
+      range.addEventListener('input', () => { out.textContent = `${range.value}${control.unit || ''}`; pushBugSetting(control.key, Number(range.value)); });
+      range.addEventListener('change', () => { delete list.dataset.dragging; pushBugSetting(control.key, Number(range.value)); });
+      card.append(range);
+    } else if (control.type === 'toggle') {
+      const row = document.createElement('div');
+      row.className = 'toggle-row';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.classList.toggle('on', value === true);
+      button.textContent = value === true ? 'ON' : 'OFF';
+      button.addEventListener('click', () => { pushBugSetting(control.key, value !== true); });
+      row.append(button);
+      card.append(row);
+    } else if (control.type === 'choice') {
+      const row = document.createElement('div');
+      row.className = 'choice-row';
+      for (const option of control.options) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = option;
+        button.classList.toggle('selected', option === value);
+        button.addEventListener('click', () => pushBugSetting(control.key, option));
+        row.append(button);
+      }
+      card.append(row);
+    } else {
+      const row = document.createElement('div');
+      row.className = 'color-row-setting';
+      const picker = document.createElement('input');
+      picker.type = 'color';
+      picker.value = value;
+      const hex = document.createElement('input');
+      hex.type = 'text';
+      hex.maxLength = 7;
+      hex.value = value;
+      picker.addEventListener('input', () => { hex.value = picker.value; pushBugSetting(control.key, picker.value); });
+      hex.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(hex.value.trim())) { picker.value = hex.value.trim().toLowerCase(); pushBugSetting(control.key, picker.value); } });
+      row.append(picker, hex);
+      card.append(row);
+    }
+    if (value !== control.default) {
+      const reset = document.createElement('button');
+      reset.type = 'button';
+      reset.className = 'reset';
+      reset.textContent = 'reset to default';
+      reset.addEventListener('click', () => pushBugSetting(control.key, null, { reset: true }));
+      card.append(reset);
+    }
+    list.append(card);
+  }
+}
+function openBugSettings() {
+  setView('teams');
+  document.getElementById('bug-settings-panel').classList.remove('hidden');
+  document.getElementById('view-bug-settings').setAttribute('aria-pressed', 'true');
+  renderBugSettings();
+}
+function closeBugSettings() {
+  document.getElementById('bug-settings-panel')?.classList.add('hidden');
+  document.getElementById('view-bug-settings')?.setAttribute('aria-pressed', 'false');
+}
+
 function setView(view) {
   closeChoicePicker();
   closeLogoNumberPad();
+  closeBugSettings();
   activeView = view === 'teams' ? 'teams' : 'resize';
   const teams = activeView === 'teams';
   editor.classList.toggle('teams-view', teams);
@@ -1763,6 +2106,7 @@ function finishDirectLogoEdit(event) {
 }
 
 function acceptState(next) {
+  if (next && typeof next === 'object') setTimeout(renderBugSettings, 0);
   if (!next || typeof next !== 'object') return;
   if (gesture) {
     queuedState = next;
@@ -1910,6 +2254,11 @@ document.getElementById('reset-crop').addEventListener('click', () => {
 });
 document.getElementById('view-resize').addEventListener('click', () => setView('resize'));
 document.getElementById('view-teams').addEventListener('click', () => setView('teams'));
+document.getElementById('view-bug-settings').addEventListener('click', () => {
+  if (document.getElementById('bug-settings-panel').classList.contains('hidden')) openBugSettings();
+  else closeBugSettings();
+});
+document.getElementById('close-bug-settings').addEventListener('click', closeBugSettings);
 
 for (const side of ['away', 'home']) {
   document.getElementById(`${side}-team`).addEventListener('click', () => openTeamPicker(side));
@@ -2098,7 +2447,7 @@ document.addEventListener('pointerdown', (event) => {
     // The window may only become focusable after the call lands; refocus the
     // box on the next tick so the first click already starts typing.
     setTimeout(() => input.focus(), 30);
-  } else if (typeFocusHeld && !event.target.closest?.('.choice-picker, .logo-number-pad, .custom-team-editor')) {
+  } else if (typeFocusHeld && !event.target.closest?.('.choice-picker, .logo-number-pad, .custom-team-editor, .bug-settings-panel, .color-wheel-popover')) {
     setTypeFocus(false);
   }
 }, true);
@@ -2129,3 +2478,4 @@ window.addEventListener('resize', () => {
   for (const side of ['away', 'home']) paintLogoPreview(side, readLogoTransform(side));
 });
 api.inGameEditorReady().then(acceptState, reportError);
+loadTeamCatalog().catch(() => {});

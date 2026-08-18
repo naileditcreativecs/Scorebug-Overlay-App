@@ -802,3 +802,50 @@ button { font: inherit; }
 .logo-capture-marker { border-color: rgba(251, 146, 60, .8) !important; }
 /* Cheaper paint while actively dragging the scorebug outline. */
 .editor.is-dragging .output-box { box-shadow: 0 0 0 1px rgba(2, 6, 23, .9); }
+
+/* Palette images inside the color wheel */
+.palette-section { margin-top: 10px; border-top: 1px solid rgba(148,163,184,.2); padding-top: 8px; }
+.palette-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.palette-head strong { font-size: 10px; letter-spacing: .12em; color: #7dd3fc; }
+.palette-head button { border: 1px solid #3a4356; border-radius: 7px; background: #1b2433; color: #e8eef7; font-size: 11px; font-weight: 700; padding: 4px 9px; cursor: pointer; }
+.palette-strip { display: flex; gap: 6px; flex-wrap: wrap; min-height: 26px; }
+.palette-strip .palette-thumb { position: relative; width: 64px; height: 44px; border: 1px solid #3a4356; border-radius: 6px; overflow: hidden; background: #0d1320; cursor: pointer; padding: 0; }
+.palette-strip .palette-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.palette-strip .palette-thumb.selected { border-color: #58a6ff; box-shadow: 0 0 0 2px rgba(88,166,255,.35); }
+.palette-strip .palette-thumb i { position: absolute; top: 1px; right: 1px; width: 14px; height: 14px; border-radius: 50%; background: rgba(0,0,0,.65); color: #fff; font: 700 10px/14px "Segoe UI", sans-serif; text-align: center; font-style: normal; }
+.palette-strip .palette-thumb i:hover { background: #b91c1c; }
+.palette-strip .palette-empty { color: #8fa0b8; font-size: 10px; align-self: center; }
+.palette-stage { position: relative; margin-top: 6px; }
+#palette-canvas { display: block; width: 100%; height: 170px; border-radius: 7px; background: repeating-conic-gradient(rgba(255,255,255,.08) 0 25%, transparent 0 50%) 0 0 / 12px 12px; cursor: crosshair; }
+.palette-loupe { position: absolute; pointer-events: none; width: 22px; height: 22px; border: 2px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px rgba(0,0,0,.7); transform: translate(-50%, -50%); display: none; }
+.palette-stage.sampling .palette-loupe { display: block; }
+
+/* Logos in the team picker */
+.choice-picker-list button.team-choice { display: grid; grid-template-columns: 26px minmax(0, 1fr); align-items: center; gap: 7px; min-height: 38px; }
+.choice-picker-list button.team-choice img { width: 26px; height: 26px; object-fit: contain; }
+.choice-picker-list button.team-choice i.team-blank { width: 26px; height: 26px; border-radius: 5px; background: linear-gradient(135deg, var(--team-primary, #334155) 50%, var(--team-secondary, #64748b) 50%); }
+.choice-picker-list button.team-choice.favorite { border-color: rgba(250, 204, 21, .6); }
+.choice-picker-list button.team-choice.favorite span::after { content: " \2605"; color: #fde68a; }
+.choice-picker-list .picker-search { grid-column: 1 / -1; width: 100%; box-sizing: border-box; min-height: 34px; border: 2px solid #45506b; border-radius: 8px; padding: 6px 10px; color: #f2f6fc; background: #0d1320; font: 700 13px "Segoe UI", sans-serif; }
+
+/* Bug-declared settings */
+.bug-settings-panel { position: absolute; z-index: 45; inset: 62px 15px 54px; display: grid; grid-template-rows: auto 1fr; border: 1px solid rgba(250,204,21,.55); border-radius: 10px; background: rgba(7,15,27,.995); box-shadow: 0 16px 35px rgba(0,0,0,.65); overflow: hidden; }
+.team-panel > .bug-settings-panel { grid-column: 1 / -1; }
+.bug-settings-panel header { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid rgba(148,163,184,.25); }
+.bug-settings-panel header strong { color: #fde68a; font-size: 12px; letter-spacing: .08em; }
+.bug-settings-panel header button { border: 1px solid rgba(148,163,184,.35); border-radius: 6px; padding: 5px 9px; color: #e2e8f0; background: #1e293b; cursor: pointer; }
+.bug-settings-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; padding: 12px; overflow: auto; align-content: start; }
+.bug-settings-list .bug-setting { display: grid; gap: 6px; border: 1px solid rgba(148,163,184,.25); border-radius: 8px; padding: 10px; background: #111a28; }
+.bug-settings-list .bug-setting > label { display: flex; align-items: center; justify-content: space-between; color: #cbd5e1; font-size: 12px; font-weight: 700; }
+.bug-settings-list .bug-setting > label output { color: #fde68a; font-variant-numeric: tabular-nums; }
+.bug-settings-list input[type="range"] { width: 100%; margin: 0; }
+.bug-settings-list .choice-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.bug-settings-list .choice-row button { border: 1px solid rgba(148,163,184,.3); border-radius: 6px; padding: 5px 9px; color: #e2e8f0; background: #172033; font-size: 11px; cursor: pointer; }
+.bug-settings-list .choice-row button.selected { border-color: var(--orange, #f97316); background: #7c2d12; color: #ffedd5; }
+.bug-settings-list .toggle-row button { border: 1px solid rgba(148,163,184,.3); border-radius: 999px; padding: 5px 12px; color: #e2e8f0; background: #172033; font-size: 11px; cursor: pointer; }
+.bug-settings-list .toggle-row button.on { border-color: rgba(52,211,153,.6); background: #064e3b; color: #a7f3d0; }
+.bug-settings-list .color-row-setting { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px; }
+.bug-settings-list .color-row-setting input[type="color"] { width: 44px; height: 30px; padding: 0; border: 1px solid #45506b; border-radius: 6px; background: #0d1320; }
+.bug-settings-list .color-row-setting input[type="text"] { min-height: 30px; border: 1px solid #45506b; border-radius: 6px; padding: 4px 8px; color: #f2f6fc; background: #0d1320; font: 700 12px "Segoe UI", sans-serif; }
+.bug-settings-list .bug-settings-empty { grid-column: 1 / -1; color: #94a3b8; font-size: 12px; line-height: 1.5; }
+.bug-settings-list .bug-setting .reset { justify-self: end; border: none; background: transparent; color: #94a3b8; font-size: 10px; cursor: pointer; text-decoration: underline; }

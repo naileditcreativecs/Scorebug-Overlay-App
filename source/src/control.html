@@ -14,7 +14,7 @@
       <h1>Scoreboard Overlay</h1>
       <p class="header-subtitle">Every overlay tool has its own tab.</p>
     </div>
-    <span id="app-version" class="version">v1.4.37</span>
+    <span id="app-version" class="version">v1.4.38</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -311,6 +311,7 @@
 
 
     <section class="panel" data-panel="settings">
+      <div id="favorite-inline" class="favorite-inline" aria-label="Favorite team"></div>
       <div class="advanced-page-heading"><div><p class="eyebrow">APP PREFERENCES</p><h2>Settings</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
       <div class="grid two">
         <article class="card">
@@ -376,7 +377,7 @@
           <p class="binding-list"><code>away.name</code> <code>away.nickname</code> <code>away.rank</code> <code>away.record</code> <code>away.score</code> <code>away.timeouts</code> <code>away.possession</code> <code>away.logo</code> <code>home.name</code> <code>home.nickname</code> <code>home.rank</code> <code>home.record</code> <code>home.score</code> <code>home.timeouts</code> <code>home.possession</code> <code>home.logo</code> <code>game.quarter</code> <code>game.clock</code> <code>game.playClock</code> <code>game.downDistance</code></p>
           <p>Each standalone HTML can declare its own canvas shape. The game-reading boxes stay independent from the selected scoreboard design.</p>
         </details>
-        <p class="hint">Importing saves a copy; it does not change your current overlay. Choose <strong>Use this theme</strong> on a compatible card when you are ready.</p>
+        <p class="hint">Importing saves a copy; it does not change your current overlay. Choose <strong>Use this theme</strong> on a compatible card when you are ready. Each bug keeps its own <strong>profile</strong> - position, size, logo picks and settings - and switching bugs restores it. Previews are photographs of the real overlay taken while a bug is in use.</p>
         <div id="theme-library-grid" class="theme-library-grid" aria-live="polite">
           <div class="theme-library-empty">No imported HTML themes yet.</div>
         </div>
@@ -411,6 +412,16 @@
     </section>
   </main>
 
+  <section id="favorite-popup" class="welcome-popup favorite-popup" role="dialog" aria-modal="true" aria-labelledby="favorite-title" hidden>
+    <div id="favorite-dialog" class="welcome-dialog favorite-dialog" tabindex="-1">
+      <p class="eyebrow">SCOREBUG CENTER</p>
+      <h1 id="favorite-title">Pick your favorite team</h1>
+      <p>Click a team. It goes to the top of every team picker and is starred in the in-game editor (Ctrl+Alt+O). You can change it any time from Settings.</p>
+      <input id="favorite-search" type="text" placeholder="Type to find a team" autocomplete="off" aria-label="Find a team">
+      <div id="favorite-grid" class="favorite-grid" aria-live="polite"><span class="favorite-loading">Loading teams…</span></div>
+      <footer><button id="btn-favorite-skip" type="button">Skip for now</button></footer>
+    </div>
+  </section>
   <section id="welcome-popup" class="welcome-popup" role="dialog" aria-modal="true" aria-labelledby="welcome-title" hidden>
     <div id="welcome-dialog" class="welcome-dialog" tabindex="-1">
       <p class="eyebrow">SCOREBUG CENTER</p>

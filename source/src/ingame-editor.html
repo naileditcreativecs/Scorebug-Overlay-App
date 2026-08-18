@@ -16,6 +16,7 @@
       <nav class="view-tabs" aria-label="In-game control page">
         <button id="view-resize" type="button" aria-pressed="true">Resize</button>
         <button id="view-teams" type="button" aria-pressed="false">Teams, ranks &amp; logos</button>
+        <button id="view-bug-settings" type="button" aria-pressed="false" title="Settings this scorebug HTML declares">Bug settings</button>
       </nav>
       <div class="actions">
         <span class="resize-actions">
@@ -231,8 +232,17 @@
               <small id="color-wheel-save-note" class="color-source"></small>
             </div>
           </div>
+          <div class="palette-section">
+            <div class="palette-head"><strong>TEAM PALETTE IMAGES</strong><span id="palette-note" class="color-wheel-hint">Hover a picture to preview that color on the bug; click to keep it.</span><button id="palette-add" type="button" title="Save a color palette image to this team">+ Add image</button></div>
+            <div id="palette-strip" class="palette-strip"></div>
+            <div id="palette-stage" class="palette-stage hidden"><canvas id="palette-canvas" width="440" height="170"></canvas><span id="palette-loupe" class="palette-loupe"></span></div>
+          </div>
         </div>
         <div id="eyedropper-layer" class="eyedropper-layer hidden" aria-hidden="true"><span id="eyedropper-loupe" class="eyedropper-loupe"></span><span class="eyedropper-help">Move over the screen to preview - click to keep - Esc to cancel</span></div>
+        <aside id="bug-settings-panel" class="bug-settings-panel hidden" aria-label="Scorebug settings">
+          <header><strong id="bug-settings-title">BUG SETTINGS</strong><span id="bug-settings-note" class="color-wheel-hint">Saved with this bug's profile. Changes show live.</span><button id="close-bug-settings" type="button">Close</button></header>
+          <div id="bug-settings-list" class="bug-settings-list"></div>
+        </aside>
         <footer class="team-panel-footer">
           <span>Team/rank overrides last for this session. Colors, imported logos and placement are remembered without changing the reader.</span>
           <button id="clear-team-overrides" type="button">Return both teams to Auto</button>
