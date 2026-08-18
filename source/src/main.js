@@ -256,6 +256,7 @@ let lastRamRecoveryAtMs = 0;
 let lastRamReaderStartAtMs = 0;
 let consecutiveRamRecoveries = 0;
 let lastAutoNewGameAtMs = 0;
+let autoNewGameReacquire = false;
 // The reader needs up to 30s for a cold scan, so anything near that just
 // kills it mid-acquisition and it can never finish. Measured 2026-08-12:
 // a 25s threshold restarted it five times in a row and it never read once.
@@ -1015,7 +1016,12 @@ function pollRamScoreboardState() {
       && Date.now() - lastAutoNewGameAtMs > 60000) {
       lastAutoNewGameAtMs = Date.now();
       logMessage('New game detected (1st quarter, 0-0, full clock after a game in progress); re-reading everything.');
-      runControlAction('fresh-read').catch(() => {});
+      // Automatic path: keep the reader's cache. Within one game session the
+      // core scoreboard block stays put and the cache probe verifies before
+      // adopting, so re-attaching from cache takes ~1s instead of a full
+      // locate. Only the manual New game button purges (the escape hatch).
+      autoNewGameReacquire = true;
+      runControlAction('fresh-read').catch(() => {}).finally(() => { autoNewGameReacquire = false; });
       return;
     }
     const signature = JSON.stringify({
@@ -1210,7 +1216,7 @@ function reacquireRamReader(reason) {
   // A manual re-read means "this is a different game": drop the reader's
   // cached profile so it locates everything fresh instead of re-adopting
   // addresses that still hold the previous matchup.
-  if (/new game|fresh read/i.test(String(reason || ''))) {
+  if (!autoNewGameReacquire && /new game|fresh read/i.test(String(reason || ''))) {
     try { fs.unlinkSync(path.join(dataExportRootPath(), 'ram-live-profile-cache.json')); } catch { }
     try { fs.unlinkSync(ramLiveDataPath()); } catch { }
   }
