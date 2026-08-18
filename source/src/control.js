@@ -19,6 +19,7 @@
     calibrationCapture: 'CommandOrControl+Alt+C',
     quickSettings: 'CommandOrControl+Alt+O',
     freshRead: 'CommandOrControl+Alt+F',
+    nextTheme: 'CommandOrControl+Alt+B',
   });
   const APP_HOTKEY_FIELDS = Object.freeze({
     toggle: 'toggle-hotkey',
@@ -29,6 +30,7 @@
     // left the Settings tab with the calibration panel.
     quickSettings: 'quick-settings-hotkey',
     freshRead: 'fresh-read-hotkey',
+    nextTheme: 'next-theme-hotkey',
   });
   // These match reader-profile validation. Keeping independent dimensions is
   // important: a timeout bar only needs two source rows before the whole crop

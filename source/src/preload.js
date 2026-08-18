@@ -119,6 +119,7 @@ contextBridge.exposeInMainWorld('scoreboard', Object.freeze({
   importThemeToLibrary: () => scoreboardMethod('importThemeToLibrary'),
   useLibraryTheme: (id) => scoreboardMethod('useLibraryTheme', id),
   deleteLibraryTheme: (id) => scoreboardMethod('deleteLibraryTheme', id),
+  cycleLibraryTheme: (direction) => scoreboardMethod('cycleLibraryTheme', direction),
   saveThemeProfile: (id) => scoreboardMethod('saveThemeProfile', id),
   clearThemeProfile: (id) => scoreboardMethod('clearThemeProfile', id),
   snapshotActiveTheme: () => scoreboardMethod('snapshotActiveTheme'),

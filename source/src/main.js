@@ -6109,6 +6109,24 @@ function useLibraryTheme(id) {
   return { theme: publicLibraryTheme(theme), themes: listLibraryThemes(), status: publicStatus() };
 }
 
+// Ctrl+Alt+B: switch to the next usable bug in the library (the order the
+// library tab shows), wrapping around. Each bug's saved profile restores as
+// it always does when a theme is selected.
+function cycleLibraryTheme(direction = 1) {
+  const themes = listLibraryThemes().filter((theme) => theme.compatibility?.canUse !== false);
+  if (!themes.length) throw new Error('The HTML library is empty.');
+  if (themes.length === 1) {
+    logMessage(`Only one bug in the library: ${themes[0].name}.`);
+    return useLibraryTheme(themes[0].id);
+  }
+  const activeIndex = themes.findIndex((theme) => theme.active);
+  const next = themes[(activeIndex + (direction >= 0 ? 1 : -1) + themes.length) % themes.length];
+  const result = useLibraryTheme(next.id);
+  logMessage(`Switched to the next bug: ${next.name} (${((activeIndex + 1 + themes.length) % themes.length) + 1} of ${themes.length}).`);
+  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  return result;
+}
+
 function deleteLibraryTheme(id) {
   const store = themeLibraryStore();
   const theme = store.get(String(id || ''));
@@ -6508,6 +6526,7 @@ async function scoreboardMethod(method, payload) {
     case 'importThemeToLibrary': return importThemeToLibrary();
     case 'useLibraryTheme': return useLibraryTheme(payload);
     case 'deleteLibraryTheme': return deleteLibraryTheme(payload);
+    case 'cycleLibraryTheme': return cycleLibraryTheme(payload === -1 ? -1 : 1);
     case 'saveThemeProfile': return saveThemeProfile(payload);
     case 'clearThemeProfile': return clearThemeProfile(payload);
     case 'snapshotActiveTheme': return snapshotActiveTheme();
@@ -7035,6 +7054,7 @@ function registerShortcuts() {
     calibrationCapture: 'CommandOrControl+Alt+C',
     quickSettings: 'CommandOrControl+Alt+O',
     freshRead: 'CommandOrControl+Alt+F',
+    nextTheme: 'CommandOrControl+Alt+B',
   }, settings.hotkeys || {});
   const registrations = [
     [shortcuts.toggle, () => executeCommand('toggle')],
@@ -7044,6 +7064,7 @@ function registerShortcuts() {
     [shortcuts.calibrationCapture, captureCalibrationFromShortcut],
     [shortcuts.quickSettings, () => executeCommand('toggle-quick-settings')],
     [shortcuts.freshRead, () => runControlAction('fresh-read')],
+    [shortcuts.nextTheme, () => cycleLibraryTheme(1)],
   ];
   for (const [accelerator, callback] of registrations) {
     if (!accelerator) continue;
