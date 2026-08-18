@@ -365,3 +365,9 @@ body.setup-wizard-open { overflow: hidden; }
 .stats-search-grid strong { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .stats-search-grid input { padding: 7px 9px; }
 .stats-search-grid .stats-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+.dynasty-pick { display: grid; gap: 6px; margin: 10px 0 4px; max-width: 640px; font-size: 13px; color: var(--muted); }
+.notes-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 8px; }
+.notes-grid label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.notes-grid label:last-child { grid-column: 1 / -1; }
+.notes-grid textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; background: #0b111a; color: var(--text); padding: 9px 10px; font: 13px/1.45 "Segoe UI", system-ui, sans-serif; resize: vertical; }

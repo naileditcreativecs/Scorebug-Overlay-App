@@ -122,6 +122,8 @@ async function main() {
         offensiveRank: num(s.OffensiveRank), defensiveRank: num(s.DefensiveRank), streak: num(s.SeasonWinLossStreak),
         prevWins: num(s.TEAM_PREVSEASWINS), prevLosses: num(s.TEAM_PREVSEASLOSSES),
         conferenceIndex: decodeRef(r.Conference)?.recordIndex ?? null,
+        // The user's team is the one with a UserCharacter reference.
+        isUser: Boolean(decodeRef(r.UserCharacter)),
         seasonTotals: null,
       };
       // Season totals: Team.TeamSeasonStats -> TeamStats rows (one per season); pick
@@ -146,6 +148,7 @@ async function main() {
   }
   out.teams = teams;
   const byIndex = new Map(teams.map((t) => [t.index, t]));
+  out.userTeamIndex = teams.find((t) => t.isUser)?.index ?? null;
 
   const gameTable = await findTable(franchise, ['SeasonGame'], ['HomeTeam', 'AwayTeam', 'SeasonWeek'], 100);
   const week = out.season?.currentWeek;
@@ -162,7 +165,7 @@ async function main() {
         if (b) { const bs = scalar(b.record); bowl = { name: bs.Name || null, isPlayoff: bs.IsPlayoffBowl === true, bracketSlot: num(bs.PlayoffBracketSlot), trophy: bs.Trophy || null }; }
       }
       out.gamesThisWeek.push({
-        index: i, week: num(s.SeasonWeek), weekType: s.SeasonWeekType || null, status: s.GameStatus || null,
+        index: i, week: num(s.SeasonWeek), weekType: s.SeasonWeekType || null, status: s.GameStatus || null, simmed: s.IsSimmed === true,
         homeIndex: home?.recordIndex ?? null, awayIndex: away?.recordIndex ?? null,
         homeName: byIndex.get(home?.recordIndex)?.name || null, awayName: byIndex.get(away?.recordIndex)?.name || null,
         isRematch: s.IsRematch === true, gameOfWeek: s.IsGameOfTheWeek === true, network: s.BroadcastNetwork || null,
@@ -171,6 +174,13 @@ async function main() {
       });
     }
   }
+
+  // The user's game this week: the user team's game, else the lone
+  // unplayed/unsimmed game (every CPU game is simmed when the week advances).
+  const userGame = out.gamesThisWeek.find((g) => out.userTeamIndex !== null && (g.homeIndex === out.userTeamIndex || g.awayIndex === out.userTeamIndex))
+    || (out.gamesThisWeek.filter((g) => g.status === 'Unplayed' && !g.simmed).length === 1 ? out.gamesThisWeek.find((g) => g.status === 'Unplayed' && !g.simmed) : null)
+    || null;
+  out.userGameIndex = userGame ? userGame.index : null;
 
   // Offensive leaders for the requested teams (season lines).
   if (leaderTeams.size) {

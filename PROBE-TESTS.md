@@ -1,4 +1,4 @@
-CFB27 SCOREBUG CENTER — DATA HUNT TESTS (v1.4.45, round 2)
+CFB27 SCOREBUG CENTER — DATA HUNT TESTS (v1.4.48, round 3)
 ==========================================================
 
 These are research probes. They never change what the scorebug shows; they
@@ -81,14 +81,13 @@ It is read-only — the save is never modified. Play Now / RTG games have no
 save to read; this is Dynasty only.
 
 ------------------------------------------------------------------------
-WHAT TO SEND (zip the whole data-export folder if easier)
+NOTES + SENDING IT (built into the app now)
 ------------------------------------------------------------------------
-  penalty-probe.jsonl      (test 1)
-  stats-search.jsonl       (test 2, round 2)  + stats-probe.jsonl
-  playcall-probe.jsonl     (test 3, round 2)  + toggle-probe.jsonl
-  messages-probe.jsonl     (banner stream - always useful)
-  dynasty-probe.json       (test 4)
-  + your notes / photos with game-clock times
+Diagnostics tab -> "TEST GAME NOTES": type your flag notes, play-picker
+moments, halftime and final stats there as you go (it autosaves). After
+the game press "Export test package" - one zip lands on your Desktop with
+every probe log, latest-state.json, your notes and the app logs, and the
+folder opens. Send that one file (plus your stats-screen photos).
 
-Discord or the usual channel. Thank you — every one of these turns a
-"maybe" in the roadmap into a shipped feature.
+Diagnostics also shows which DYNASTY save the app is reading (newest by
+default; pick another from the dropdown if you play from an older file).

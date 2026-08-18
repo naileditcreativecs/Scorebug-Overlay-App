@@ -83,6 +83,7 @@ const {
 } = require('./theme-settings');
 const {
   applyDynastyContext,
+  applyDynastyNameFallback,
   indexSaveTeams,
 } = require('./dynasty-context');
 const {
@@ -203,8 +204,11 @@ const {
   usesRamReader,
 } = require('./scoreboard-data-source');
 const { TransientJsonReader } = require('./transient-json-reader');
-const { applyRamFieldHold, clearRamFieldHold, createRamFieldHoldCache } = require('./ram-field-hold');
+const { applyRamFieldHold, clearRamFieldHold, createRamFieldHoldCache,
+  forgetRamFieldHold,
+} = require('./ram-field-hold');
 const { flagStateFromMessages } = require('./flag-detector');
+let lastRamQuarter = null;
 const { runPreflight, reportText: preflightReportText } = require('./preflight');
 const { applyRamDocumentHold, clearRamDocumentHold, createRamDocumentHold, looksLikeNewGame } = require('./ram-document-hold');
 
@@ -1100,6 +1104,15 @@ function pollRamScoreboardState() {
       if (held.reason === 'new-game' || held.reason === 'process') clearRamFieldHold(ramFieldHoldCache);
       clearRamScoreboardState();
       return;
+    }
+    // Timeouts hold until replaced - except across the half, when both teams
+    // get three back and a held first-half count would be wrong.
+    const quarterNow = Number(payload.state?.game?.quarter);
+    if (Number.isInteger(quarterNow)) {
+      if (Number.isInteger(lastRamQuarter) && lastRamQuarter <= 2 && quarterNow >= 3) {
+        forgetRamFieldHold(ramFieldHoldCache, ['away.timeouts', 'home.timeouts']);
+      }
+      lastRamQuarter = quarterNow;
     }
     if (held.held) {
       // Nothing new to publish - the previous state is already on screen.
@@ -3325,9 +3338,13 @@ function publishCurrentScoreboardState() {
         // wins over the asset's primary.
         applyScorebugColors(
           applyBundledTeamAssets(
-            applyManualTeamOverrides(
-              applyRamScoreboardState(runtime.readerScoreboardState),
-              runtime.manualTeamOverrides,
+            applyDynastyNameFallback(
+              applyManualTeamOverrides(
+                applyRamScoreboardState(runtime.readerScoreboardState),
+                runtime.manualTeamOverrides,
+                teamAssetResolver,
+              ),
+              runtime.dynasty,
               teamAssetResolver,
             ),
           ),
@@ -3878,7 +3895,29 @@ function dynastySavesFolders() {
   return [...new Set(folders)];
 }
 
+function listDynastySaves() {
+  const all = [];
+  for (const folder of dynastySavesFolders()) {
+    try {
+      if (!fs.existsSync(folder)) continue;
+      for (const name of fs.readdirSync(folder)) {
+        if (!/^DYNASTY/i.test(name) || /\.(bak|tmp)$/i.test(name)) continue;
+        const full = path.join(folder, name);
+        const stat = fs.statSync(full);
+        if (stat.isFile()) all.push({ name, full, mtimeMs: stat.mtimeMs, size: stat.size, modified: stat.mtime.toISOString() });
+      }
+    } catch { /* next */ }
+  }
+  all.sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return all;
+}
+
 function newestDynastySave() {
+  const chosen = String(dynastySettings().savePath || '').trim();
+  if (chosen && fs.existsSync(chosen)) {
+    const stat = fs.statSync(chosen);
+    return { full: chosen, mtimeMs: stat.mtimeMs, size: stat.size, pinned: true };
+  }
   for (const folder of dynastySavesFolders()) {
     try {
       if (!fs.existsSync(folder)) continue;
@@ -3945,6 +3984,7 @@ async function refreshDynastyContext({ force = false } = {}) {
   // A save being written grows for a moment: wait until it has been quiet for 5 s.
   if (Date.now() - newest.mtimeMs < 5000) return;
   dynastyWorkerBusy = true;
+  let loaded = false;
   try {
     const context = await runDynastyWorker(newest.full);
     if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
@@ -3953,18 +3993,23 @@ async function refreshDynastyContext({ force = false } = {}) {
       byAsset: indexSaveTeams(context, teamAssetResolver),
       leaders: {},
       savePath: newest.full,
+      pinned: Boolean(newest.pinned),
       loadedAt: new Date().toISOString(),
     };
     dynastyLastKey = key;
     dynastyLeaderKey = '';
     logMessage(`Dynasty save read: ${path.basename(newest.full)} - ${context.season?.seasonYear ?? '?'} ${context.season?.currentWeekType || ''} week ${context.season?.currentWeek ?? '?'}, ${context.teams?.length || 0} teams, ${context.gamesThisWeek?.length || 0} games this week (${runtime.dynasty.byAsset.size} matched to the roster).`);
-    publishCurrentScoreboardState();
-    broadcastStatus();
+    loaded = true;
   } catch (error) {
     logMessage(`Dynasty save could not be read: ${error.message}`);
     dynastyLastKey = key; // do not hammer a broken file; a new save re-triggers
   } finally {
     dynastyWorkerBusy = false;
+  }
+  if (loaded) {
+    // Publish AFTER the busy flag drops so the leaders request can start.
+    publishCurrentScoreboardState();
+    broadcastStatus();
   }
 }
 
@@ -4001,6 +4046,53 @@ function startDynastyWatch() {
   dynastyPollTimer.unref?.();
 }
 
+// ---- Tester notes + test package export -----------------------------------
+function testerNotesPath() { return path.join(dataExportRootPath(), 'tester-notes.json'); }
+
+function saveTesterNotes(payload = {}) {
+  const notes = {};
+  for (const key of ['flags', 'playPicker', 'halftimeStats', 'finalStats', 'other']) {
+    notes[key] = String(payload?.[key] ?? '').slice(0, 20000);
+  }
+  notes.savedAt = new Date().toISOString();
+  notes.appVersion = app.getVersion();
+  fs.mkdirSync(dataExportRootPath(), { recursive: true });
+  fs.writeFileSync(testerNotesPath(), `${JSON.stringify(notes, null, 2)}\n`, 'utf8');
+  return notes;
+}
+
+function loadTesterNotes() {
+  return readJsonFile(testerNotesPath(), {});
+}
+
+// Zip data-export (probes, latest-state, notes) + logs to the Desktop and
+// reveal it, so a tester can send one file.
+async function exportTestPackage() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const desktop = app.getPath('desktop');
+  const target = path.join(desktop, `CFB27-test-package-${stamp}.zip`);
+  const sources = [dataExportRootPath(), logsPath()].filter((folder) => fs.existsSync(folder));
+  if (!sources.length) throw new Error('Nothing to package yet - play a game first.');
+  const staging = path.join(app.getPath('temp'), `cfb27-test-package-${stamp}`);
+  fs.rmSync(staging, { recursive: true, force: true });
+  fs.mkdirSync(staging, { recursive: true });
+  for (const folder of sources) {
+    fs.cpSync(folder, path.join(staging, path.basename(folder)), { recursive: true, filter: (src) => !/ram-live-profile-cache\.json$/.test(src) });
+  }
+  fs.writeFileSync(path.join(staging, 'README.txt'), `CFB27 Scorebug Center test package\nApp ${app.getVersion()} - ${new Date().toISOString()}\nContents: data-export (probe logs, latest-state.json, tester-notes.json), logs.\n`, 'utf8');
+  await new Promise((resolve, reject) => {
+    const script = `Compress-Archive -Path '${staging.replace(/'/g, "''")}\*' -DestinationPath '${target.replace(/'/g, "''")}' -Force`;
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 120000 }, (error, stdout, stderr) => {
+      if (error) reject(new Error(String(stderr || error.message).trim().slice(0, 300)));
+      else resolve();
+    });
+  });
+  fs.rmSync(staging, { recursive: true, force: true });
+  shell.showItemInFolder(target);
+  logMessage(`Test package written: ${target}`);
+  return { path: target };
+}
+
 function dynastyStatusSummary() {
   const dynasty = runtime.dynasty;
   if (dynastySettings().enabled === false) return { enabled: false, text: 'Dynasty save reading is off.' };
@@ -4020,7 +4112,9 @@ function dynastyStatusSummary() {
     weekType: season.currentWeekType || null,
     teams: dynasty.context.teams?.length || 0,
     matched: Boolean(matched),
-    text: `${path.basename(dynasty.savePath)} · ${season.seasonYear ?? '?'} ${label || `week ${season.currentWeek ?? '?'}`} · ${dynasty.context.teams?.length || 0} teams${matched ? ' · this matchup found' : ''}`,
+    userTeam: dynasty.context.teams?.find((t) => t.isUser)?.name || null,
+    userGame: (() => { const g = (dynasty.context.gamesThisWeek || []).find((x) => x.index === dynasty.context.userGameIndex); return g ? `${g.awayName || '?'} at ${g.homeName || '?'}` : null; })(),
+    text: `${path.basename(dynasty.savePath)}${dynasty.pinned ? ' (chosen)' : ' (newest)'} · ${season.seasonYear ?? '?'} ${label || `week ${season.currentWeek ?? '?'}`} · ${dynasty.context.teams?.length || 0} teams${dynasty.context.teams?.find((t) => t.isUser) ? ` · you: ${dynasty.context.teams.find((t) => t.isUser).name}` : ''}${(() => { const g = (dynasty.context.gamesThisWeek || []).find((x) => x.index === dynasty.context.userGameIndex); return g ? ` · your game: ${g.awayName || '?'} at ${g.homeName || '?'}` : ''; })()}${matched ? ' · live matchup found' : ''}`,
   };
 }
 
@@ -6912,6 +7006,17 @@ async function scoreboardMethod(method, payload) {
     case 'copyRamReaderDoctor': return copyRamReaderDoctor();
     case 'requestStatsSearch': return requestStatsSearch(payload);
     case 'refreshDynasty': { await refreshDynastyContext({ force: true }); return dynastyStatusSummary(); }
+    case 'listDynastySaves': return { saves: listDynastySaves(), chosen: String(dynastySettings().savePath || '') };
+    case 'chooseDynastySave': {
+      const chosen = String(payload || '').trim();
+      dynastySettings().savePath = chosen && fs.existsSync(chosen) ? chosen : '';
+      persistSettings();
+      dynastyLastKey = '';
+      await refreshDynastyContext({ force: true });
+      return dynastyStatusSummary();
+    }
+    case 'saveTesterNotes': return saveTesterNotes(payload);
+    case 'exportTestPackage': return exportTestPackage();
     case 'openDiagnosis': {
       createDiagnosisWindow();
       buildDiagnosisReport({ deep: true }).then(sendDiagnosisReport).catch(() => {});

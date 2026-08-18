@@ -14,7 +14,7 @@
       <h1>Scorebug Center</h1>
       <p class="header-subtitle">Every overlay tool has its own tab. In game, Ctrl+Alt+O opens the scorebug editor.</p>
     </div>
-    <span id="app-version" class="version">v1.4.47</span>
+    <span id="app-version" class="version">v1.4.48</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -409,7 +409,22 @@
       <article class="card" id="dynasty-card">
         <div class="card-heading"><div><p class="eyebrow">DYNASTY SAVE</p><h2>Matchup context from the save</h2></div><div class="button-row"><button id="btn-refresh-dynasty">Re-read save now</button></div></div>
         <p id="dynasty-status" class="status-detail">Waiting for the first read…</p>
+        <label class="dynasty-pick">Which dynasty file is being played
+          <select id="dynasty-save-select"><option value="">Auto - newest DYNASTY save</option></select>
+        </label>
         <p class="hint">Bugs get <code>away/home.record</code> and <code>rank</code> filled from the save when the reader has not confirmed them yet, plus <code>confRecord</code>, <code>streak</code>, <code>season.*</code> (yards per game, 3rd-down %, turnovers…), <code>leaders.qbLine/rbLine/wrLine</code>, and <code>game.context</code> (week label, bowl, playoff, network, weather, rematch, conference game).</p>
+      </article>
+      <article class="card" id="tester-notes-card">
+        <div class="card-heading"><div><p class="eyebrow">TEST GAME NOTES</p><h2>What you saw (send with the package)</h2></div><div class="button-row"><button id="btn-save-notes">Save notes</button><button id="btn-export-package" class="primary">Export test package</button></div></div>
+        <p class="hint">Type as you go; Save notes writes them next to the probe files. After the game, <strong>Export test package</strong> zips everything (probe logs, notes, latest-state, app logs) to your Desktop and opens the folder - send that one file.</p>
+        <div class="notes-grid">
+          <label>Flags - clock · type · offense/defense · jersey · accepted/declined<textarea id="notes-flags" rows="4" placeholder="Q1 1:57 encroachment defense #29 accepted&#10;Q1 0:56 delay of game offense #11 accepted"></textarea></label>
+          <label>Play picker - clock when opened → clock at snap<textarea id="notes-picker" rows="4" placeholder="Q1 5:51 → 5:48&#10;Q2 0:33 → 0:28 (hurry-up)"></textarea></label>
+          <label>Halftime stats - both teams (total, rush, pass, plays, first downs, penalties, TOP)<textarea id="notes-half" rows="4" placeholder="Pitt 42 total (0 rush / 42 pass), 10 plays, 3 FD, 0 pen, TOP 2:20&#10;Cincy 72 (40/32), 9 plays, 4 FD, 3 pen 15 yds, TOP 3:40"></textarea></label>
+          <label>Final stats - both teams<textarea id="notes-final" rows="4" placeholder="Pitt 154 (6/148), 30 plays, 8 FD ...&#10;Cincy 108 (40/68), 16 plays, 6 FD, 4 pen 20 yds"></textarea></label>
+          <label>Anything else (what looked wrong, when)<textarea id="notes-other" rows="3" placeholder="Timeouts blinked at Q2 4:10; home name showed HOME until Q1 9:00"></textarea></label>
+        </div>
+        <p id="notes-status" class="status-detail"></p>
       </article>
       <article class="card" id="stats-search-card">
         <div class="card-heading"><div><p class="eyebrow">DATA HUNT · TEST 2 (ROUND 2)</p><h2>Find the live box score in memory</h2></div><div class="button-row"><button id="btn-stats-search" class="primary">Search memory now</button></div></div>

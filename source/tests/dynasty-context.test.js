@@ -56,3 +56,28 @@ test('dynasty context: labels and lines', () => {
   assert.equal(leaderLine('rb', { shortName: 'D. Rogers', rushAtt: 14, rushYards: 120, rushTds: 1 }), 'D. Rogers 14 CAR, 120 YDS, 1 TD');
   assert.equal(streakText({ streak: 0 }), null);
 });
+
+test('dynasty context: names fall back to the save game, never over a real reader name', () => {
+  const { applyDynastyNameFallback } = require('../src/dynasty-context');
+  const ctx = JSON.parse(JSON.stringify(context));
+  ctx.userGameIndex = 1;
+  ctx.teams[0].isUser = true;
+  const byAsset = indexSaveTeams(ctx, resolver);
+  const dynasty = { context: ctx, byAsset };
+  // Neither name known -> user's game, save orientation (Pitt away at Cincinnati).
+  const none = applyDynastyNameFallback({ away: {}, home: {}, game: {}, meta: {} }, dynasty, resolver);
+  assert.equal(none.away.nameSource, 'dynasty-save');
+  assert.equal(none.home.nameSource, 'dynasty-save');
+  assert.match(none.away.name, /Pitt/);
+  assert.equal(none.home.name, 'Cincinnati');
+  // One name known and flipped relative to the save -> the other side follows, flipped.
+  const one = applyDynastyNameFallback({ away: { name: 'Cincinnati' }, home: {}, game: {}, meta: {} }, dynasty, resolver);
+  assert.equal(one.away.name, 'Cincinnati');
+  assert.equal(one.away.nameSource, undefined);
+  assert.match(one.home.name, /Pitt/);
+  assert.equal(one.meta.dynastyNameFallback.flipped, true);
+  // Both real -> untouched.
+  const both = applyDynastyNameFallback({ away: { name: 'Ohio State' }, home: { name: 'Michigan' }, game: {}, meta: {} }, dynasty, resolver);
+  assert.equal(both.away.name, 'Ohio State');
+  assert.equal(both.meta.dynastyNameFallback, undefined);
+});

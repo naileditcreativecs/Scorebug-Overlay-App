@@ -10,18 +10,65 @@ function normalizeName(value) {
 // Map save teams to bundled asset ids using the resolver (exact name / alias
 // first, then name + nickname, then the resolver's identity match). Returns
 // Map<assetId, saveTeam>.
+// Save display names that the roster does not know under that spelling.
+const SAVE_NAME_ALIASES = new Map([
+  // keys are normalizeName() output: lower case, punctuation stripped
+  ['niu', 'Northern Illinois'],
+  ['c michigan', 'Central Michigan'],
+  ['e michigan', 'Eastern Michigan'],
+  ['w michigan', 'Western Michigan'],
+  ['w kentucky', 'Western Kentucky'],
+  ['middle tenn', 'Middle Tennessee'],
+  ['san diego st', 'San Diego State'],
+  ['san jose st', 'San Jose State'],
+  ['miami oh', 'Miami (OH)'],
+  ['ul monroe', 'Louisiana-Monroe'],
+  ['la tech', 'Louisiana Tech'],
+  ['app state', 'Appalachian State'],
+  ['app st', 'Appalachian State'],
+  ['ga southern', 'Georgia Southern'],
+  ['fla atlantic', 'Florida Atlantic'],
+]);
+
+function resolveSaveTeam(team, resolver) {
+  if (!team || !resolver) return null;
+  const tries = [team.name, SAVE_NAME_ALIASES.get(normalizeName(team.name)), team.nickname ? `${team.name} ${team.nickname}` : null].filter(Boolean);
+  for (const candidate of tries) {
+    let asset = null;
+    try { asset = resolver.resolve(candidate) || null; } catch { asset = null; }
+    if (asset) return asset;
+  }
+  for (const candidate of tries) {
+    // Fuzzy identity matching is for full names only; "E. Michigan" must
+    // not drift to Michigan State.
+    if (candidate.includes('.') || candidate.length < 5) continue;
+    let asset = null;
+    try { asset = resolver.resolveIdentity?.(candidate)?.asset || null; } catch { asset = null; }
+    if (asset) return asset;
+  }
+  // Nickname disambiguation: the roster team with this nickname that shares
+  // a word (or the abbreviation's initials) with the save name.
+  if (team.nickname && resolver.byId) {
+    const nick = String(team.nickname).toLowerCase();
+    const candidates = [...resolver.byId.values()].filter((t) => String(t.nickname || '').toLowerCase() === nick);
+    if (candidates.length === 1) return resolver.resolveTeamId(candidates[0].id);
+    const words = normalizeName(team.name).split(' ').filter((w) => w.length > 2);
+    const initials = normalizeName(team.name).replace(/ /g, '');
+    for (const t of candidates) {
+      const tw = normalizeName(t.name).split(' ');
+      if (words.some((w) => tw.includes(w))) return resolver.resolveTeamId(t.id);
+      const ini = tw.map((w) => w[0]).join('');
+      if (initials.length >= 2 && (ini === initials || `${ini}u` === initials)) return resolver.resolveTeamId(t.id);
+    }
+  }
+  return null;
+}
+
 function indexSaveTeams(context, resolver) {
   const byAsset = new Map();
   if (!context?.teams || !resolver) return byAsset;
   for (const team of context.teams) {
-    let asset = null;
-    try { asset = resolver.resolve(team.name); } catch { asset = null; }
-    if (!asset && team.nickname) {
-      try { asset = resolver.resolve(`${team.name} ${team.nickname}`); } catch { asset = null; }
-    }
-    if (!asset) {
-      try { asset = resolver.resolveIdentity?.(team.name)?.asset || null; } catch { asset = null; }
-    }
+    const asset = resolveSaveTeam(team, resolver);
     if (asset && !byAsset.has(String(asset.id))) byAsset.set(String(asset.id), team);
   }
   return byAsset;
@@ -106,6 +153,67 @@ function pollRank(team) {
   return null;
 }
 
+// The user's game this week, if the save marks it.
+function userGame(context) {
+  if (!context?.gamesThisWeek) return null;
+  if (context.userGameIndex === null || context.userGameIndex === undefined) return null;
+  return context.gamesThisWeek.find((g) => g.index === context.userGameIndex) || null;
+}
+
+// Backup team names from the save when the reader has none (or only
+// placeholders). Runs BEFORE asset/logo/color resolution so the filled name
+// gets its logo and colours like a read one. Orientation comes from the
+// save's home/away. If the reader has ONE real name, the other side comes
+// from the same game; if the reader has neither, both come from the user's
+// game this week. Never overrides a real reader name.
+function applyDynastyNameFallback(payload, dynasty, resolver) {
+  if (!payload || !dynasty?.context || !resolver) return payload;
+  const context = dynasty.context;
+  const isReal = (side) => {
+    const source = String(payload[side]?.nameSource || '');
+    return Boolean(payload[side]?.name) && !/pending|placeholder|dynasty/i.test(source);
+  };
+  const byIndex = new Map((context.teams || []).map((t) => [t.index, t]));
+  const canonical = (team) => {
+    if (!team) return null;
+    const asset = resolveSaveTeam(team, resolver);
+    return asset?.name || team.name || null;
+  };
+  let game = null;
+  let flipped = false;
+  const realSides = ['away', 'home'].filter(isReal);
+  if (realSides.length === 2) return payload;
+  if (realSides.length === 1) {
+    // Find this week's game containing the known team.
+    const known = realSides[0];
+    let knownAsset = null;
+    try { knownAsset = resolver.resolve(payload[known].name) || resolver.resolveIdentity?.(payload[known].name)?.asset || null; } catch { knownAsset = null; }
+    const saveTeam = knownAsset && dynasty.byAsset instanceof Map ? dynasty.byAsset.get(String(knownAsset.id)) : null;
+    if (!saveTeam) return payload;
+    game = (context.gamesThisWeek || []).find((g) => g.awayIndex === saveTeam.index || g.homeIndex === saveTeam.index) || null;
+    if (!game) return payload;
+    const saveSideOfKnown = game.awayIndex === saveTeam.index ? 'away' : 'home';
+    flipped = saveSideOfKnown !== known;
+  } else {
+    game = userGame(context);
+    if (!game) return payload;
+  }
+  const saveAway = byIndex.get(game.awayIndex);
+  const saveHome = byIndex.get(game.homeIndex);
+  const forSide = { away: flipped ? saveHome : saveAway, home: flipped ? saveAway : saveHome };
+  for (const side of ['away', 'home']) {
+    if (isReal(side)) continue;
+    const name = canonical(forSide[side]);
+    if (!name) continue;
+    payload[side] ||= {};
+    payload[side].name = name;
+    payload[side].nameSource = 'dynasty-save';
+  }
+  payload.meta ||= {};
+  payload.meta.dynastyNameFallback = { gameIndex: game.index, flipped };
+  return payload;
+}
+
 // Layer the save context onto a published scoreboard payload. Only fills
 // what the reader left empty (record, rank); everything else lands in new
 // fields the reader does not own.
@@ -180,6 +288,9 @@ function applyDynastyContext(payload, dynasty) {
 
 module.exports = {
   applyDynastyContext,
+  resolveSaveTeam,
+  applyDynastyNameFallback,
+  userGame,
   confRecord,
   findMatchupGame,
   indexSaveTeams,

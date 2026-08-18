@@ -22,13 +22,17 @@ const HELD_FIELDS = [
   ['away', 'rank', IDENTITY_HOLD_MS],
   ['away', 'record', IDENTITY_HOLD_MS],
   ['away', 'score', RAM_FIELD_HOLD_MS],
-  ['away', 'timeouts', RAM_FIELD_HOLD_MS],
+  // Timeouts change only when a team uses one (or a half starts) - the reader
+  // dropping the value between proofs is never "the team got a timeout back".
+  // Hold the last verified count until a new one is read; the half/quarter
+  // change path and a new game clear the cache.
+  ['away', 'timeouts', IDENTITY_HOLD_MS],
   ['away', 'possession', RAM_FIELD_HOLD_MS],
   ['home', 'name', IDENTITY_HOLD_MS],
   ['home', 'rank', IDENTITY_HOLD_MS],
   ['home', 'record', IDENTITY_HOLD_MS],
   ['home', 'score', RAM_FIELD_HOLD_MS],
-  ['home', 'timeouts', RAM_FIELD_HOLD_MS],
+  ['home', 'timeouts', IDENTITY_HOLD_MS],
   ['home', 'possession', RAM_FIELD_HOLD_MS],
   ['game', 'quarter', RAM_FIELD_HOLD_MS],
   ['game', 'clock', RAM_FIELD_HOLD_MS],
@@ -79,7 +83,15 @@ function applyRamFieldHold(payload, cache, nowMs, holdOverrideMs = null) {
   return payload;
 }
 
+// Drop specific held fields (e.g. timeouts at the half, when the game hands
+// both teams three fresh ones and the old count would be wrong).
+function forgetRamFieldHold(cache, labels) {
+  if (!cache?.entries) return;
+  for (const label of labels || []) cache.entries.delete(label);
+}
+
 module.exports = {
+  forgetRamFieldHold,
   HELD_FIELDS,
   IDENTITY_HOLD_MS,
   RAM_FIELD_HOLD_MS,

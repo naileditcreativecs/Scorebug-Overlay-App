@@ -2166,6 +2166,58 @@
     }));
     $('btn-open-advanced').addEventListener('click', () => activatePanel('data'));
     $('btn-welcome-close').addEventListener('click', closeWelcomePopup);
+    const NOTE_FIELDS = { flags: 'notes-flags', playPicker: 'notes-picker', halftimeStats: 'notes-half', finalStats: 'notes-final', other: 'notes-other' };
+    let notesTimer = null;
+    const collectNotes = () => Object.fromEntries(Object.entries(NOTE_FIELDS).map(([key, id]) => [key, $(id).value]));
+    const persistNotes = async (quiet = false) => {
+      try {
+        const saved = await api.saveTesterNotes(collectNotes());
+        $('notes-status').textContent = `Notes saved ${new Date(saved.savedAt).toLocaleTimeString()} - they ship inside the test package.`;
+        if (!quiet) toast('Notes saved');
+      } catch (error) {
+        $('notes-status').textContent = `Notes could not be saved: ${error.message}`;
+      }
+    };
+    for (const id of Object.values(NOTE_FIELDS)) {
+      $(id).addEventListener('input', () => { clearTimeout(notesTimer); notesTimer = setTimeout(() => persistNotes(true), 1500); });
+    }
+    $('btn-save-notes').addEventListener('click', () => persistNotes(false));
+    $('btn-export-package').addEventListener('click', async () => {
+      try {
+        await persistNotes(true);
+        $('notes-status').textContent = 'Packaging…';
+        const result = await api.exportTestPackage();
+        $('notes-status').textContent = `Package written: ${result.path} - send that file.`;
+        toast('Test package on your Desktop');
+      } catch (error) {
+        $('notes-status').textContent = `Package failed: ${error.message}`;
+        toast('Package failed - see Diagnostics');
+      }
+    });
+    const refreshSaveList = async () => {
+      try {
+        const result = await api.listDynastySaves();
+        const select = $('dynasty-save-select');
+        const current = result?.chosen || '';
+        select.replaceChildren();
+        const auto = document.createElement('option'); auto.value = ''; auto.textContent = 'Auto - newest DYNASTY save'; select.append(auto);
+        for (const save of result?.saves || []) {
+          const option = document.createElement('option');
+          option.value = save.full;
+          option.textContent = `${save.name} - ${new Date(save.modified).toLocaleString()}`;
+          select.append(option);
+        }
+        select.value = current;
+      } catch { /* list is optional */ }
+    };
+    $('dynasty-save-select').addEventListener('change', async () => {
+      try {
+        $('dynasty-status').textContent = 'Reading…';
+        const summary = await api.chooseDynastySave($('dynasty-save-select').value);
+        $('dynasty-status').textContent = summary?.text || 'Done.';
+      } catch (error) { $('dynasty-status').textContent = `Could not read: ${error.message}`; }
+    });
+    refreshSaveList();
     $('btn-refresh-dynasty').addEventListener('click', async () => {
       try {
         $('dynasty-status').textContent = 'Reading…';
