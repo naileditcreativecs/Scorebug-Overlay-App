@@ -1476,9 +1476,26 @@ function rememberThemeSizing(themePath, sizing = currentThemeSizingSnapshot()) {
 
 function restoreThemeSizing(themePath, preferred = {}, { usePreferredCrop = true } = {}) {
   const saved = themeSizingMap()[themeSizingKey(themePath)];
-  const canvas = rememberThemeCanvas(themePath, saved || preferred);
+  // Canvas: an HTML that declares its own canvas always wins - a remembered
+  // canvas from an older copy of the file (or from before a re-import) must
+  // not shrink or stretch the new art. Only user-set canvases (no authored
+  // size) come back from the saved profile.
+  let authoredCanvas = null;
+  try {
+    const resolved = resolveThemePath(themePath);
+    if (resolved) authoredCanvas = analyzeThemeHtml(fs.readFileSync(resolved)).authoredCanvas || null;
+  } catch { authoredCanvas = null; }
+  const canvasSource = authoredCanvas
+    ? { canvasWidth: authoredCanvas.width, canvasHeight: authoredCanvas.height }
+    : (saved || preferred);
+  const canvas = rememberThemeCanvas(themePath, canvasSource);
+  // Crop only makes sense against the canvas it was made on. If the saved
+  // profile's canvas differs from the one we just chose, its crop is stale.
+  const savedCropUsable = isPlainObject(saved?.crop)
+    && (!saved.canvasWidth || Math.abs(Number(saved.canvasWidth) - canvas.width) <= 1)
+    && (!saved.canvasHeight || Math.abs(Number(saved.canvasHeight) - canvas.height) <= 1);
   settings.theme.crop = normalizeThemeCrop(
-    saved?.crop ?? (usePreferredCrop ? preferred?.crop : null),
+    savedCropUsable ? saved.crop : (usePreferredCrop ? preferred?.crop : null),
     canvas.width,
     canvas.height,
   );
@@ -1631,7 +1648,15 @@ function carryThemeProfileForward(newTheme, previousThemes) {
     const logoPicks = themeLogoPreferenceMap()[oldKey];
     const themeSettings = settings.theme?.settingsByHtml?.[oldKey];
     if (!sizing && !logoPicks && !themeSettings) continue;
-    if (sizing) themeSizingMap()[newKey] = cloneJson(sizing);
+    if (sizing) {
+      // Position, size and lock carry over; canvas and crop belong to the
+      // old file's art and are re-derived from the new HTML.
+      const carried = cloneJson(sizing);
+      delete carried.canvasWidth;
+      delete carried.canvasHeight;
+      delete carried.crop;
+      themeSizingMap()[newKey] = carried;
+    }
     if (logoPicks) themeLogoPreferenceMap()[newKey] = cloneJson(logoPicks);
     if (themeSettings) {
       settings.theme.settingsByHtml ||= {};
@@ -2023,12 +2048,26 @@ function normalizeLayout(input = {}) {
     ? input.anchor
     : runtime.layout.anchor;
 
+  // Width and height describe ONE box (the bug's visible canvas at a scale),
+  // so they must be clamped together. Clamping them separately turned a
+  // 3840x158 request into 2400x158 - a squashed window the bug then
+  // overflowed and got cropped in. Shrink both by the same factor.
+  const MAX_WIDTH = 3840;
+  const MAX_HEIGHT = 2160;
+  let width = Number(input.width);
+  let height = Number(input.height);
+  if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
+    && (width > MAX_WIDTH || height > MAX_HEIGHT)) {
+    const ratio = Math.min(MAX_WIDTH / width, MAX_HEIGHT / height);
+    width *= ratio;
+    height *= ratio;
+  }
   return {
     anchor,
     right: clampInteger(input.right, runtime.layout.right, -4000, 4000),
     bottom: clampInteger(input.bottom, runtime.layout.bottom, 0, 4000),
-    width: clampInteger(input.width, runtime.layout.width, 32, 2400),
-    height: clampInteger(input.height, runtime.layout.height, 32, 1600),
+    width: clampInteger(width, runtime.layout.width, 32, MAX_WIDTH),
+    height: clampInteger(height, runtime.layout.height, 32, MAX_HEIGHT),
   };
 }
 
@@ -2152,6 +2191,33 @@ function sendToOverlay(channel, payload) {
 function sendToInGameEditor(channel, payload) {
   if (!inGameEditorWindow || inGameEditorWindow.isDestroyed()) return;
   inGameEditorWindow.webContents.send(channel, payload);
+}
+
+// The editor state carries logo images (data URLs), so it is large. It used
+// to be rebuilt and sent on every status broadcast (~10x/s), which made the
+// Ctrl+Alt+O window sluggish. Coalesce pushes and skip unchanged states.
+let inGameEditorStateTimer = null;
+let inGameEditorStateSignature = '';
+function pushInGameEditorState({ immediate = false } = {}) {
+  if (!inGameEditorWindow || inGameEditorWindow.isDestroyed()) return;
+  const send = () => {
+    inGameEditorStateTimer = null;
+    if (!inGameEditorWindow || inGameEditorWindow.isDestroyed()) return;
+    let state;
+    try { state = inGameEditorState(); } catch (error) { console.warn('[editor] state failed:', error.message); return; }
+    let signature = '';
+    try { signature = JSON.stringify(state); } catch { signature = String(Date.now()); }
+    if (signature === inGameEditorStateSignature) return;
+    inGameEditorStateSignature = signature;
+    inGameEditorWindow.webContents.send('in-game-editor:state', state);
+  };
+  if (immediate) {
+    if (inGameEditorStateTimer) { clearTimeout(inGameEditorStateTimer); inGameEditorStateTimer = null; }
+    send();
+    return;
+  }
+  if (inGameEditorStateTimer) return;
+  inGameEditorStateTimer = setTimeout(send, 90);
 }
 
 function inGameEditorBounds() {
@@ -2292,7 +2358,7 @@ function inGameEditorState() {
 
 function broadcastStatus() {
   sendToOverlay('overlay:status', statusSnapshot());
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   broadcastControlStatus();
 }
 
@@ -2366,6 +2432,30 @@ function adoptSavedSize(saved) {
   // still useful for position migration, but may not override the selected
   // 1080p/1440p/4K size.
   if (settings.overlay?.outputResolution) return;
+  // A per-display placement can belong to a DIFFERENT bug (the previous
+  // theme on this display). Its pixel size only makes sense for its own
+  // canvas; for another canvas, keep the scale and re-derive width/height
+  // from this theme's visible canvas so the art is never stretched.
+  const currentCanvasWidth = Number(runtime.layout.canvasWidth) || DEFAULT_SIZE.width;
+  const currentCanvasHeight = Number(runtime.layout.canvasHeight) || DEFAULT_SIZE.height;
+  const savedCanvasWidth = Number(saved.canvasWidth);
+  const savedCanvasHeight = Number(saved.canvasHeight);
+  const differentCanvas = Number.isFinite(savedCanvasWidth) && Number.isFinite(savedCanvasHeight)
+    && (Math.abs(savedCanvasWidth - currentCanvasWidth) > 1 || Math.abs(savedCanvasHeight - currentCanvasHeight) > 1);
+  if (differentCanvas) {
+    const rawScale = Number(saved.scale);
+    const scale = Number.isFinite(rawScale)
+      ? Math.min(3, Math.max(0.15, rawScale))
+      : Math.min(3, Math.max(0.15, Math.min(Number(saved.width) / savedCanvasWidth, Number(saved.height) / savedCanvasHeight) || runtime.layout.scale || 1));
+    const visible = visibleThemeCanvas(runtime.layout);
+    runtime.layout = {
+      ...runtime.layout,
+      width: Math.max(120, Math.round(visible.width * scale)),
+      height: Math.max(70, Math.round(visible.height * scale)),
+      scale,
+    };
+    return;
+  }
   const canvasWidth = clampInteger(saved.canvasWidth, runtime.layout.canvasWidth || DEFAULT_SIZE.width, 160, 5000);
   const canvasHeight = clampInteger(saved.canvasHeight, runtime.layout.canvasHeight || DEFAULT_SIZE.height, 32, 3000);
   const width = clampInteger(saved.width, runtime.layout.width, 120, 4000);
@@ -2471,10 +2561,13 @@ function restoreLockedPlacement() {
     )
     : saved;
   const bounds = sanitizeBounds(sizedSaved, display, fallback);
+  const visibleForScale = visibleThemeCanvas(runtime.layout);
   runtime.layout = {
     ...runtime.layout,
     width: bounds.width,
     height: bounds.height,
+    // The window is the bug's box: paint at the scale that fits it.
+    scale: Math.min(bounds.width / visibleForScale.width, bounds.height / visibleForScale.height),
   };
   runtime.activeDisplayKey = key;
   setOverlayBounds(bounds);
@@ -2641,7 +2734,7 @@ function syncInGameEditorBounds() {
   if (JSON.stringify(inGameEditorWindow.getBounds()) !== JSON.stringify(bounds)) {
     inGameEditorWindow.setBounds(bounds, false);
   }
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
 }
 
 function createInGameEditorWindow() {
@@ -2692,6 +2785,7 @@ function createInGameEditorWindow() {
     inGameEditorWindow.showInactive();
   });
   inGameEditorWindow.on('closed', () => {
+    inGameEditorStateSignature = '';
     inGameEditorWindow = null;
     overlayMoveGesture = null;
     overlayResizeGesture = null;
@@ -3113,7 +3207,7 @@ function setThemeSetting(payload = {}) {
   map[key] = resolveThemeSettingValues(declaration, current);
   persistSettings();
   publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   return inGameEditorState();
 }
 
@@ -3192,7 +3286,7 @@ function setManualTeamOverride(payload = {}) {
   const nextOverride = normalizeManualTeamOverride(teamAssetResolver, payload);
   runtime.manualTeamOverrides[side] = nextOverride;
   publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   const teamLabel = nextOverride.teamId
     ? teamAssetResolver.resolveTeamId(nextOverride.teamId).name
     : 'Auto team';
@@ -3206,7 +3300,7 @@ function setManualTeamOverride(payload = {}) {
 function clearManualTeamOverrides({ publish = true, recordLog = true } = {}) {
   runtime.manualTeamOverrides = emptyManualTeamOverrides();
   if (publish) publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   if (recordLog) logMessage('Manual team and rank overrides cleared; automatic OCR owns both teams again.');
   return inGameEditorState();
 }
@@ -3313,7 +3407,7 @@ function publishScorebugColors(nextColors, logText) {
   settings.scorebugColors = normalizeScorebugColors(nextColors);
   persistSettings();
   publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   if (logText) logMessage(logText);
   return inGameEditorState();
 }
@@ -3526,7 +3620,7 @@ function centerOverlay(payload = {}) {
     runtime.layout.bottom = inset;
   }
   persistPlacement(bounds, displayForBounds(bounds), { preserveScale: true });
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   return statusSnapshot();
 }
 
@@ -3548,7 +3642,7 @@ function setTeamLogoPreference(payload = {}) {
   writeLogoPreference(teamId, requested);
   persistSettings();
   publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
 
   const label = requested
     ? teamLogoVariantResolver.resolveChoice(teamId, requested, teamAssetResolver).label
@@ -3620,7 +3714,7 @@ async function importTeamLogo(payload = {}) {
   writeLogoPreference(context.teamId, imported.entry.id);
   persistSettings();
   publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   logMessage(`${context.state.teamName} custom logo imported and selected. Reader output was not changed.`);
   return inGameEditorState();
 }
@@ -3650,7 +3744,7 @@ function deleteImportedTeamLogo(payload = {}) {
   runtime.logoTransformDrafts.delete(context.key);
   persistSettings();
   publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   logMessage(`${context.state.teamName} imported logo removed. Automatic team detection remains active.`);
   return inGameEditorState();
 }
@@ -3719,7 +3813,7 @@ function setFavoriteTeam(payload = {}) {
   settings.favoriteTeamId = teamId;
   settings.onboarding = normalizeOnboardingState({ ...(settings.onboarding || {}), favoritePicked: true });
   persistSettings();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   broadcastStatus();
   logMessage(teamId ? `Favorite team: ${teamAssetResolver.resolveTeamId(teamId).name}.` : 'Favorite team cleared.');
   return { favoriteTeamId: settings.favoriteTeamId, onboarding: cloneJson(settings.onboarding) };
@@ -3796,7 +3890,7 @@ async function importTeamPalette(payload = {}) {
   }].slice(-12);
   settings.teamPalettes = palettes;
   persistSettings();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   logMessage(`${asset.name}: palette image added.`);
   return { canceled: false, teamId, palettes: teamPaletteImages({ teamId }) };
 }
@@ -3812,7 +3906,7 @@ function deleteTeamPalette(payload = {}) {
   if (!palettes[teamId].length) delete palettes[teamId];
   settings.teamPalettes = palettes;
   persistSettings();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   return { teamId, palettes: teamPaletteImages({ teamId }) };
 }
 
@@ -3848,7 +3942,7 @@ function afterCustomTeamsChanged(message) {
   persistSettings();
   syncCustomTeamsToResolver();
   publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   if (message) logMessage(message);
   return inGameEditorState();
 }
@@ -3958,7 +4052,7 @@ function saveTeamLogoTransform(payload = {}) {
   runtime.logoTransformDrafts.delete(context.key);
   persistSettings();
   publishCurrentScoreboardState();
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   logMessage(`${context.state.teamName} ${context.side} logo placement saved for this HTML scoreboard.`);
   return inGameEditorState();
 }
@@ -4140,7 +4234,10 @@ function applyPlacementSettings({ restoreLocked = false } = {}) {
   runtime.layout.canvasHeight = canvasHeight;
   runtime.layout.authoredCanvas = themeUsesAuthoredCanvas(runtime.themePath, canvasWidth, canvasHeight);
   runtime.layout.crop = crop;
-  runtime.layout.scale = scale;
+  // If the box had to shrink to fit (normalizeLayout keeps its aspect), the
+  // scale the guest paints at must shrink with it or the art overflows the
+  // window and gets cropped on the right and bottom.
+  runtime.layout.scale = Math.min(scale, runtime.layout.width / visibleCanvas.width, runtime.layout.height / visibleCanvas.height);
   runtime.layout.scaleAt2160 = scaleAt2160;
   runtime.layout.outputResolution = resolution.outputResolution;
 
@@ -4159,6 +4256,7 @@ function applyPlacementSettings({ restoreLocked = false } = {}) {
     const bounds = sanitizeBounds(resized, display, current);
     runtime.layout.width = bounds.width;
     runtime.layout.height = bounds.height;
+    runtime.layout.scale = Math.min(runtime.layout.scale, bounds.width / visibleCanvas.width, bounds.height / visibleCanvas.height);
     setOverlayBounds(bounds);
     if (runtime.positionLocked) persistPlacement(bounds, display, { preserveScale: true });
   } else {
@@ -6123,7 +6221,7 @@ function cycleLibraryTheme(direction = 1) {
   const next = themes[(activeIndex + (direction >= 0 ? 1 : -1) + themes.length) % themes.length];
   const result = useLibraryTheme(next.id);
   logMessage(`Switched to the next bug: ${next.name} (${((activeIndex + 1 + themes.length) % themes.length) + 1} of ${themes.length}).`);
-  sendToInGameEditor('in-game-editor:state', inGameEditorState());
+  pushInGameEditorState();
   return result;
 }
 
@@ -6588,7 +6686,7 @@ async function executeCommand(command, payload) {
     case 'get-in-game-editor-state':
       return inGameEditorState();
     case 'in-game-editor-ready':
-      sendToInGameEditor('in-game-editor:state', inGameEditorState());
+      pushInGameEditorState();
       return inGameEditorState();
     case 'move-overlay':
       return moveOverlayFromPointer(payload);

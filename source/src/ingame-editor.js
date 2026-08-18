@@ -265,7 +265,7 @@ function renderTeamControls() {
     logoButton.disabled = !logoState.teamId || !logoState.choices?.length;
     const currentLogo = document.getElementById(`${side}-current-logo`);
     const activeChoice = activeLogoChoice(side);
-    if (activeChoice?.logo) currentLogo.setAttribute('src', activeChoice.logo);
+    if (activeChoice?.logo) { if (currentLogo.getAttribute('src') !== activeChoice.logo) currentLogo.setAttribute('src', activeChoice.logo); }
     else currentLogo.removeAttribute('src');
     const recordInput = document.getElementById(`${side}-record-input`);
     const recordOverride = appState?.teamOverrides?.[side] || {};
@@ -2020,7 +2020,7 @@ function renderDirectLogoEditors() {
       && appState?.outputBounds
       && appState?.editorBounds;
     element.classList.toggle('hidden', !usable);
-    if (choice?.logo) image.setAttribute('src', choice.logo);
+    if (choice?.logo) { if (image.getAttribute('src') !== choice.logo) image.setAttribute('src', choice.logo); }
     else image.removeAttribute('src');
     if (!usable || (logoDirectGesture && logoDirectGesture.side === side)) continue;
     element.style.left = `${appState.outputBounds.x - appState.editorBounds.x + Number(geometry.x)}px`;
@@ -2145,15 +2145,22 @@ function finishDirectLogoEdit(event) {
   saveLogoTransform(finished.side);
 }
 
+let lastAcceptedSignature = '';
 function acceptState(next) {
-  if (next && typeof next === 'object') setTimeout(renderBugSettings, 0);
   if (!next || typeof next !== 'object') return;
   if (gesture) {
     queuedState = next;
     return;
   }
+  // Identical states (the main process re-sends on every status tick) are
+  // a no-op: no DOM rebuild, no image re-decode.
+  let signature = '';
+  try { signature = JSON.stringify(next); } catch { signature = ''; }
+  if (signature && signature === lastAcceptedSignature) return;
+  lastAcceptedSignature = signature;
   appState = next;
   render();
+  setTimeout(renderBugSettings, 0);
 }
 
 function beginGesture(event) {
