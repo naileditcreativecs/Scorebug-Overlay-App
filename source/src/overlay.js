@@ -709,12 +709,14 @@ function guestBootstrapSource(state, layout = {}) {
   const preserveAuthoredCanvas = layout?.authoredCanvas === true;
   const logoSourceSetter = window.CFB27LogoSource.setLogoSourceIfChanged.toString();
   const claudeDcStateSetter = window.CFB27ClaudeDcBridge.applyClaudeDcScoreboardState.toString();
+  const claudeDcLiveStateSetter = window.CFB27ClaudeDcBridge.applyClaudeDcScoreboardLiveState.toString();
   const logoTransformSetter = applyTeamLogoTransformToDocument.toString();
   return `(() => {
     const nextState = JSON.parse(${serialized});
     const preserveAuthoredCanvas = ${JSON.stringify(preserveAuthoredCanvas)};
     const setLogoSourceIfChanged = ${logoSourceSetter};
     const applyClaudeDcScoreboardState = ${claudeDcStateSetter};
+    const applyClaudeDcScoreboardLiveState = ${claudeDcLiveStateSetter};
     const applyTeamLogoTransformToDocument = ${logoTransformSetter};
     const read = (object, path) => path.split('.').reduce((value, key) => value == null ? value : value[key], object);
     const visible = (element) => {
@@ -1257,6 +1259,11 @@ function guestBootstrapSource(state, layout = {}) {
       if (dcReport.detected) {
         window.__CFB27_CLAUDE_DC_ACTIVE__ = true;
         stopLegacyWatchers();
+        // Identity-only DC bugs keep scores/clock/downs in component state;
+        // drive those directly so the whole bug follows the game.
+        if (dcReport.identityOnlyProps) {
+          try { dcReport.liveState = applyClaudeDcScoreboardLiveState(window, state); } catch (error) { dcReport.liveState = { error: String(error && error.message || error) }; }
+        }
       } else {
         bindLegacyTheme();
         // The score-lane stabiliser and the heading fit below both force a

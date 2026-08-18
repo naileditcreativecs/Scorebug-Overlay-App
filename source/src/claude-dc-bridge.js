@@ -137,15 +137,22 @@ function applyClaudeDcScoreboardState(scope, scoreboardState = {}) {
   if (!prop.homeTimeouts) prop.homeTimeouts = unclaimedTimeoutProps()[0] || null;
 
   // The bundled 2013 theme also carries Claude's DC runtime, but its authored
-  // props are unrelated (team1Name, playClockLength, and so on). Requiring the
-  // two scores plus the game clock keeps that proven DOM bridge authoritative
-  // and opts only compatible standalone scoreboards into this native bridge.
-  if (!prop.awayScore || !prop.homeScore || !prop.clock) {
+  // props are unrelated (team1Name, playClockLength, and so on). A DC bug
+  // is driven natively when it declares the live numbers as props (scores
+  // and clock) OR at least the team identity (name/color/record/rank).
+  // Design-canvas bugs often keep scores/clock/downs in the component's own
+  // state with demo controls and expose only identity as props; those get
+  // identity through props and the live numbers through their state below.
+  const identityProps = [prop.awayName, prop.homeName, prop.awayColor, prop.homeColor,
+    prop.awayRecord, prop.homeRecord, prop.awayRank, prop.homeRank].filter(Boolean);
+  const liveNumberProps = Boolean(prop.awayScore && prop.homeScore && prop.clock);
+  if (!liveNumberProps && identityProps.length < 2) {
     report.reason = 'incompatible-scoreboard-props';
     report.supportedProps = unique(Object.values(prop));
     return report;
   }
   report.detected = true;
+  report.identityOnlyProps = !liveNumberProps;
 
   const supported = new Set();
   const support = (field, property) => {
@@ -305,10 +312,97 @@ function applyClaudeDcScoreboardState(scope, scoreboardState = {}) {
   return report;
 }
 
+/**
+ * Drive the live numbers of a DC component that keeps them in its own state
+ * (scores, clock, quarter, down/distance, possession, timeouts). The mounted
+ * logic instance is reached through the React fiber of the rendered root;
+ * only keys that already exist in the instance's state are set, and only
+ * when they change. Self-contained: serialized into the theme guest.
+ */
+function applyClaudeDcScoreboardLiveState(scope, scoreboardState = {}) {
+  const result = { found: false, applied: false, keys: [] };
+  const doc = scope && scope.document;
+  if (!doc || !doc.body) return result;
+  let logic = null;
+  const elements = [doc.body, ...Array.from(doc.body.querySelectorAll('*'))].slice(0, 800);
+  outer: for (const el of elements) {
+    for (const key of Object.keys(el)) {
+      if (!key.startsWith('__reactFiber')) continue;
+      let fiber = el[key];
+      let hops = 0;
+      while (fiber && hops < 80) {
+        const node = fiber.stateNode;
+        if (node && node.logic && typeof node.__setLogicState === 'function'
+          && node.logic.state && typeof node.logic.setState === 'function') {
+          logic = node.logic;
+          break outer;
+        }
+        fiber = fiber.return;
+        hops += 1;
+      }
+    }
+  }
+  if (!logic) return result;
+  result.found = true;
+  const state = logic.state || {};
+  const has = (name) => Object.prototype.hasOwnProperty.call(state, name);
+  const firstKey = (...names) => names.find((name) => has(name)) || null;
+  const away = scoreboardState.away || {};
+  const home = scoreboardState.home || {};
+  const game = scoreboardState.game || {};
+  const update = {};
+  const put = (key, value) => {
+    if (!key || value === undefined || value === null || Number.isNaN(value)) return;
+    if (state[key] !== value) update[key] = value;
+  };
+  const clockMs = (() => {
+    const match = /^(\d{1,2}):(\d{2})$/.exec(String(game.clock || ''));
+    return match ? (Number(match[1]) * 60 + Number(match[2])) * 1000 : null;
+  })();
+  const numeric = (value) => (value === undefined || value === null || value === '' ? undefined : Number(value));
+  put(firstKey('awayScore', 'away_score', 'scoreAway'), numeric(away.score));
+  put(firstKey('homeScore', 'home_score', 'scoreHome'), numeric(home.score));
+  if (clockMs !== null) put(firstKey('gameMs', 'clockMs', 'timeMs', 'gameClockMs'), clockMs);
+  else if (game.clock && has('clock')) put('clock', String(game.clock));
+  const playSeconds = numeric(game.playClock);
+  if (playSeconds !== undefined) {
+    put(firstKey('playMs', 'playClockMs'), playSeconds * 1000);
+    if (!has('playMs') && !has('playClockMs')) put(firstKey('playClock', 'playclock'), playSeconds);
+  }
+  const quarter = (() => {
+    const raw = game.quarter;
+    if (Number.isFinite(Number(raw)) && String(raw).trim() !== '') return Number(raw);
+    const text = String(raw || '');
+    if (/ot/i.test(text)) return 5;
+    const match = /([1-4])/.exec(text);
+    return match ? Number(match[1]) : undefined;
+  })();
+  put(firstKey('quarter', 'period', 'qtr'), quarter);
+  put(firstKey('down'), numeric(game.down));
+  put(firstKey('dist', 'distance', 'toGo', 'yardsToGo'), numeric(game.distance));
+  const possession = away.possession === true ? 'away' : (home.possession === true ? 'home' : 'none');
+  put(firstKey('poss', 'possession'), possession);
+  put(firstKey('awayTo', 'awayTimeouts', 'awayTO'), numeric(away.timeouts));
+  put(firstKey('homeTo', 'homeTimeouts', 'homeTO'), numeric(home.timeouts));
+  // The bug's own demo clocks must not tick over the live values.
+  if (has('running') && state.running !== false) update.running = false;
+  if (has('playRunning') && state.playRunning !== false) update.playRunning = false;
+  const keys = Object.keys(update);
+  if (!keys.length) return result;
+  try {
+    logic.setState(update);
+    result.applied = true;
+    result.keys = keys;
+  } catch (error) {
+    result.error = error instanceof Error ? error.message : String(error);
+  }
+  return result;
+}
+
 // Keep the browser-global binding name unique. This file is loaded as a
 // classic script beside logo-source.js, whose own top-level `const api` would
 // otherwise make Chromium reject this script before the bridge is exposed.
-const claudeDcBridgeApi = Object.freeze({ applyClaudeDcScoreboardState });
+const claudeDcBridgeApi = Object.freeze({ applyClaudeDcScoreboardState, applyClaudeDcScoreboardLiveState });
 
 if (typeof module !== 'undefined' && module.exports) module.exports = claudeDcBridgeApi;
 if (typeof globalThis !== 'undefined') globalThis.CFB27ClaudeDcBridge = claudeDcBridgeApi;
