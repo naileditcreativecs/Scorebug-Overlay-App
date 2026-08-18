@@ -7,6 +7,13 @@
 
 const MAXIMUM_PRESETS = 24;
 const MAXIMUM_PRESET_NAME = 40;
+// Scoped color rules. A 'team' rule follows a team wherever it appears (this
+// is what a swatch click saves when the team is known); a 'matchup' rule
+// applies both colors only when exactly that pairing is on the bug; a
+// 'theme' rule applies both colors only on one scorebug HTML. Precedence
+// when several match: matchup > team > theme > legacy side pin > auto.
+const MAXIMUM_RULES = 400;
+const MAXIMUM_ID = 120;
 
 function isHexColor(value) {
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim());
@@ -31,15 +38,110 @@ function normalizePreset(value) {
   return name && away && home ? { name, away, home } : null;
 }
 
+function normalizeId(value) {
+  const id = String(value ?? '').trim().slice(0, MAXIMUM_ID);
+  return id || null;
+}
+
+function normalizeRule(value) {
+  const scope = String(value?.scope || '').toLowerCase();
+  if (scope === 'team') {
+    const teamId = normalizeId(value.teamId);
+    const color = normalizeHex(value.color);
+    return teamId && color ? { scope, teamId, color } : null;
+  }
+  if (scope === 'matchup') {
+    const awayTeamId = normalizeId(value.awayTeamId);
+    const homeTeamId = normalizeId(value.homeTeamId);
+    const away = normalizeHex(value.away);
+    const home = normalizeHex(value.home);
+    return awayTeamId && homeTeamId && (away || home)
+      ? { scope, awayTeamId, homeTeamId, away, home } : null;
+  }
+  if (scope === 'theme') {
+    const themeId = normalizeId(value.themeId);
+    const away = normalizeHex(value.away);
+    const home = normalizeHex(value.home);
+    return themeId && (away || home) ? { scope, themeId, away, home } : null;
+  }
+  return null;
+}
+
 function normalizeScorebugColors(value) {
   const presets = Array.isArray(value?.presets)
     ? value.presets.map(normalizePreset).filter(Boolean).slice(0, MAXIMUM_PRESETS)
+    : [];
+  const rules = Array.isArray(value?.rules)
+    ? value.rules.map(normalizeRule).filter(Boolean).slice(0, MAXIMUM_RULES)
     : [];
   return {
     away: normalizeSide(value?.away),
     home: normalizeSide(value?.home),
     presets,
+    rules,
   };
+}
+
+function sameRuleKey(left, right) {
+  if (!left || !right || left.scope !== right.scope) return false;
+  if (left.scope === 'team') return left.teamId === right.teamId;
+  if (left.scope === 'matchup') return left.awayTeamId === right.awayTeamId && left.homeTeamId === right.homeTeamId;
+  if (left.scope === 'theme') return left.themeId === right.themeId;
+  return false;
+}
+
+/** Add or replace a rule (matched by scope + identity). */
+function upsertScorebugColorRule(colors, rule) {
+  const normalized = normalizeScorebugColors(colors);
+  const next = normalizeRule(rule);
+  if (!next) throw new Error('That color rule is incomplete.');
+  const index = normalized.rules.findIndex((candidate) => sameRuleKey(candidate, next));
+  if (index >= 0) normalized.rules[index] = next;
+  else if (normalized.rules.length >= MAXIMUM_RULES) throw new Error('Too many saved color rules.');
+  else normalized.rules.push(next);
+  return normalized;
+}
+
+/** Remove every rule matching scope + identity. */
+function removeScorebugColorRule(colors, rule) {
+  const normalized = normalizeScorebugColors(colors);
+  const key = normalizeRule({ ...rule, color: rule?.color || '#000000', away: '#000000', home: '#000000' });
+  if (!key) return normalized;
+  normalized.rules = normalized.rules.filter((candidate) => !sameRuleKey(candidate, key));
+  return normalized;
+}
+
+/**
+ * Resolve the color each side should show, with the reason.
+ * context: { awayTeamId, homeTeamId, themeId }
+ * Returns { away: {color, source}, home: {color, source} } where source is
+ * 'matchup' | 'team' | 'theme' | 'pin' | 'auto'.
+ */
+function resolveScorebugColors(colors, context = {}) {
+  const normalized = normalizeScorebugColors(colors);
+  const awayTeamId = normalizeId(context.awayTeamId);
+  const homeTeamId = normalizeId(context.homeTeamId);
+  const themeId = normalizeId(context.themeId);
+  const matchup = awayTeamId && homeTeamId
+    ? normalized.rules.find((rule) => rule.scope === 'matchup'
+      && rule.awayTeamId === awayTeamId && rule.homeTeamId === homeTeamId)
+    : null;
+  const theme = themeId
+    ? normalized.rules.find((rule) => rule.scope === 'theme' && rule.themeId === themeId)
+    : null;
+  const result = {};
+  for (const side of ['away', 'home']) {
+    const teamId = side === 'away' ? awayTeamId : homeTeamId;
+    const teamRule = teamId
+      ? normalized.rules.find((rule) => rule.scope === 'team' && rule.teamId === teamId)
+      : null;
+    if (matchup && matchup[side]) result[side] = { color: matchup[side], source: 'matchup' };
+    else if (teamRule) result[side] = { color: teamRule.color, source: 'team' };
+    else if (theme && theme[side]) result[side] = { color: theme[side], source: 'theme' };
+    else if (normalized[side].mode === 'custom') result[side] = { color: normalized[side].color, source: 'pin' };
+    else result[side] = { color: null, source: 'auto' };
+  }
+  return result;
 }
 
 function defaultScorebugColors() {
@@ -49,12 +151,16 @@ function defaultScorebugColors() {
 // Runs after applyBundledTeamAssets so a pinned color wins over the asset's
 // primary. Only ever touches the color field; names, ranks, and logos are
 // untouched, so a wrong color can never put data on the wrong team.
-function applyScorebugColors(payload, colors) {
-  const normalized = normalizeScorebugColors(colors);
+function applyScorebugColors(payload, colors, context = {}) {
+  const resolved = resolveScorebugColors(colors, {
+    awayTeamId: context.awayTeamId ?? payload?.meta?.teamAssets?.away?.id,
+    homeTeamId: context.homeTeamId ?? payload?.meta?.teamAssets?.home?.id,
+    themeId: context.themeId,
+  });
   const applied = {};
   for (const side of ['away', 'home']) {
-    const choice = normalized[side];
-    if (choice.mode !== 'custom') continue;
+    const choice = resolved[side];
+    if (!choice.color) continue;
     if (!payload[side] || typeof payload[side] !== 'object') payload[side] = {};
     payload[side].color = choice.color;
     applied[side] = choice.color;
@@ -101,7 +207,11 @@ function applyScorebugColorPreset(colors, name) {
 
 module.exports = {
   MAXIMUM_PRESETS,
+  MAXIMUM_RULES,
   applyScorebugColorPreset,
+  removeScorebugColorRule,
+  resolveScorebugColors,
+  upsertScorebugColorRule,
   applyScorebugColors,
   defaultScorebugColors,
   deleteScorebugColorPreset,

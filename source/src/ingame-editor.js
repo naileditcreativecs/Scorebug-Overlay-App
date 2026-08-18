@@ -268,17 +268,16 @@ function renderTeamControls() {
     if (activeChoice?.logo) currentLogo.setAttribute('src', activeChoice.logo);
     else currentLogo.removeAttribute('src');
     const recordInput = document.getElementById(`${side}-record-input`);
+    const recordOverride = appState?.teamOverrides?.[side] || {};
+    const recordMode = recordOverride.recordMode || 'auto';
+    const liveRecord = appState?.scoreboard?.[side]?.record || '';
     if (recordInput && document.activeElement !== recordInput) {
-      recordInput.value = override.recordMode === 'custom' ? (override.record || '') : '';
-      recordInput.placeholder = override.recordMode === 'hidden'
-        ? 'Hidden'
-        : (appState?.scoreboard?.[side]?.record
-          ? `Auto (${appState.scoreboard[side].record})`
-          : 'Auto');
+      // The box always shows what the bug is showing: the typed override,
+      // or the reader's live record. Editing it is the whole UI - no Set.
+      recordInput.value = recordMode === 'custom' ? (recordOverride.record || '')
+        : (recordMode === 'hidden' ? '' : liveRecord);
+      recordInput.placeholder = recordMode === 'hidden' ? 'hidden' : (liveRecord ? liveRecord : 'auto');
     }
-    const recordMode = override.recordMode || 'auto';
-    document.getElementById(`${side}-record-apply`)?.classList.toggle('active', recordMode === 'custom');
-    document.getElementById(`${side}-record-auto`)?.classList.toggle('active', recordMode === 'auto');
     document.getElementById(`${side}-record-hide`)?.classList.toggle('active', recordMode === 'hidden');
     const overridden = Boolean(
       override.teamId
@@ -324,13 +323,46 @@ function renderScorebugColors() {
     const active = choice.mode === 'custom' ? choice.color : null;
     autoButton.classList.toggle('active', choice.mode !== 'custom');
     secondaryButton.classList.toggle('active', Boolean(active && active === swatches.secondary));
-    whiteButton.classList.toggle('active', active === '#ffffff');
-    blackButton.classList.toggle('active', active === '#000000');
-    const wheelActive = Boolean(active
-      && active !== swatches.secondary && active !== '#ffffff' && active !== '#000000');
+    const resolved = colors.resolved?.[side] || { color: null, source: 'auto' };
+    const shown = resolved.color || active || swatches.live || null;
+    whiteButton.classList.toggle('active', shown === '#ffffff');
+    blackButton.classList.toggle('active', shown === '#000000');
+    autoButton.classList.toggle('active', resolved.source === 'auto');
+    secondaryButton.classList.toggle('active', Boolean(shown && shown === swatches.secondary && resolved.source !== 'auto'));
+    const wheelActive = Boolean(shown && resolved.source !== 'auto'
+      && shown !== swatches.secondary && shown !== '#ffffff' && shown !== '#000000');
     wheel.parentElement.classList.toggle('active', wheelActive);
-    if (active) wheel.value = active;
-    else if (swatches.live) wheel.value = swatches.live;
+    if (shown && document.activeElement !== wheel) wheel.value = shown;
+    const caption = document.getElementById(`${side}-color-source`);
+    if (caption) {
+      const team = swatches.teamName || (side === 'away' ? 'left team' : 'right team');
+      caption.textContent = {
+        auto: `Using ${team}'s 1st color`,
+        team: `Saved for ${team} (every game)`,
+        matchup: 'Saved for this matchup',
+        theme: 'Saved for this scorebug only',
+        pin: `Pinned for the ${side} side`,
+      }[resolved.source] || '';
+    }
+  }
+  const ctx = colors.context || {};
+  const awayName = colors.swatches?.away?.teamName || 'Left team';
+  const homeName = colors.swatches?.home?.teamName || 'Right team';
+  const scopeLabels = {
+    'team-away': awayName, 'team-home': homeName,
+    matchup: `This matchup only`, theme: 'This bug only',
+  };
+  for (const [scope, label] of Object.entries(scopeLabels)) {
+    const button = document.getElementById(`save-scope-${scope}`);
+    if (!button) continue;
+    button.textContent = label;
+    const has = scope === 'team-away' ? colors.rules?.some((r) => r.scope === 'team' && r.teamId === ctx.awayTeamId)
+      : scope === 'team-home' ? colors.rules?.some((r) => r.scope === 'team' && r.teamId === ctx.homeTeamId)
+        : scope === 'matchup' ? colors.rules?.some((r) => r.scope === 'matchup' && r.awayTeamId === ctx.awayTeamId && r.homeTeamId === ctx.homeTeamId)
+          : colors.rules?.some((r) => r.scope === 'theme' && r.themeId === ctx.themeId);
+    button.classList.toggle('saved', Boolean(has));
+    button.disabled = (scope === 'team-away' && !ctx.awayTeamId) || (scope === 'team-home' && !ctx.homeTeamId)
+      || (scope === 'matchup' && !(ctx.awayTeamId && ctx.homeTeamId)) || (scope === 'theme' && !ctx.themeId);
   }
   const list = document.getElementById('color-preset-list');
   list.replaceChildren();
@@ -401,7 +433,6 @@ function wireRecordControls() {
       // Hand the keyboard back to the game once the record is applied.
       input.blur();
     };
-    document.getElementById(`${side}-record-apply`)?.addEventListener('click', applyRecord);
     input?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') { event.preventDefault(); applyRecord(); }
     });
@@ -421,15 +452,11 @@ function wireRecordControls() {
         savedToast(`${sideLabel} record set to ${text}.`);
       }, 350);
     });
-    document.getElementById(`${side}-record-auto`)?.addEventListener('click', async () => {
-      input.value = '';
-      await applyPickerChoice(side, { recordMode: 'auto', record: null });
-      savedToast(`${sideLabel} record returned to automatic.`);
-    });
     document.getElementById(`${side}-record-hide`)?.addEventListener('click', async () => {
+      const hidden = (appState?.teamOverrides?.[side]?.recordMode || 'auto') === 'hidden';
       input.value = '';
-      await applyPickerChoice(side, { recordMode: 'hidden', record: null });
-      savedToast(`${sideLabel} record hidden from the scorebug.`);
+      await applyPickerChoice(side, { recordMode: hidden ? 'auto' : 'hidden', record: null });
+      savedToast(hidden ? `${sideLabel} record shown again.` : `${sideLabel} record hidden from the scorebug.`);
     });
   }
 }
@@ -457,15 +484,32 @@ function wireScorebugColorControls() {
       () => api.setScorebugColor({ side, mode: 'custom', color: '#000000' }),
       `${sideLabel} color: black`,
     ));
-    document.getElementById(`${side}-color-wheel`)?.addEventListener('change', (event) => runColorCommand(
+    let wheelTimer = null;
+    const wheelInput = document.getElementById(`${side}-color-wheel`);
+    wheelInput?.addEventListener('input', (event) => {
+      clearTimeout(wheelTimer);
+      const value = event.target.value;
+      wheelTimer = setTimeout(() => runColorCommand(
+        () => api.setScorebugColor({ side, mode: 'custom', color: value }),
+        `${sideLabel} color: ${value}`,
+      ), 60);
+    });
+    wheelInput?.addEventListener('change', (event) => runColorCommand(
       () => api.setScorebugColor({ side, mode: 'custom', color: event.target.value }),
       `${sideLabel} color: ${event.target.value}`,
+    ));
+  }
+  for (const scope of ['team-away', 'team-home', 'matchup', 'theme']) {
+    document.getElementById(`save-scope-${scope}`)?.addEventListener('click', () => runColorCommand(
+      () => api.saveScorebugColorScope({ scope }),
+      { 'team-away': 'Color saved for the left team', 'team-home': 'Color saved for the right team',
+        matchup: 'Colors saved for this matchup only', theme: 'Colors saved for this scorebug only' }[scope],
     ));
   }
   document.getElementById('save-color-preset')?.addEventListener('click', async () => {
     const nameInput = document.getElementById('color-preset-name');
     await runColorCommand(
-      () => api.saveScorebugColorPreset({ name: nameInput.value }),
+      () => api.saveScorebugColorPreset({ name: nameInput?.value || '' }),
       'Colors saved as a preset',
     );
     nameInput.value = '';

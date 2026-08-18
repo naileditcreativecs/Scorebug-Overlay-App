@@ -77,9 +77,7 @@
             <label>Rank<button id="away-rank" class="picker-trigger" type="button" aria-label="Choose away rank override">Auto (OCR)</button></label>
             <label>Record
               <span class="record-row">
-                <input id="away-record-input" type="text" inputmode="numeric" maxlength="8" placeholder="Auto" aria-label="Away record, like 5-2 or 5-2-1">
-                <button id="away-record-apply" type="button" class="record-mode">Set</button>
-                <button id="away-record-auto" type="button" class="record-mode">Auto</button>
+                <input id="away-record-input" type="text" inputmode="numeric" maxlength="8" placeholder="auto" title="Shows the record the reader has now. Click and type to change it (like 5-2 or 5-2-1); clear it to go back to automatic." aria-label="Away record, like 5-2 or 5-2-1">
                 <button id="away-record-hide" type="button" class="record-mode" title="Show no record on the scorebug for this team">Hide</button>
               </span>
             </label>
@@ -87,10 +85,11 @@
               <span class="color-row" data-side="away">
                 <button id="away-color-auto" class="color-swatch color-auto" type="button" title="Team's 1st color (automatic)">1st</button>
                 <button id="away-color-secondary" class="color-swatch" type="button" title="Team's 2nd color">2nd</button>
-                <button id="away-color-white" class="color-swatch color-white" type="button" title="White">W</button>
-                <button id="away-color-black" class="color-swatch color-black" type="button" title="Black">B</button>
-                <span class="color-wheel-wrap" title="Pick any color"><input id="away-color-wheel" type="color" value="#888888" aria-label="Away custom color"></span>
+                <button id="away-color-black" class="color-swatch color-black" type="button" title="Black" aria-label="Black"></button>
+                <button id="away-color-white" class="color-swatch color-white" type="button" title="White" aria-label="White"></button>
+                <span class="color-wheel-wrap" title="Current color - click to pick any color"><input id="away-color-wheel" type="color" value="#888888" aria-label="Away custom color"></span>
               </span>
+              <small id="away-color-source" class="color-source"></small>
             </label>
             <label>Logo<div class="current-logo-choice"><img id="away-current-logo" alt="" draggable="false"><button id="away-logo" class="picker-trigger" type="button" aria-label="Choose the away team's logo">Waiting for team</button></div></label>
             <div class="logo-actions">
@@ -122,9 +121,7 @@
             <label>Rank<button id="home-rank" class="picker-trigger" type="button" aria-label="Choose home rank override">Auto (OCR)</button></label>
             <label>Record
               <span class="record-row">
-                <input id="home-record-input" type="text" inputmode="numeric" maxlength="8" placeholder="Auto" aria-label="Home record, like 5-2 or 5-2-1">
-                <button id="home-record-apply" type="button" class="record-mode">Set</button>
-                <button id="home-record-auto" type="button" class="record-mode">Auto</button>
+                <input id="home-record-input" type="text" inputmode="numeric" maxlength="8" placeholder="auto" title="Shows the record the reader has now. Click and type to change it (like 5-2 or 5-2-1); clear it to go back to automatic." aria-label="Home record, like 5-2 or 5-2-1">
                 <button id="home-record-hide" type="button" class="record-mode" title="Show no record on the scorebug for this team">Hide</button>
               </span>
             </label>
@@ -132,10 +129,11 @@
               <span class="color-row" data-side="home">
                 <button id="home-color-auto" class="color-swatch color-auto" type="button" title="Team's 1st color (automatic)">1st</button>
                 <button id="home-color-secondary" class="color-swatch" type="button" title="Team's 2nd color">2nd</button>
-                <button id="home-color-white" class="color-swatch color-white" type="button" title="White">W</button>
-                <button id="home-color-black" class="color-swatch color-black" type="button" title="Black">B</button>
-                <span class="color-wheel-wrap" title="Pick any color"><input id="home-color-wheel" type="color" value="#888888" aria-label="Home custom color"></span>
+                <button id="home-color-black" class="color-swatch color-black" type="button" title="Black" aria-label="Black"></button>
+                <button id="home-color-white" class="color-swatch color-white" type="button" title="White" aria-label="White"></button>
+                <span class="color-wheel-wrap" title="Current color - click to pick any color"><input id="home-color-wheel" type="color" value="#888888" aria-label="Home custom color"></span>
               </span>
+              <small id="home-color-source" class="color-source"></small>
             </label>
             <label>Logo<div class="current-logo-choice"><img id="home-current-logo" alt="" draggable="false"><button id="home-logo" class="picker-trigger" type="button" aria-label="Choose the home team's logo">Waiting for team</button></div></label>
             <div class="logo-actions">
@@ -178,10 +176,12 @@
           <footer><button id="clear-logo-number" type="button">Clear</button><button id="apply-logo-number" class="primary" type="button">Apply value</button></footer>
         </aside>
         <div class="color-presets">
-          <strong>COLOR PRESETS</strong>
+          <strong>SAVE THESE COLORS FOR</strong>
           <span class="color-preset-controls">
-            <input id="color-preset-name" type="text" maxlength="40" placeholder="Preset name (optional)" aria-label="Color preset name">
-            <button id="save-color-preset" type="button">Save current colors</button>
+            <button id="save-scope-team-away" type="button" data-scope="team-away" title="Remember this color for the left team, wherever it plays">Left team</button>
+            <button id="save-scope-team-home" type="button" data-scope="team-home" title="Remember this color for the right team, wherever it plays">Right team</button>
+            <button id="save-scope-matchup" type="button" data-scope="matchup" title="Only when these two teams meet">This matchup only</button>
+            <button id="save-scope-theme" type="button" data-scope="theme" title="Only on this scorebug HTML, any teams">This bug only</button>
           </span>
           <span id="color-preset-list" class="color-preset-list"></span>
         </div>

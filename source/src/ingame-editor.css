@@ -318,7 +318,7 @@ button { font: inherit; }
 .logo-transform-heading span { color: #8293aa; font-size: 9px; }
 .logo-live-preview {
   position: relative;
-  height: 128px;
+  height: 118px;
   border: 1px solid rgba(125, 211, 252, .3);
   border-radius: 7px;
   background:
@@ -619,7 +619,12 @@ button { font: inherit; }
 .color-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .color-swatch { min-height: 36px; min-width: 52px; padding: 0 6px; border: 2px solid #45506b; border-radius: 8px; font-size: 13px; font-weight: 800; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.9); cursor: pointer; }
 .color-swatch:hover:not(:disabled) { border-color: #6c82a8; }
-.color-swatch.color-white { color: #1a1a1a; text-shadow: none; }
+.color-swatch.color-white { color: #1a1a1a; text-shadow: none; background: #ffffff; min-width: 40px; }
+.color-swatch.color-black { background: #000000; min-width: 40px; }
+.color-source { display: block; margin-top: 1px; color: #8fa0b8; font-size: 10px; line-height: 1.2; min-height: 12px; }
+.color-preset-controls button { min-height: 32px; border: 1px solid #3a4356; border-radius: 7px; background: #1b2433; color: #e8eef7; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+.color-preset-controls button:hover { border-color: #58a6ff; }
+.color-preset-controls button.saved { border-color: rgba(52,211,153,.7); color: #a7f3d0; }
 .color-swatch:disabled { opacity: .35; cursor: default; }
 .color-swatch.active, .color-wheel-wrap.active { border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88,166,255,.35); }
 .color-wheel-wrap { display: inline-flex; border: 2px solid #45506b; border-radius: 8px; overflow: hidden; }

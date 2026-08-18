@@ -83,3 +83,48 @@ test('malformed preset entries are dropped on normalization', () => {
   assert.equal(normalized.presets.length, 1);
   assert.equal(normalized.presets[0].name, 'Good');
 });
+
+
+const {
+  applyScorebugColors: applyWithRules,
+  removeScorebugColorRule,
+  resolveScorebugColors,
+  upsertScorebugColorRule,
+} = require('../src/scorebug-colors');
+
+test('team rules follow the team; matchup beats team; theme is the fallback; pin below all', () => {
+  let colors = upsertScorebugColorRule(null, { scope: 'team', teamId: 'army', color: '#111111' });
+  colors = upsertScorebugColorRule(colors, { scope: 'theme', themeId: 'fox', away: '#222222', home: '#333333' });
+  // Army away on the FOX bug: team rule wins for away; theme rule fills home.
+  let r = resolveScorebugColors(colors, { awayTeamId: 'army', homeTeamId: 'bama', themeId: 'fox' });
+  assert.deepStrictEqual([r.away, r.home], [{ color: '#111111', source: 'team' }, { color: '#333333', source: 'theme' }]);
+  // Same team playing at home: the rule follows it.
+  r = resolveScorebugColors(colors, { awayTeamId: 'bama', homeTeamId: 'army', themeId: 'other' });
+  assert.deepStrictEqual(r.home, { color: '#111111', source: 'team' });
+  assert.deepStrictEqual(r.away, { color: null, source: 'auto' });
+  // A matchup rule beats the team rule for exactly that pairing only.
+  colors = upsertScorebugColorRule(colors, { scope: 'matchup', awayTeamId: 'army', homeTeamId: 'bama', away: '#444444', home: '#555555' });
+  r = resolveScorebugColors(colors, { awayTeamId: 'army', homeTeamId: 'bama', themeId: 'fox' });
+  assert.deepStrictEqual([r.away.source, r.home.source], ['matchup', 'matchup']);
+  r = resolveScorebugColors(colors, { awayTeamId: 'bama', homeTeamId: 'army', themeId: 'fox' });
+  assert.deepStrictEqual([r.away.source, r.home.source], ['theme', 'team']);
+  // Legacy side pin sits below every rule but above auto.
+  colors.away = { mode: 'custom', color: '#666666' };
+  r = resolveScorebugColors(colors, { awayTeamId: 'nobody', homeTeamId: 'nobody2', themeId: 'plain' });
+  assert.deepStrictEqual(r.away, { color: '#666666', source: 'pin' });
+});
+
+test('rules upsert by identity, remove by identity, and apply through applyScorebugColors', () => {
+  let colors = upsertScorebugColorRule(null, { scope: 'team', teamId: 'army', color: '#111111' });
+  colors = upsertScorebugColorRule(colors, { scope: 'team', teamId: 'army', color: '#999999' });
+  assert.strictEqual(colors.rules.length, 1);
+  assert.strictEqual(colors.rules[0].color, '#999999');
+  const payload = { away: { color: '#abcdef' }, home: {}, game: {}, meta: { teamAssets: { away: { id: 'army' }, home: { id: 'bama' } } } };
+  applyWithRules(payload, colors, { themeId: 'fox' });
+  assert.strictEqual(payload.away.color, '#999999');
+  assert.strictEqual(payload.home.color, undefined);
+  colors = removeScorebugColorRule(colors, { scope: 'team', teamId: 'army' });
+  assert.strictEqual(colors.rules.length, 0);
+  // Garbage rules are dropped, never thrown at publish time.
+  assert.deepStrictEqual(require('../src/scorebug-colors').normalizeScorebugColors({ rules: [{ scope: 'team' }, { scope: 'nope', teamId: 'x', color: '#000000' }] }).rules, []);
+});

@@ -142,7 +142,10 @@ const {
   deleteScorebugColorPreset,
   isHexColor: isScorebugHexColor,
   normalizeScorebugColors,
+  removeScorebugColorRule,
+  resolveScorebugColors,
   upsertScorebugColorPreset,
+  upsertScorebugColorRule,
 } = require('./scorebug-colors');
 const {
   captureSourceHwnd,
@@ -2812,6 +2815,7 @@ function publishCurrentScoreboardState() {
             ),
           ),
           settings.scorebugColors,
+          { themeId: scorebugThemeIdentity() },
         ),
         settings.teamLogos?.preferences,
         teamAssetResolver,
@@ -2887,20 +2891,45 @@ function clearManualTeamOverrides({ publish = true, recordLog = true } = {}) {
 
 // Current color choices plus the swatches the editor can offer: the live
 // team's real primary and secondary from the bundled assets.
+// Identity of the active scorebug HTML for 'this bug only' color rules:
+// the library folder id when the theme comes from the library, else the
+// file path.
+function scorebugThemeIdentity() {
+  const themePath = String(runtime.themePath || '');
+  if (!themePath) return null;
+  const folder = path.basename(path.dirname(themePath));
+  return /^[0-9a-f]{64}$/i.test(folder) ? folder.toLowerCase() : themePath.toLowerCase();
+}
+
+function scorebugColorContext() {
+  return {
+    awayTeamId: runtime.scoreboardState?.meta?.teamAssets?.away?.id || null,
+    homeTeamId: runtime.scoreboardState?.meta?.teamAssets?.home?.id || null,
+    themeId: scorebugThemeIdentity(),
+  };
+}
+
 function scorebugColorState() {
   const colors = normalizeScorebugColors(settings.scorebugColors);
+  const context = scorebugColorContext();
   const swatches = {};
   for (const side of ['away', 'home']) {
     const id = runtime.scoreboardState?.meta?.teamAssets?.[side]?.id;
     const asset = id && teamAssetResolver ? teamAssetResolver.resolveTeamId(id) : null;
     swatches[side] = {
+      teamId: id || null,
       teamName: asset?.name || runtime.scoreboardState?.[side]?.name || null,
       primary: asset?.primary || null,
       secondary: asset?.secondary || null,
       live: runtime.scoreboardState?.[side]?.color || null,
     };
   }
-  return { ...colors, swatches };
+  return {
+    ...colors,
+    swatches,
+    context,
+    resolved: resolveScorebugColors(colors, context),
+  };
 }
 
 function publishScorebugColors(nextColors, logText) {
@@ -2919,12 +2948,85 @@ function setScorebugColor(payload = {}) {
   if (mode === 'custom' && !isScorebugHexColor(payload.color)) {
     throw new Error('Pick a color first.');
   }
-  const colors = normalizeScorebugColors(settings.scorebugColors);
-  colors[side] = mode === 'custom'
-    ? { mode: 'custom', color: String(payload.color).trim().toLowerCase() }
-    : { mode: 'auto', color: null };
-  return publishScorebugColors(colors, `${side === 'away' ? 'Away' : 'Home'} scorebug color: `
-    + (mode === 'custom' ? colors[side].color : 'auto (team primary)'));
+  let colors = normalizeScorebugColors(settings.scorebugColors);
+  const teamId = runtime.scoreboardState?.meta?.teamAssets?.[side]?.id || null;
+  const color = mode === 'custom' ? String(payload.color).trim().toLowerCase() : null;
+  if (teamId) {
+    // Per-team: the choice follows this TEAM to every game and either side.
+    // A matchup rule for the current pairing would otherwise silently win,
+    // so a direct click also updates that pairing's entry for this side.
+    colors = mode === 'custom'
+      ? upsertScorebugColorRule(colors, { scope: 'team', teamId, color })
+      : removeScorebugColorRule(colors, { scope: 'team', teamId });
+    const context = scorebugColorContext();
+    const matchup = colors.rules.find((rule) => rule.scope === 'matchup'
+      && rule.awayTeamId === context.awayTeamId && rule.homeTeamId === context.homeTeamId);
+    if (matchup) {
+      colors = upsertScorebugColorRule(colors, { ...matchup, [side]: color });
+      if (!matchup.away && !matchup.home) colors = removeScorebugColorRule(colors, matchup);
+    }
+    // The legacy side pin must not keep overriding a team that was just set to auto.
+    colors[side] = { mode: 'auto', color: null };
+  } else {
+    colors[side] = mode === 'custom' ? { mode: 'custom', color } : { mode: 'auto', color: null };
+  }
+  const teamLabel = teamId && teamAssetResolver ? (teamAssetResolver.resolveTeamId(teamId)?.name || teamId) : (side === 'away' ? 'Away' : 'Home');
+  return publishScorebugColors(colors, `${teamLabel} scorebug color: `
+    + (mode === 'custom' ? color : 'auto (team primary)'));
+}
+
+// Scoped save: 'team-away' | 'team-home' | 'matchup' | 'theme'. Saves the
+// colors currently showing on the bug under that scope.
+function saveScorebugColorScopeCommand(payload = {}) {
+  const scope = String(payload.scope || '').toLowerCase();
+  const context = scorebugColorContext();
+  const away = runtime.scoreboardState?.away?.color;
+  const home = runtime.scoreboardState?.home?.color;
+  let colors = normalizeScorebugColors(settings.scorebugColors);
+  let label;
+  if (scope === 'team-away' || scope === 'team-home') {
+    const side = scope === 'team-away' ? 'away' : 'home';
+    const teamId = context[`${side}TeamId`];
+    const color = side === 'away' ? away : home;
+    if (!teamId) throw new Error('That side has no identified team yet.');
+    if (!isScorebugHexColor(color)) throw new Error('That team has no visible color yet.');
+    colors = upsertScorebugColorRule(colors, { scope: 'team', teamId, color });
+    label = `${teamAssetResolver?.resolveTeamId(teamId)?.name || teamId}: color saved for this team`;
+  } else if (scope === 'matchup') {
+    if (!context.awayTeamId || !context.homeTeamId) throw new Error('Both teams need to be identified first.');
+    if (!isScorebugHexColor(away) && !isScorebugHexColor(home)) throw new Error('No visible colors to save yet.');
+    colors = upsertScorebugColorRule(colors, {
+      scope: 'matchup', awayTeamId: context.awayTeamId, homeTeamId: context.homeTeamId,
+      away: isScorebugHexColor(away) ? away : null, home: isScorebugHexColor(home) ? home : null,
+    });
+    label = 'colors saved for this matchup only';
+  } else if (scope === 'theme') {
+    if (!context.themeId) throw new Error('No scorebug HTML is active.');
+    if (!isScorebugHexColor(away) && !isScorebugHexColor(home)) throw new Error('No visible colors to save yet.');
+    colors = upsertScorebugColorRule(colors, {
+      scope: 'theme', themeId: context.themeId,
+      away: isScorebugHexColor(away) ? away : null, home: isScorebugHexColor(home) ? home : null,
+    });
+    label = 'colors saved for this scorebug only';
+  } else {
+    throw new Error('Choose what the colors should apply to.');
+  }
+  return publishScorebugColors(colors, `Scorebug colors: ${label}.`);
+}
+
+function clearScorebugColorScopeCommand(payload = {}) {
+  const scope = String(payload.scope || '').toLowerCase();
+  const context = scorebugColorContext();
+  let colors = normalizeScorebugColors(settings.scorebugColors);
+  if (scope === 'team-away' || scope === 'team-home') {
+    const teamId = context[scope === 'team-away' ? 'awayTeamId' : 'homeTeamId'];
+    if (teamId) colors = removeScorebugColorRule(colors, { scope: 'team', teamId });
+  } else if (scope === 'matchup' && context.awayTeamId && context.homeTeamId) {
+    colors = removeScorebugColorRule(colors, { scope: 'matchup', awayTeamId: context.awayTeamId, homeTeamId: context.homeTeamId });
+  } else if (scope === 'theme' && context.themeId) {
+    colors = removeScorebugColorRule(colors, { scope: 'theme', themeId: context.themeId });
+  }
+  return publishScorebugColors(colors, `Scorebug color rule cleared (${scope}).`);
 }
 
 function saveScorebugColorPresetCommand(payload = {}) {
@@ -5769,6 +5871,10 @@ async function executeCommand(command, payload) {
       return setGreenScreenEnabled(payload);
     case 'set-scorebug-color':
       return setScorebugColor(payload);
+    case 'save-scorebug-color-scope':
+      return saveScorebugColorScopeCommand(payload);
+    case 'clear-scorebug-color-scope':
+      return clearScorebugColorScopeCommand(payload);
     case 'save-scorebug-color-preset':
       return saveScorebugColorPresetCommand(payload);
     case 'apply-scorebug-color-preset':

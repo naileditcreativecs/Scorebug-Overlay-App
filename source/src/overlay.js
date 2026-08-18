@@ -569,20 +569,38 @@ function applyTeamLogoTransformToDocument(payload = {}) {
   });
   if (painted.length) candidates = painted;
   const image = side === 'home' ? candidates[candidates.length - 1] : candidates[0];
-  image.dataset.cfb27LogoSide = side;
-  image.dataset.cfb27LogoScale = String(scale);
-  image.dataset.cfb27LogoX = String(x);
-  image.dataset.cfb27LogoY = String(y);
-  image.dataset.cfb27LogoRotation = String(rotation);
-  image.style.setProperty(
-    'transform',
-    'translate(' + x + 'px, ' + y + 'px) rotate(' + rotation + 'deg) scale(' + scale + ')',
-    'important',
-  );
-  image.style.setProperty('transform-origin', 'center', 'important');
-  image.style.setProperty('object-position', 'center center', 'important');
-  image.style.setProperty('image-rendering', 'auto', 'important');
-  return { applied: true, side, count: candidates.length };
+  // Themes often draw the same logo twice - a bound image mirrored into a
+  // visible companion (.logoView), or a shadow/glow copy. Moving only one of
+  // them left the other sitting at the old spot: 'the logo moved, but there
+  // is another logo on top of it'. Every image showing this side's logo
+  // moves as one; the hidden bound original stays hidden.
+  const chosenSource = image.currentSrc || image.getAttribute?.('src') || image.getAttribute?.('href') || '';
+  const cluster = unique([image, ...candidates, ...images.filter((other) => {
+    if (other === image) return false;
+    const otherSide = other.dataset?.cfb27LogoSide || other.getAttribute?.('data-cfb27-live-logo');
+    if (otherSide && otherSide !== side) return false;
+    const raw = other.currentSrc || other.getAttribute?.('src') || other.getAttribute?.('href') || '';
+    return chosenSource && raw === chosenSource;
+  })]);
+  const transformValue = 'translate(' + x + 'px, ' + y + 'px) rotate(' + rotation + 'deg) scale(' + scale + ')';
+  for (const target of cluster) {
+    target.dataset.cfb27LogoSide = side;
+    target.dataset.cfb27LogoScale = String(scale);
+    target.dataset.cfb27LogoX = String(x);
+    target.dataset.cfb27LogoY = String(y);
+    target.dataset.cfb27LogoRotation = String(rotation);
+    target.style.setProperty('transform', transformValue, 'important');
+    target.style.setProperty('transform-origin', 'center', 'important');
+    target.style.setProperty('object-position', 'center center', 'important');
+    target.style.setProperty('image-rendering', 'auto', 'important');
+    // A bound original that has a visible companion must stay hidden even if
+    // the theme's own repaint tried to show it again.
+    const companion = target.parentElement?.querySelector?.(':scope > img.logoView');
+    if (companion && companion !== target && cluster.includes(companion)) {
+      target.style.setProperty('visibility', 'hidden', 'important');
+    }
+  }
+  return { applied: true, side, count: cluster.length };
 }
 
 // Serialized into the theme guest. It measures the real painted logo after
