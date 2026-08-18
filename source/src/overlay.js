@@ -569,20 +569,40 @@ function applyTeamLogoTransformToDocument(payload = {}) {
   });
   if (painted.length) candidates = painted;
   const image = side === 'home' ? candidates[candidates.length - 1] : candidates[0];
-  image.dataset.cfb27LogoSide = side;
-  image.dataset.cfb27LogoScale = String(scale);
-  image.dataset.cfb27LogoX = String(x);
-  image.dataset.cfb27LogoY = String(y);
-  image.dataset.cfb27LogoRotation = String(rotation);
-  image.style.setProperty(
-    'transform',
-    'translate(' + x + 'px, ' + y + 'px) rotate(' + rotation + 'deg) scale(' + scale + ')',
-    'important',
-  );
-  image.style.setProperty('transform-origin', 'center', 'important');
-  image.style.setProperty('object-position', 'center center', 'important');
-  image.style.setProperty('image-rendering', 'auto', 'important');
-  return { applied: true, side, count: candidates.length };
+  // Some bugs keep the bound <img> invisible and mirror its src into a
+  // sibling "view" image that is what the viewer actually sees (FOX V7 does
+  // this to hide the broken-image glyph before the host writes a src). Move
+  // every mirror with the bound image, or nothing visible moves.
+  const targets = [image];
+  const parent = image.parentElement || image.parentNode;
+  const boundSrc = image.getAttribute?.('src') || image.getAttribute?.('href') || '';
+  if (parent && typeof parent.querySelectorAll === 'function') {
+    for (const sibling of Array.from(parent.querySelectorAll('img, image'))) {
+      if (sibling === image || targets.includes(sibling)) continue;
+      const siblingSrc = sibling.getAttribute?.('src') || sibling.getAttribute?.('href') || '';
+      const mirrorsSource = Boolean(boundSrc) && siblingSrc === boundSrc;
+      const looksLikeView = /(?:^|[^a-z])(?:logo-?view|logo-?mirror|logo-?display)(?![a-z])/i.test(sibling.className?.baseVal ?? sibling.className ?? '');
+      const otherSide = sibling.getAttribute?.('data-cfb27-bind') || sibling.getAttribute?.('data-cfb27-logo-side') || sibling.getAttribute?.('data-cfb27-live-logo');
+      if (otherSide && !String(otherSide).startsWith(side)) continue;
+      if (mirrorsSource || looksLikeView) targets.push(sibling);
+    }
+  }
+  for (const target of targets) {
+    target.dataset.cfb27LogoSide = side;
+    target.dataset.cfb27LogoScale = String(scale);
+    target.dataset.cfb27LogoX = String(x);
+    target.dataset.cfb27LogoY = String(y);
+    target.dataset.cfb27LogoRotation = String(rotation);
+    target.style.setProperty(
+      'transform',
+      'translate(' + x + 'px, ' + y + 'px) rotate(' + rotation + 'deg) scale(' + scale + ')',
+      'important',
+    );
+    target.style.setProperty('transform-origin', 'center', 'important');
+    target.style.setProperty('object-position', 'center center', 'important');
+    target.style.setProperty('image-rendering', 'auto', 'important');
+  }
+  return { applied: true, side, count: candidates.length, mirrors: targets.length - 1 };
 }
 
 // Serialized into the theme guest. It measures the real painted logo after
