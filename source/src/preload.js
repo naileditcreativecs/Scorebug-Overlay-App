@@ -75,6 +75,15 @@ const overlayControl = Object.freeze({
 
 contextBridge.exposeInMainWorld('overlayControl', overlayControl);
 
+contextBridge.exposeInMainWorld('diagnosis', Object.freeze({
+  getReport: () => ipcRenderer.invoke('diagnosis:method', 'getReport'),
+  recheck: () => ipcRenderer.invoke('diagnosis:method', 'recheck'),
+  copyReport: () => ipcRenderer.invoke('diagnosis:method', 'copyReport'),
+  setAlwaysShow: (enabled) => ipcRenderer.invoke('diagnosis:method', 'setAlwaysShow', Boolean(enabled)),
+  close: () => ipcRenderer.invoke('diagnosis:method', 'close'),
+  onReport: (listener) => subscribe('diagnosis:report', listener),
+}));
+
 contextBridge.exposeInMainWorld('scoreboard', Object.freeze({
   getStatus: () => scoreboardMethod('getStatus'),
   getSettings: () => scoreboardMethod('getSettings'),
@@ -101,6 +110,7 @@ contextBridge.exposeInMainWorld('scoreboard', Object.freeze({
   copyDiagnostics: () => scoreboardMethod('copyDiagnostics'),
   ramReaderDoctor: () => scoreboardMethod('ramReaderDoctor'),
   copyRamReaderDoctor: () => scoreboardMethod('copyRamReaderDoctor'),
+  openDiagnosis: () => scoreboardMethod('openDiagnosis'),
   onRamProblem: (listener) => subscribe('scoreboard:ram-problem', listener),
   onStatus: (listener) => subscribe('scoreboard:status', listener),
   onState: (listener) => subscribe('scoreboard:state', listener),

@@ -2496,6 +2496,7 @@
     $('btn-open-logs').addEventListener('click', () => api.openLogs());
     $('btn-open-data-export').addEventListener('click', () => api.openDataExport());
     $('btn-copy-diagnostics').addEventListener('click', async () => { await api.copyDiagnostics(); toast('Diagnostic report copied'); });
+    $('btn-open-diagnosis')?.addEventListener('click', () => { window.scoreboard.openDiagnosis().catch(() => {}); });
     $('btn-copy-ram-report')?.addEventListener('click', async () => {
       await api.copyRamReaderDoctor?.();
       toast('Reader report copied — paste it anywhere');

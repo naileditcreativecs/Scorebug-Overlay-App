@@ -2,7 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
 const {
   app,
@@ -186,6 +186,7 @@ const {
 const { TransientJsonReader } = require('./transient-json-reader');
 const { applyRamFieldHold, clearRamFieldHold, createRamFieldHoldCache } = require('./ram-field-hold');
 const { flagStateFromMessages } = require('./flag-detector');
+const { runPreflight, reportText: preflightReportText } = require('./preflight');
 const { applyRamDocumentHold, clearRamDocumentHold, createRamDocumentHold, looksLikeNewGame } = require('./ram-document-hold');
 
 registerPrivilegedThemeScheme(protocol, app);
@@ -198,6 +199,7 @@ const READER_CALIBRATION_EXTENSION = 'cfb27reader';
 const OVERLAY_DOCUMENT = path.join(__dirname, 'overlay.html');
 const IN_GAME_EDITOR_DOCUMENT = path.join(__dirname, 'ingame-editor.html');
 const CONTROL_DOCUMENT = path.join(__dirname, 'control.html');
+const DIAGNOSIS_DOCUMENT = path.join(__dirname, 'diagnosis.html');
 const LIBRARY_DOCUMENT = path.join(__dirname, 'library.html');
 const LEGACY_USER_DATA_PATH = app.getPath('userData');
 const USER_DATA_LOCATION = resolveUserDataLocation({
@@ -224,6 +226,7 @@ const DEFAULT_LAYOUT = Object.freeze({
   height: DEFAULT_SIZE.height,
 });
 let overlayWindow = null;
+let diagnosisWindow = null;
 let inGameEditorWindow = null;
 let controlWindow = null;
 let libraryWindow = null;
@@ -1142,18 +1145,39 @@ function startRamReaderService() {
     logMessage(`Read-only RAM reader started inside the scorebug app (PID ${child.pid}).`);
     broadcastControlStatus();
   });
+  // Alive for a while = a real launch; clear the blocked-reader signal.
+  setTimeout(() => {
+    if (ramReaderProcess === child && child.exitCode === null) {
+      readerLaunchFailures = 0;
+      readerLaunchError = null;
+      scheduleDiagnosisRefresh();
+    }
+  }, 4000).unref?.();
   child.once('error', (error) => {
     if (ramReaderProcess === child) {
       ramReaderProcess = null;
       ramReaderSeedMode = null;
     }
+    readerLaunchFailures += 1;
+    readerLaunchError = error.message;
     logMessage(`Read-only RAM reader could not start: ${error.message}`);
     scheduleRamReaderRestart();
+    scheduleDiagnosisRefresh();
   });
   child.once('exit', (code) => {
     if (ramReaderProcess === child) {
       ramReaderProcess = null;
       ramReaderSeedMode = null;
+    }
+    // Dying inside a second of starting, repeatedly, is the antivirus /
+    // app-control signature; a long-lived reader exiting is not.
+    if (Date.now() - lastRamReaderStartAtMs < 1500) {
+      readerLaunchFailures += 1;
+      readerLaunchError = readerLaunchError || `exited immediately (code ${code})`;
+      scheduleDiagnosisRefresh();
+    } else {
+      readerLaunchFailures = 0;
+      readerLaunchError = null;
     }
     if (!shuttingDown) {
       logMessage(`Read-only RAM reader stopped${code === null ? '' : ` (${code})`}; restarting automatically.`);
@@ -5285,6 +5309,224 @@ async function openDataExport() {
 // The plain-English RAM reader report shown on the Diagnostics tab. Reads the
 // status and live files fresh on every call so a stalled broadcast can never
 // show a stale diagnosis - the whole point is being accurate when broken.
+// ---- Launch diagnosis window ------------------------------------------
+// Answers "why is it not reading?" BEFORE the user has to ask: at launch the
+// app checks everything that can stop a read (antivirus removed/blocked the
+// reader, unwritable data folder, running from inside the zip, wrong source
+// mode, second copy, elevation) and opens a plain-language window listing
+// what it found, why it blocks reading, and the exact fix. Later, the reader
+// problem watch routes real problems into the same window. Re-check runs it
+// all again live so the user can confirm the fix without restarting.
+let readerLaunchFailures = 0;
+let readerLaunchError = null;
+let diagnosisRefreshTimer = null;
+let lastDiagnosisReport = null;
+let elevationCache; // undefined = not probed yet, null = unknown
+
+function probeElevation() {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') return resolve(null);
+    if (elevationCache !== undefined) return resolve(elevationCache);
+    execFile('whoami', ['/groups'], { timeout: 4000, windowsHide: true }, (error, stdout) => {
+      elevationCache = error ? null : /S-1-16-12288|S-1-16-16384/.test(String(stdout || ''));
+      resolve(elevationCache);
+    });
+  });
+}
+
+function probeDefenderDetection() {
+  return new Promise((resolve) => {
+    if (process.platform !== 'win32') return resolve(null);
+    const script = "try { Get-MpThreatDetection -ErrorAction Stop | Where-Object { $_.Resources -match 'CollegeFB27RamReader' } | Select-Object -First 1 -ExpandProperty ThreatID | ForEach-Object { (Get-MpThreat -ThreatID $_).ThreatName } } catch { }";
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { timeout: 8000, windowsHide: true }, (error, stdout) => {
+      const name = String(stdout || '').trim().split(/\r?\n/)[0];
+      resolve(!error && name ? name : null);
+    });
+  });
+}
+
+function dataFolderWritable() {
+  try {
+    fs.mkdirSync(dataExportRootPath(), { recursive: true });
+    const probe = path.join(dataExportRootPath(), `.write-test-${process.pid}`);
+    fs.writeFileSync(probe, 'ok');
+    fs.unlinkSync(probe);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function readerExeOnDisk() {
+  const relative = path.join('ram-reader', 'CollegeFB27RamReader.exe');
+  const candidate = app.isPackaged
+    ? path.join(process.resourcesPath, 'app.asar.unpacked', relative)
+    : path.join(app.getAppPath(), relative);
+  let exists = false;
+  try { exists = fs.statSync(candidate).isFile(); } catch { exists = false; }
+  return { path: candidate, exists };
+}
+
+async function buildDiagnosisReport({ deep = false } = {}) {
+  const onDisk = readerExeOnDisk();
+  const executable = onDisk.path;
+  const readerExeExists = onDisk.exists;
+  const [elevated, defenderDetection] = await Promise.all([
+    probeElevation(),
+    (!readerExeExists && deep) ? probeDefenderDetection() : Promise.resolve(null),
+  ]);
+  const result = runPreflight({
+    readerExePath: executable,
+    readerExeExists,
+    readerLaunchFailures,
+    readerLaunchError,
+    readerRunning: Boolean(ramReaderProcess && ramReaderProcess.exitCode === null && !ramReaderProcess.killed),
+    dataFolderWritable: dataFolderWritable(),
+    dataFolderPath: dataExportRootPath(),
+    appPath: process.execPath,
+    elevated,
+    sourceMode: scoreboardDataSourceMode(),
+    singleInstance: hasSingleInstanceLock,
+    defenderDetection,
+  });
+  // Live reader problems (game running, reader stuck) join the same list.
+  try {
+    const doctor = ramReaderDoctor();
+    const headline = ramProblemFromReport(doctor);
+    const coveredByPreflight = result.findings.some((f) => f.id === 'reader-missing' || f.id === 'reader-blocked')
+      && /reader is not running/i.test(headline || '');
+    if (headline && !coveredByPreflight && !result.findings.some((f) => f.id === 'reader-live')) {
+      const steps = (doctor.lines || [])
+        .filter((l) => /^\s*\[(WARN|BAD)\]/.test(l))
+        .map((l) => l.replace(/^\s*\[(WARN|BAD)\]\s*/, ''))
+        .slice(0, 4);
+      result.findings.push({
+        id: 'reader-live',
+        severity: 'bad',
+        title: headline,
+        why: 'The reader is running but reports it cannot read the game right now.',
+        fix: steps.length ? steps : ['Open Diagnostics in the control panel and use Copy report to send the details.'],
+        detail: null,
+      });
+      result.level = 'bad';
+    }
+  } catch { }
+  const report = {
+    ...result,
+    alwaysShow: settings.diagnosis?.alwaysShowAtLaunch === true,
+    generatedAt: new Date().toISOString(),
+    appVersion: app.getVersion(),
+  };
+  lastDiagnosisReport = report;
+  return report;
+}
+
+function createDiagnosisWindow() {
+  if (diagnosisWindow && !diagnosisWindow.isDestroyed()) {
+    diagnosisWindow.show();
+    diagnosisWindow.focus();
+    return diagnosisWindow;
+  }
+  diagnosisWindow = new BrowserWindow({
+    width: 760,
+    height: 620,
+    minWidth: 560,
+    minHeight: 420,
+    show: false,
+    title: 'CFB27 Scoreboard Overlay - Why it is not reading',
+    backgroundColor: '#080c12',
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+    },
+  });
+  diagnosisWindow.setMenu(null);
+  installLocalNavigationGuard(diagnosisWindow, [DIAGNOSIS_DOCUMENT]);
+  diagnosisWindow.loadFile(DIAGNOSIS_DOCUMENT);
+  diagnosisWindow.once('ready-to-show', () => {
+    if (!diagnosisWindow || diagnosisWindow.isDestroyed()) return;
+    diagnosisWindow.show();
+    // Only the first moments need to be on top; then behave like a window.
+    setTimeout(() => { try { diagnosisWindow?.setAlwaysOnTop(false); } catch { } }, 2500).unref?.();
+  });
+  diagnosisWindow.on('closed', () => { diagnosisWindow = null; });
+  return diagnosisWindow;
+}
+
+function sendDiagnosisReport(report) {
+  if (diagnosisWindow && !diagnosisWindow.isDestroyed()) {
+    diagnosisWindow.webContents.send('diagnosis:report', report);
+  }
+}
+
+function scheduleDiagnosisRefresh() {
+  if (diagnosisRefreshTimer) return;
+  diagnosisRefreshTimer = setTimeout(async () => {
+    diagnosisRefreshTimer = null;
+    try {
+      const report = await buildDiagnosisReport({ deep: true });
+      if (report.level === 'bad') createDiagnosisWindow();
+      sendDiagnosisReport(report);
+    } catch { }
+  }, 1500);
+  diagnosisRefreshTimer.unref?.();
+}
+
+async function runLaunchDiagnosis() {
+  try {
+    const report = await buildDiagnosisReport({ deep: true });
+    const mustShow = report.level === 'bad' || report.level === 'warn' || report.alwaysShow;
+    logMessage(report.findings.length
+      ? `Launch check: ${report.findings.length} issue(s) - ${report.findings.map((f) => f.title).join('; ')}`
+      : 'Launch check: no problems found.');
+    if (mustShow) {
+      createDiagnosisWindow();
+      sendDiagnosisReport(report);
+    }
+  } catch (error) {
+    logMessage(`Launch check could not run: ${error.message}`);
+  }
+}
+
+async function diagnosisMethod(method, payload) {
+  switch (method) {
+    case 'getReport':
+      return lastDiagnosisReport || buildDiagnosisReport({ deep: true });
+    case 'recheck': {
+      readerLaunchFailures = 0;
+      readerLaunchError = null;
+      elevationCache = undefined;
+      // Give a fixed reader a fresh start so "reader blocked" can clear.
+      if (usesRamReader(scoreboardDataSourceMode()) && !(ramReaderProcess && ramReaderProcess.exitCode === null)) {
+        startRamReaderService();
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+      return buildDiagnosisReport({ deep: true });
+    }
+    case 'copyReport': {
+      const report = lastDiagnosisReport || await buildDiagnosisReport({ deep: true });
+      clipboard.writeText(preflightReportText(report, { appVersion: report.appVersion, generatedAt: report.generatedAt })
+        + '\n\n' + (ramReaderDoctor().reportText || ''));
+      return true;
+    }
+    case 'setAlwaysShow':
+      settings.diagnosis ||= {};
+      settings.diagnosis.alwaysShowAtLaunch = Boolean(payload);
+      persistSettings();
+      return true;
+    case 'close':
+      diagnosisWindow?.close();
+      return true;
+    default:
+      throw new Error(`Unknown diagnosis method: ${method}`);
+  }
+}
+
 function ramReaderDoctor() {
   const executable = unpackedResource(path.join('ram-reader', 'CollegeFB27RamReader.exe'));
   let readerExePresent = true;
@@ -5335,6 +5577,7 @@ function checkRamProblem() {
   if (headline === lastRamProblemHeadline) return;
   lastRamProblemHeadline = headline;
   sendToControl('scoreboard:ram-problem', headline ? { headline } : null);
+  if (headline) scheduleDiagnosisRefresh();
   if (headline && headline !== notifiedRamProblemHeadline) {
     notifiedRamProblemHeadline = headline;
     try {
@@ -5437,6 +5680,11 @@ async function scoreboardMethod(method, payload) {
     case 'copyDiagnostics': return copyDiagnostics();
     case 'ramReaderDoctor': return ramReaderDoctor();
     case 'copyRamReaderDoctor': return copyRamReaderDoctor();
+    case 'openDiagnosis': {
+      createDiagnosisWindow();
+      buildDiagnosisReport({ deep: true }).then(sendDiagnosisReport).catch(() => {});
+      return true;
+    }
     default: throw new Error(`Unknown scoreboard method: ${String(method)}`);
   }
 }
@@ -6011,6 +6259,12 @@ if (!hasSingleInstanceLock) {
       ], 'scoreboard:method');
       return scoreboardMethod(method, payload);
     });
+    ipcMain.handle('diagnosis:method', (event, method, payload) => {
+      assertTrustedIpcSender(event, [
+        { window: diagnosisWindow, documents: [DIAGNOSIS_DOCUMENT] },
+      ], 'diagnosis:method');
+      return diagnosisMethod(method, payload);
+    });
     createOverlayWindow();
     const libraryOnly = (process.argv.includes('--library') || process.argv.includes('--library-smoke'))
       && !process.argv.some((argument) => ['--start', '--show', '--toggle', '--edit'].includes(argument));
@@ -6039,6 +6293,10 @@ if (!hasSingleInstanceLock) {
     }
     await applyCommandLine(process.argv);
     logMessage('Control center ready. This app never launches the game.');
+    if (!libraryOnly) {
+      // Let the reader attempt its first launch, then judge everything at once.
+      setTimeout(() => { runLaunchDiagnosis(); }, 3500).unref?.();
+    }
   }).catch((error) => {
     console.error('[overlay] startup failed:', error);
     app.quit();

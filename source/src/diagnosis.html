@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <title>CFB27 Scoreboard Overlay - Why it is not reading</title>
+    <link rel="stylesheet" href="diagnosis.css">
+  </head>
+  <body>
+    <main class="diagnosis" aria-live="polite">
+      <header class="head">
+        <div>
+          <p class="eyebrow">STARTUP CHECK</p>
+          <h1 id="headline">Checking the reader…</h1>
+          <p id="subline" class="subline">Looking for anything that would stop the game from being read.</p>
+        </div>
+        <span id="level-pill" class="pill">…</span>
+      </header>
+
+      <section id="findings" class="findings" aria-label="Detected problems"></section>
+
+      <section id="allclear" class="allclear hidden">
+        <strong>Everything looks good.</strong>
+        <p>Start College Football 27 and play — the reader locks on after a few seconds of live, unpaused play. If it doesn't, this window opens again with the reason.</p>
+      </section>
+
+      <footer class="foot">
+        <label class="check"><input id="always-show" type="checkbox"><span>Show this check every time the app starts</span></label>
+        <div class="actions">
+          <button id="btn-copy" type="button">Copy report</button>
+          <button id="btn-recheck" type="button">Re-check</button>
+          <button id="btn-close" type="button" class="primary">Close</button>
+        </div>
+      </footer>
+    </main>
+    <script src="diagnosis.js"></script>
+  </body>
+</html>
