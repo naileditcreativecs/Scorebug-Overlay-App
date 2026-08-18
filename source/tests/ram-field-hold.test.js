@@ -7,6 +7,7 @@ const {
   HELD_FIELDS,
   RAM_FIELD_HOLD_MS,
   applyRamFieldHold,
+  clearRamFieldHold,
   createRamFieldHoldCache,
 } = require('../src/ram-field-hold');
 
@@ -31,6 +32,22 @@ test('a field that drops out for a tick keeps its last verified value', () => {
   assert.strictEqual(blink.state.game.distance, 7);
   assert.ok(blink.fields.includes('game.down'));
   assert.ok(blink.fields.includes('game.distance'));
+});
+
+test('identity fields hold until replaced; live fields expire', () => {
+  const cache = createRamFieldHoldCache();
+  applyRamFieldHold(payloadWith({ away: { name: 'Air Force', rank: 8, record: '3-0', score: 7 } }), cache, 1000);
+  const late = applyRamFieldHold(payloadWith({ away: {} }), cache, 1000 + 10 * 60 * 1000);
+  assert.strictEqual(late.state.away.name, 'Air Force');
+  assert.strictEqual(late.state.away.rank, 8);
+  assert.strictEqual(late.state.away.record, '3-0');
+  assert.ok(!('score' in late.state.away));
+  // Replacement wins instantly.
+  const replaced = applyRamFieldHold(payloadWith({ away: { name: 'Fresno State' } }), cache, 1000 + 11 * 60 * 1000);
+  assert.strictEqual(replaced.state.away.name, 'Fresno State');
+  // Explicit clear drops everything.
+  clearRamFieldHold(cache);
+  assert.ok(!('name' in applyRamFieldHold(payloadWith({ away: {} }), cache, 5).state.away));
 });
 
 test('a deliberate long withhold still goes blank after the hold window', () => {

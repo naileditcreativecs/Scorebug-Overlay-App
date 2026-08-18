@@ -405,6 +405,22 @@ function wireRecordControls() {
     input?.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') { event.preventDefault(); applyRecord(); }
     });
+    // Live: a complete record applies as it is typed (no Set needed); a
+    // partial one waits without nagging; clearing the box returns to auto.
+    let liveRecordTimer = null;
+    input?.addEventListener('input', () => {
+      clearTimeout(liveRecordTimer);
+      liveRecordTimer = setTimeout(async () => {
+        const text = input.value.trim();
+        if (text && !/^\d{1,2}-\d{1,2}(?:-\d{1,2})?$/.test(text)) return;
+        if (!text) {
+          await applyPickerChoice(side, { recordMode: 'auto', record: null });
+          return;
+        }
+        await applyPickerChoice(side, { recordMode: 'custom', record: text });
+        savedToast(`${sideLabel} record set to ${text}.`);
+      }, 350);
+    });
     document.getElementById(`${side}-record-auto`)?.addEventListener('click', async () => {
       input.value = '';
       await applyPickerChoice(side, { recordMode: 'auto', record: null });
@@ -1425,6 +1441,10 @@ document.getElementById('clear-team-overrides').addEventListener('click', async 
   } finally {
     teamUpdateRunning = false;
   }
+});
+document.getElementById('new-game')?.addEventListener('click', () => {
+  setToast('Re-reading the game from scratch - names, ranks and records will return in a few seconds.');
+  api.freshRead().catch(reportError);
 });
 document.getElementById('save-close').addEventListener('click', () => {
   api.closeQuickSettings().catch(reportError);

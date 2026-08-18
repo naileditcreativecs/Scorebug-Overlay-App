@@ -175,8 +175,12 @@ function buildRamReaderReport(input = {}) {
     lines.push(translateTeamRole(discovery.teamRole, away.name, home.name, namesReading));
     lines.push(translateRankBind(discovery.rankBind));
     lines.push(translateTimeoutBind(discovery.timeoutBind));
-    lines.push(line(INFO, 'Possession',
-      'Not shown in this version by design - the reader does not yet trust its possession source.'));
+    const possessionKnown = typeof away.possession === 'boolean' || typeof home.possession === 'boolean';
+    lines.push(possessionKnown
+      ? line(OK, 'Possession', `Reading (${away.possession ? 'away' : 'home'} has the ball).`)
+      : line(INFO, 'Possession',
+        'Hidden right now - shown only when the game gives a clean answer (kickoffs, dead balls and '
+        + 'the first seconds after a change of possession blank it on purpose).'));
   }
 
   const connectedToGame = Boolean(live || status?.gameProcessId);

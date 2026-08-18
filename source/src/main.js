@@ -184,8 +184,9 @@ const {
   usesRamReader,
 } = require('./scoreboard-data-source');
 const { TransientJsonReader } = require('./transient-json-reader');
-const { applyRamFieldHold, createRamFieldHoldCache } = require('./ram-field-hold');
+const { applyRamFieldHold, clearRamFieldHold, createRamFieldHoldCache } = require('./ram-field-hold');
 const { flagStateFromMessages } = require('./flag-detector');
+const { applyRamDocumentHold, clearRamDocumentHold, createRamDocumentHold, looksLikeNewGame } = require('./ram-document-hold');
 
 registerPrivilegedThemeScheme(protocol, app);
 
@@ -251,6 +252,7 @@ let lastRamDataAtMs = 0;
 let lastRamRecoveryAtMs = 0;
 let lastRamReaderStartAtMs = 0;
 let consecutiveRamRecoveries = 0;
+let lastAutoNewGameAtMs = 0;
 // The reader needs up to 30s for a cold scan, so anything near that just
 // kills it mid-acquisition and it can never finish. Measured 2026-08-12:
 // a 25s threshold restarted it five times in a row and it never read once.
@@ -293,6 +295,7 @@ const ocrFieldCadence = new OcrFieldCadence({ staticIntervalMs: 900 });
 const teamRankMemory = new TeamRankMemory();
 const ramLiveDocumentReader = new TransientJsonReader();
 const ramFieldHoldCache = createRamFieldHoldCache();
+const ramDocumentHold = createRamDocumentHold();
 const gameClockPresentation = new CountdownClockModel({
   format: 'minutes',
   correctionThresholdSeconds: 5,
@@ -872,7 +875,10 @@ function ramScoreboardPayload(document) {
   for (const side of ['away', 'home']) {
     const source = document[side] || {};
     const target = state[side];
-    apply(target, 'name', source.name, /^ram(?:-cached|-pending)?$/i.test(String(source.nameSource || '')) && Boolean(source.name), `${side}.name`);
+    // 'ram-pending' carries a placeholder ("Away"/"Home") while the reader
+    // re-proves the matchup. Treat it as absent so the field hold keeps the
+    // last real name instead of flashing AWAY/HOME over it.
+    apply(target, 'name', source.name, /^ram(?:-cached)?$/i.test(String(source.nameSource || '')) && Boolean(source.name), `${side}.name`);
     const rank = normalizeRamInteger(source.rank, { min: 1, max: 25 });
     apply(target, 'rank', rank, source.rankSource === 'ram'
       && (source.rank == null || rank !== null), `${side}.rank`);
@@ -976,13 +982,37 @@ function pollRamScoreboardState() {
   try {
     // The hold runs before the signature compare so a one-tick withhold
     // (value -> null -> value) neither blanks the bug nor publishes churn.
-    const payload = applyRamFieldHold(
+    const freshPayload = applyRamFieldHold(
       ramScoreboardPayload(ramLiveDocumentReader.read(ramLiveDataPath())),
       ramFieldHoldCache,
       Date.now(),
     );
+    // Whole-document continuity: a same-game re-locate keeps the last good
+    // state on screen; a new game, a new process, or a dead reader clears it.
+    const held = applyRamDocumentHold(ramDocumentHold, freshPayload, {
+      nowMs: Date.now(),
+      readerStatusText: readJsonFile(ramReaderStatusPath(), {}).message,
+      gameProcessId: runtime.game?.pid ?? null,
+      readerAlive: Boolean(ramReaderProcess && ramReaderProcess.exitCode === null && !ramReaderProcess.killed),
+    });
+    const payload = held.payload;
     if (!payload) {
+      if (held.reason === 'new-game' || held.reason === 'process') clearRamFieldHold(ramFieldHoldCache);
       clearRamScoreboardState();
+      return;
+    }
+    if (held.held) {
+      // Nothing new to publish - the previous state is already on screen.
+      lastRamDataAtMs = Date.now();
+      return;
+    }
+    // A different game in the same process: force a fresh locate so the
+    // previous matchup's names can never carry over into the new one.
+    if (runtime.ramScoreboardState && looksLikeNewGame(runtime.ramScoreboardState, payload.state)
+      && Date.now() - lastAutoNewGameAtMs > 60000) {
+      lastAutoNewGameAtMs = Date.now();
+      logMessage('New game detected (1st quarter, 0-0, full clock after a game in progress); re-reading everything.');
+      runControlAction('fresh-read').catch(() => {});
       return;
     }
     const signature = JSON.stringify({
@@ -1151,6 +1181,15 @@ function reacquireRamReader(reason) {
   if (!usesRamReader(scoreboardDataSourceMode())) return false;
   lastRamDataAtMs = Date.now();
   lastRamRecoveryAtMs = Date.now();
+  clearRamDocumentHold(ramDocumentHold);
+  clearRamFieldHold(ramFieldHoldCache);
+  // A manual re-read means "this is a different game": drop the reader's
+  // cached profile so it locates everything fresh instead of re-adopting
+  // addresses that still hold the previous matchup.
+  if (/new game|fresh read/i.test(String(reason || ''))) {
+    try { fs.unlinkSync(path.join(dataExportRootPath(), 'ram-live-profile-cache.json')); } catch { }
+    try { fs.unlinkSync(ramLiveDataPath()); } catch { }
+  }
   clearRamScoreboardState();
   stopRamReaderService();
   startRamReaderService();

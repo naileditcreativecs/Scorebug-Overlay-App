@@ -8,36 +8,48 @@
 // short window smooths those blinks while leaving deliberate withholds - which
 // last many seconds - visibly blank. Values never cross a game process change.
 const RAM_FIELD_HOLD_MS = 1500;
+// Identity fields never change inside a game - only a new matchup changes
+// them, and that path clears the whole cache. So they hold until replaced:
+// a name/rank/record that has been read once stays on the bug through every
+// re-proof, special layer and slow lookup instead of blinking to AWAY/HOME.
+const IDENTITY_HOLD_MS = Number.POSITIVE_INFINITY;
 
-// Every field ramScoreboardPayload can emit. A field absent from this list
-// would blink again, so keep it in step with that function.
+// Every field ramScoreboardPayload can emit, with its hold window. A field
+// absent from this list would blink again, so keep it in step with that
+// function.
 const HELD_FIELDS = [
-  ['away', 'name'],
-  ['away', 'rank'],
-  ['away', 'record'],
-  ['away', 'score'],
-  ['away', 'timeouts'],
-  ['away', 'possession'],
-  ['home', 'name'],
-  ['home', 'rank'],
-  ['home', 'record'],
-  ['home', 'score'],
-  ['home', 'timeouts'],
-  ['home', 'possession'],
-  ['game', 'quarter'],
-  ['game', 'clock'],
-  ['game', 'playClock'],
-  ['game', 'down'],
-  ['game', 'distance'],
-  ['game', 'downDistance'],
-  ['game', 'downDistanceKind'],
+  ['away', 'name', IDENTITY_HOLD_MS],
+  ['away', 'rank', IDENTITY_HOLD_MS],
+  ['away', 'record', IDENTITY_HOLD_MS],
+  ['away', 'score', RAM_FIELD_HOLD_MS],
+  ['away', 'timeouts', RAM_FIELD_HOLD_MS],
+  ['away', 'possession', RAM_FIELD_HOLD_MS],
+  ['home', 'name', IDENTITY_HOLD_MS],
+  ['home', 'rank', IDENTITY_HOLD_MS],
+  ['home', 'record', IDENTITY_HOLD_MS],
+  ['home', 'score', RAM_FIELD_HOLD_MS],
+  ['home', 'timeouts', RAM_FIELD_HOLD_MS],
+  ['home', 'possession', RAM_FIELD_HOLD_MS],
+  ['game', 'quarter', RAM_FIELD_HOLD_MS],
+  ['game', 'clock', RAM_FIELD_HOLD_MS],
+  ['game', 'playClock', RAM_FIELD_HOLD_MS],
+  ['game', 'down', RAM_FIELD_HOLD_MS],
+  ['game', 'distance', RAM_FIELD_HOLD_MS],
+  ['game', 'downDistance', RAM_FIELD_HOLD_MS],
+  ['game', 'downDistanceKind', RAM_FIELD_HOLD_MS],
 ];
 
 function createRamFieldHoldCache() {
   return { processId: undefined, entries: new Map() };
 }
 
-function applyRamFieldHold(payload, cache, nowMs, holdMs = RAM_FIELD_HOLD_MS) {
+function clearRamFieldHold(cache) {
+  if (!cache) return;
+  cache.processId = undefined;
+  cache.entries = new Map();
+}
+
+function applyRamFieldHold(payload, cache, nowMs, holdOverrideMs = null) {
   if (!payload || !payload.state || !cache) return payload;
   const processId = payload.state.meta?.ramProcessId ?? null;
   if (cache.processId !== processId) {
@@ -45,7 +57,8 @@ function applyRamFieldHold(payload, cache, nowMs, holdMs = RAM_FIELD_HOLD_MS) {
     cache.entries = new Map();
   }
   const entries = cache.entries;
-  for (const [section, key] of HELD_FIELDS) {
+  for (const [section, key, fieldHoldMs] of HELD_FIELDS) {
+    const holdMs = holdOverrideMs ?? fieldHoldMs;
     const target = payload.state[section];
     if (!target || typeof target !== 'object') continue;
     const label = `${section}.${key}`;
@@ -68,7 +81,9 @@ function applyRamFieldHold(payload, cache, nowMs, holdMs = RAM_FIELD_HOLD_MS) {
 
 module.exports = {
   HELD_FIELDS,
+  IDENTITY_HOLD_MS,
   RAM_FIELD_HOLD_MS,
   applyRamFieldHold,
+  clearRamFieldHold,
   createRamFieldHoldCache,
 };
