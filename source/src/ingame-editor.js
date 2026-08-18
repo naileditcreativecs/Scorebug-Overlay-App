@@ -332,7 +332,8 @@ function renderScorebugColors() {
     const wheelActive = Boolean(shown && resolved.source !== 'auto'
       && shown !== swatches.secondary && shown !== '#ffffff' && shown !== '#000000');
     wheel.parentElement.classList.toggle('active', wheelActive);
-    if (shown && document.activeElement !== wheel) wheel.value = shown;
+    wheel.style.background = shown || '#888';
+    wheel.dataset.color = shown || '';
     const caption = document.getElementById(`${side}-color-source`);
     if (caption) {
       const team = swatches.teamName || (side === 'away' ? 'left team' : 'right team');
@@ -356,17 +357,55 @@ function renderScorebugColors() {
     const button = document.getElementById(`save-scope-${scope}`);
     if (!button) continue;
     button.textContent = label;
-    const has = scope === 'team-away' ? colors.rules?.some((r) => r.scope === 'team' && r.teamId === ctx.awayTeamId)
-      : scope === 'team-home' ? colors.rules?.some((r) => r.scope === 'team' && r.teamId === ctx.homeTeamId)
-        : scope === 'matchup' ? colors.rules?.some((r) => r.scope === 'matchup' && r.awayTeamId === ctx.awayTeamId && r.homeTeamId === ctx.homeTeamId)
-          : colors.rules?.some((r) => r.scope === 'theme' && r.themeId === ctx.themeId);
-    button.classList.toggle('saved', Boolean(has));
     button.disabled = (scope === 'team-away' && !ctx.awayTeamId) || (scope === 'team-home' && !ctx.homeTeamId)
       || (scope === 'matchup' && !(ctx.awayTeamId && ctx.homeTeamId)) || (scope === 'theme' && !ctx.themeId);
+    button.classList.toggle('selected', selectedColorScope === scope);
+    button.setAttribute('aria-checked', String(selectedColorScope === scope));
   }
+  const saveButton = document.getElementById('save-color-scope');
+  if (saveButton) saveButton.disabled = Boolean(document.getElementById(`save-scope-${selectedColorScope}`)?.disabled);
+  // Saved profiles as tags: what each one is for, its color(s), and a remove.
+  const profileList = document.getElementById('color-profile-list');
+  if (profileList) {
+    profileList.replaceChildren();
+    const rules = colors.rules || [];
+    if (!rules.length) {
+      const empty = document.createElement('em');
+      empty.textContent = 'Nothing saved yet';
+      profileList.append(empty);
+    }
+    for (const rule of rules) {
+      const tag = document.createElement('span');
+      tag.className = 'color-profile-tag';
+      const label = document.createElement('span');
+      label.textContent = rule.label || rule.scope;
+      const dots = [];
+      for (const color of [rule.color, rule.away, rule.home].filter(Boolean)) {
+        const dot = document.createElement('i');
+        dot.style.background = color;
+        dots.push(dot);
+      }
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.title = 'Remove this saved profile';
+      remove.textContent = '\u00d7';
+      remove.addEventListener('click', () => runColorCommand(
+        () => api.deleteScorebugColorRule({ rule }),
+        `Removed: ${rule.label || rule.scope}`,
+      ));
+      const isActive = (rule.scope === 'team' && (rule.teamId === ctx.awayTeamId || rule.teamId === ctx.homeTeamId))
+        || (rule.scope === 'matchup' && rule.awayTeamId === ctx.awayTeamId && rule.homeTeamId === ctx.homeTeamId)
+        || (rule.scope === 'theme' && rule.themeId === ctx.themeId);
+      tag.classList.toggle('active', Boolean(isActive));
+      tag.append(label, ...dots, remove);
+      profileList.append(tag);
+    }
+  }
+  // Legacy named presets (pre-1.4.28) still apply on click if the list
+  // element exists; the profile tags above are the primary UI now.
   const list = document.getElementById('color-preset-list');
-  list.replaceChildren();
-  for (const preset of colors.presets || []) {
+  if (list) list.replaceChildren();
+  for (const preset of list ? (colors.presets || []) : []) {
     const chip = document.createElement('span');
     chip.className = 'color-preset-chip';
     const apply = document.createElement('button');
@@ -461,7 +500,147 @@ function wireRecordControls() {
   }
 }
 
+let selectedColorScope = 'team-away';
+
+// ---- In-panel color wheel. The editor window is non-activating (the game
+// keeps focus), and Windows will not open the native color dialog from a
+// window that cannot take focus - so <input type=color> never showed a
+// picker. This popover is plain DOM: a hue/saturation wheel on a canvas, a
+// brightness slider and a hex box; every move applies to the bug live.
+const wheelState = { side: null, h: 0, s: 0, v: 1, timer: null };
+function hsvToHex(h, s, v) {
+  const f = (n) => { const k = (n + h / 60) % 6; const c = v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); return Math.round(c * 255); };
+  return '#' + [f(5), f(3), f(1)].map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+function hexToHsv(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return null;
+  const r = parseInt(m[1].slice(0, 2), 16) / 255, g = parseInt(m[1].slice(2, 4), 16) / 255, b = parseInt(m[1].slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  let h = 0;
+  if (d) { if (max === r) h = ((g - b) / d) % 6; else if (max === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+  return { h, s: max ? d / max : 0, v: max };
+}
+function paintColorWheel() {
+  const canvas = document.getElementById('color-wheel-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width, r = size / 2;
+  const image = ctx.createImageData(size, size);
+  const data = image.data;
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const dx = x - r, dy = y - r, dist = Math.sqrt(dx * dx + dy * dy);
+      const i = (y * size + x) * 4;
+      if (dist > r) { data[i + 3] = 0; continue; }
+      const hue = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
+      const sat = Math.min(1, dist / r);
+      const hex = hsvToHex(hue, sat, wheelState.v);
+      data[i] = parseInt(hex.slice(1, 3), 16); data[i + 1] = parseInt(hex.slice(3, 5), 16); data[i + 2] = parseInt(hex.slice(5, 7), 16);
+      data[i + 3] = dist > r - 1.5 ? Math.round(255 * Math.max(0, r - dist) / 1.5) : 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  // marker
+  const mx = r + Math.cos(wheelState.h * Math.PI / 180) * wheelState.s * r;
+  const my = r + Math.sin(wheelState.h * Math.PI / 180) * wheelState.s * r;
+  ctx.beginPath(); ctx.arc(mx, my, 6, 0, Math.PI * 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(mx, my, 7.5, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 1; ctx.stroke();
+}
+function currentWheelHex() { return hsvToHex(wheelState.h, wheelState.s, wheelState.v); }
+function applyWheelColorLive() {
+  const hex = currentWheelHex();
+  document.getElementById('color-wheel-preview').style.background = hex;
+  const hexInput = document.getElementById('color-wheel-hex');
+  if (document.activeElement !== hexInput) hexInput.value = hex;
+  const swatch = document.getElementById(`${wheelState.side}-color-wheel`);
+  if (swatch) swatch.style.background = hex;
+  clearTimeout(wheelState.timer);
+  wheelState.timer = setTimeout(() => {
+    const side = wheelState.side;
+    if (!side) return;
+    api.setScorebugColor({ side, mode: 'custom', color: hex }).then(acceptState).catch(reportError);
+  }, 60);
+}
+function openColorWheel(side) {
+  const popover = document.getElementById('color-wheel-popover');
+  const swatch = document.getElementById(`${side}-color-wheel`);
+  if (!popover || !swatch) return;
+  wheelState.side = side;
+  const start = hexToHsv(swatch.dataset.color || '') || { h: 0, s: 0, v: 1 };
+  wheelState.h = start.h; wheelState.s = start.s; wheelState.v = start.v;
+  document.getElementById('color-wheel-value').value = String(Math.round(wheelState.v * 100));
+  document.getElementById('color-wheel-title').textContent = `${side === 'away' ? 'LEFT' : 'RIGHT'} TEAM COLOR`;
+  popover.classList.remove('hidden');
+  // Position beside the swatch, inside the panel.
+  const panel = document.getElementById('team-panel');
+  const panelBox = panel.getBoundingClientRect();
+  const box = swatch.getBoundingClientRect();
+  let left = box.left - panelBox.left + panel.scrollLeft;
+  let top = box.bottom - panelBox.top + panel.scrollTop + 6;
+  if (left + 340 > panel.clientWidth) left = Math.max(8, panel.clientWidth - 348);
+  if (top + 230 > panel.clientHeight) top = Math.max(8, box.top - panelBox.top + panel.scrollTop - 236);
+  popover.style.left = `${Math.round(left)}px`;
+  popover.style.top = `${Math.round(top)}px`;
+  paintColorWheel();
+  document.getElementById('color-wheel-preview').style.background = currentWheelHex();
+  document.getElementById('color-wheel-hex').value = currentWheelHex();
+}
+function closeColorWheel() {
+  document.getElementById('color-wheel-popover')?.classList.add('hidden');
+  wheelState.side = null;
+}
+function wireColorWheel() {
+  const canvas = document.getElementById('color-wheel-canvas');
+  const value = document.getElementById('color-wheel-value');
+  const hex = document.getElementById('color-wheel-hex');
+  if (!canvas || !value || !hex) return;
+  let dragging = false;
+  const pick = (event) => {
+    const box = canvas.getBoundingClientRect();
+    const r = box.width / 2;
+    const dx = event.clientX - box.left - r, dy = event.clientY - box.top - r;
+    const dist = Math.min(r, Math.sqrt(dx * dx + dy * dy));
+    wheelState.h = ((Math.atan2(dy, dx) * 180 / Math.PI) + 360) % 360;
+    wheelState.s = r ? dist / r : 0;
+    paintColorWheel();
+    applyWheelColorLive();
+  };
+  canvas.addEventListener('pointerdown', (event) => { dragging = true; canvas.setPointerCapture?.(event.pointerId); pick(event); });
+  canvas.addEventListener('pointermove', (event) => { if (dragging) pick(event); });
+  canvas.addEventListener('pointerup', () => { dragging = false; });
+  canvas.addEventListener('pointercancel', () => { dragging = false; });
+  value.addEventListener('input', () => { wheelState.v = Number(value.value) / 100; paintColorWheel(); applyWheelColorLive(); });
+  hex.addEventListener('input', () => {
+    const parsed = hexToHsv(hex.value);
+    if (!parsed) return;
+    wheelState.h = parsed.h; wheelState.s = parsed.s; wheelState.v = parsed.v;
+    value.value = String(Math.round(parsed.v * 100));
+    paintColorWheel();
+    applyWheelColorLive();
+  });
+  document.getElementById('color-wheel-close')?.addEventListener('click', closeColorWheel);
+  for (const side of ['away', 'home']) {
+    document.getElementById(`${side}-color-wheel`)?.addEventListener('click', () => {
+      if (wheelState.side === side && !document.getElementById('color-wheel-popover').classList.contains('hidden')) closeColorWheel();
+      else openColorWheel(side);
+    });
+  }
+}
+
 function wireScorebugColorControls() {
+  wireColorWheel();
+  for (const scope of ['team-away', 'team-home', 'matchup', 'theme']) {
+    document.getElementById(`save-scope-${scope}`)?.addEventListener('click', () => {
+      selectedColorScope = scope;
+      renderScorebugColors();
+    });
+  }
+  document.getElementById('save-color-scope')?.addEventListener('click', () => runColorCommand(
+    () => api.saveScorebugColorScope({ scope: selectedColorScope }),
+    { 'team-away': 'Saved for the left team', 'team-home': 'Saved for the right team',
+      matchup: 'Saved for this matchup only', theme: 'Saved for this scorebug only' }[selectedColorScope],
+  ));
   for (const side of ['away', 'home']) {
     const sideLabel = side === 'away' ? 'Away' : 'Home';
     document.getElementById(`${side}-color-auto`)?.addEventListener('click', () => runColorCommand(
@@ -483,27 +662,6 @@ function wireScorebugColorControls() {
     document.getElementById(`${side}-color-black`)?.addEventListener('click', () => runColorCommand(
       () => api.setScorebugColor({ side, mode: 'custom', color: '#000000' }),
       `${sideLabel} color: black`,
-    ));
-    let wheelTimer = null;
-    const wheelInput = document.getElementById(`${side}-color-wheel`);
-    wheelInput?.addEventListener('input', (event) => {
-      clearTimeout(wheelTimer);
-      const value = event.target.value;
-      wheelTimer = setTimeout(() => runColorCommand(
-        () => api.setScorebugColor({ side, mode: 'custom', color: value }),
-        `${sideLabel} color: ${value}`,
-      ), 60);
-    });
-    wheelInput?.addEventListener('change', (event) => runColorCommand(
-      () => api.setScorebugColor({ side, mode: 'custom', color: event.target.value }),
-      `${sideLabel} color: ${event.target.value}`,
-    ));
-  }
-  for (const scope of ['team-away', 'team-home', 'matchup', 'theme']) {
-    document.getElementById(`save-scope-${scope}`)?.addEventListener('click', () => runColorCommand(
-      () => api.saveScorebugColorScope({ scope }),
-      { 'team-away': 'Color saved for the left team', 'team-home': 'Color saved for the right team',
-        matchup: 'Colors saved for this matchup only', theme: 'Colors saved for this scorebug only' }[scope],
     ));
   }
   document.getElementById('save-color-preset')?.addEventListener('click', async () => {

@@ -47,6 +47,7 @@ const overlayControl = Object.freeze({
   saveScorebugColorPreset: (payload) => command('save-scorebug-color-preset', payload),
   saveScorebugColorScope: (payload) => command('save-scorebug-color-scope', payload),
   clearScorebugColorScope: (payload) => command('clear-scorebug-color-scope', payload),
+  deleteScorebugColorRule: (payload) => command('delete-scorebug-color-rule', payload),
   applyScorebugColorPreset: (payload) => command('apply-scorebug-color-preset', payload),
   deleteScorebugColorPreset: (payload) => command('delete-scorebug-color-preset', payload),
   centerOverlay: (payload) => command('center-overlay', payload),

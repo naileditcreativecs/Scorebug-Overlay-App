@@ -87,7 +87,7 @@
                 <button id="away-color-secondary" class="color-swatch" type="button" title="Team's 2nd color">2nd</button>
                 <button id="away-color-black" class="color-swatch color-black" type="button" title="Black" aria-label="Black"></button>
                 <button id="away-color-white" class="color-swatch color-white" type="button" title="White" aria-label="White"></button>
-                <span class="color-wheel-wrap" title="Current color - click to pick any color"><input id="away-color-wheel" type="color" value="#888888" aria-label="Away custom color"></span>
+                <button id="away-color-wheel" class="color-swatch color-current" type="button" title="Current color - click to open the color wheel" aria-label="Away color wheel" data-side="away"></button>
               </span>
               <small id="away-color-source" class="color-source"></small>
             </label>
@@ -131,7 +131,7 @@
                 <button id="home-color-secondary" class="color-swatch" type="button" title="Team's 2nd color">2nd</button>
                 <button id="home-color-black" class="color-swatch color-black" type="button" title="Black" aria-label="Black"></button>
                 <button id="home-color-white" class="color-swatch color-white" type="button" title="White" aria-label="White"></button>
-                <span class="color-wheel-wrap" title="Current color - click to pick any color"><input id="home-color-wheel" type="color" value="#888888" aria-label="Home custom color"></span>
+                <button id="home-color-wheel" class="color-swatch color-current" type="button" title="Current color - click to open the color wheel" aria-label="Home color wheel" data-side="home"></button>
               </span>
               <small id="home-color-source" class="color-source"></small>
             </label>
@@ -176,14 +176,28 @@
           <footer><button id="clear-logo-number" type="button">Clear</button><button id="apply-logo-number" class="primary" type="button">Apply value</button></footer>
         </aside>
         <div class="color-presets">
-          <strong>SAVE THESE COLORS FOR</strong>
-          <span class="color-preset-controls">
-            <button id="save-scope-team-away" type="button" data-scope="team-away" title="Remember this color for the left team, wherever it plays">Left team</button>
-            <button id="save-scope-team-home" type="button" data-scope="team-home" title="Remember this color for the right team, wherever it plays">Right team</button>
-            <button id="save-scope-matchup" type="button" data-scope="matchup" title="Only when these two teams meet">This matchup only</button>
-            <button id="save-scope-theme" type="button" data-scope="theme" title="Only on this scorebug HTML, any teams">This bug only</button>
-          </span>
-          <span id="color-preset-list" class="color-preset-list"></span>
+          <div class="color-scope-row">
+            <strong>SAVE THESE COLORS FOR</strong>
+            <span class="color-preset-controls" role="radiogroup">
+              <button id="save-scope-team-away" type="button" data-scope="team-away" role="radio" aria-checked="true" class="selected" title="Remember this color for the left team, wherever it plays">Left team</button>
+              <button id="save-scope-team-home" type="button" data-scope="team-home" role="radio" aria-checked="false" title="Remember this color for the right team, wherever it plays">Right team</button>
+              <button id="save-scope-matchup" type="button" data-scope="matchup" role="radio" aria-checked="false" title="Only when these two teams meet">This matchup only</button>
+              <button id="save-scope-theme" type="button" data-scope="theme" role="radio" aria-checked="false" title="Only on this scorebug HTML, any teams">This bug only</button>
+            </span>
+            <button id="save-color-scope" type="button" class="save-scope">Save</button>
+          </div>
+          <div class="color-profile-row"><strong>SAVED</strong><span id="color-profile-list" class="color-profile-list"><em>Nothing saved yet</em></span></div>
+        </div>
+        <div id="color-wheel-popover" class="color-wheel-popover hidden" role="dialog" aria-label="Color wheel">
+          <div class="color-wheel-head"><strong id="color-wheel-title">COLOR WHEEL</strong><button id="color-wheel-close" type="button" aria-label="Close">&times;</button></div>
+          <div class="color-wheel-body">
+            <canvas id="color-wheel-canvas" width="180" height="180"></canvas>
+            <div class="color-wheel-side">
+              <label>Brightness<input id="color-wheel-value" type="range" min="0" max="100" step="1" value="100"></label>
+              <label>Hex<input id="color-wheel-hex" type="text" maxlength="7" spellcheck="false" placeholder="#rrggbb"></label>
+              <span id="color-wheel-preview" class="color-wheel-preview"></span>
+            </div>
+          </div>
         </div>
         <footer class="team-panel-footer">
           <span>Team/rank overrides last for this session. Colors, imported logos and placement are remembered without changing the reader.</span>

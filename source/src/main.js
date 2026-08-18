@@ -2924,12 +2924,35 @@ function scorebugColorState() {
       live: runtime.scoreboardState?.[side]?.color || null,
     };
   }
+  const teamName = (id) => (id && teamAssetResolver ? teamAssetResolver.resolveTeamId(id)?.name : null) || id || '?';
+  const themeName = (id) => {
+    try {
+      const entry = themeLibraryStore().list().find((candidate) => candidate.id === id);
+      if (entry?.name) return entry.name;
+    } catch { }
+    return 'this bug';
+  };
+  const rules = colors.rules.map((rule) => ({
+    ...rule,
+    label: rule.scope === 'team' ? teamName(rule.teamId)
+      : rule.scope === 'matchup' ? `${teamName(rule.awayTeamId)} vs ${teamName(rule.homeTeamId)}`
+        : `${themeName(rule.themeId)} (bug only)`,
+  }));
   return {
     ...colors,
+    rules,
     swatches,
     context,
     resolved: resolveScorebugColors(colors, context),
   };
+}
+
+function deleteScorebugColorRuleCommand(payload = {}) {
+  const rule = payload.rule || {};
+  return publishScorebugColors(
+    removeScorebugColorRule(settings.scorebugColors, rule),
+    `Scorebug color profile removed (${rule.scope || '?'}).`,
+  );
 }
 
 function publishScorebugColors(nextColors, logText) {
@@ -5875,6 +5898,8 @@ async function executeCommand(command, payload) {
       return saveScorebugColorScopeCommand(payload);
     case 'clear-scorebug-color-scope':
       return clearScorebugColorScopeCommand(payload);
+    case 'delete-scorebug-color-rule':
+      return deleteScorebugColorRuleCommand(payload);
     case 'save-scorebug-color-preset':
       return saveScorebugColorPresetCommand(payload);
     case 'apply-scorebug-color-preset':
