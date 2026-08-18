@@ -223,6 +223,7 @@ namespace CollegeFootballRamDiagnostic
             nextFastScoreHudScanUtc = DateTime.MinValue;
             loggedScoreHudMessages.Clear();
             recentScoreHudMessages.Clear();
+            currentPenalty = null;
             publishedFieldValues.Clear();
             publishedFieldChangedAt.Clear();
             nextAutoDiscoveryUtc = DateTime.MinValue;
@@ -684,6 +685,10 @@ namespace CollegeFootballRamDiagnostic
             // for the app's optional hide-during-play-call; null unless all
             // copies agree.
             ram["playCallOpen"] = ReadPlayCallOpenCandidate();
+            // The penalty being announced (type + offense/defense), from the
+            // strings the game builds for commentary/referee presentation
+            // ~10 s after the FLAG banner. Held for 45 s, then cleared.
+            ram["penalty"] = CurrentPenaltyDictionary();
             string publishedAwayName = matchupTransitionPending ? null : lastAwayTeamName;
             string publishedHomeName = matchupTransitionPending ? null : lastHomeTeamName;
             ram["awayTeamName"] = TeamNameDictionary(publishedAwayName, publishedAwayRead);
@@ -1325,7 +1330,84 @@ namespace CollegeFootballRamDiagnostic
             penaltyProbeFlagUtc = DateTime.UtcNow;
             penaltyProbeAfterQueued = true;
             penaltyProbeCardQueued = true;
+            BeginPenaltyRead();
             StartPenaltyProbe(probeOutputSeedPath, "flag");
+        }
+
+        // ---- Live penalty read (production) ------------------------------------
+        // After a FLAG, poll the heap for the three anchors every few seconds
+        // for 40 s; the first parse wins and is published for 45 s.
+        private static readonly string[] PenaltyAnchors = new string[] { "ctxn=PENALTY_", "SoundWaves/bPENALTY_", "enabledState: 2" };
+        private PenaltyRead currentPenalty;
+        private DateTime currentPenaltyUtc = DateTime.MinValue;
+        private DateTime currentPenaltyFlagUtc = DateTime.MinValue;
+        private int penaltyReadRunning;
+        private DateTime penaltyReadWindowEndUtc = DateTime.MinValue;
+        private DateTime penaltyReadLastAttemptUtc = DateTime.MinValue;
+
+        private void BeginPenaltyRead()
+        {
+            currentPenaltyFlagUtc = DateTime.UtcNow;
+            penaltyReadWindowEndUtc = DateTime.UtcNow.AddSeconds(40);
+            penaltyReadLastAttemptUtc = DateTime.MinValue;
+            // A new flag supersedes whatever was announced before it.
+            currentPenalty = null;
+        }
+
+        private void MaybeContinuePenaltyRead()
+        {
+            if (DateTime.UtcNow > penaltyReadWindowEndUtc) return;
+            if (currentPenalty != null && currentPenaltyUtc >= currentPenaltyFlagUtc) return;
+            if ((DateTime.UtcNow - penaltyReadLastAttemptUtc).TotalSeconds < 4) return;
+            if (Interlocked.CompareExchange(ref penaltyReadRunning, 1, 0) != 0) return;
+            penaltyReadLastAttemptUtc = DateTime.UtcNow;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    Dictionary<string, List<long>> hits = scanner.FindAsciiTextsPrivateBelow4G(PenaltyAnchors, 8);
+                    PenaltyRead best = null;
+                    string[] order = new string[] { "ctxn=PENALTY_", "SoundWaves/bPENALTY_", "enabledState: 2" };
+                    foreach (string anchor in order)
+                    {
+                        List<long> addresses;
+                        if (!hits.TryGetValue(anchor, out addresses)) continue;
+                        foreach (long address in addresses)
+                        {
+                            byte[] around;
+                            try { around = scanner.ReadBytes(Math.Max(0, address - 96), 96 + 160); } catch { continue; }
+                            string text = ResearchProbeHelpers.AsciiRun(around, 0, 96) + ResearchProbeHelpers.AsciiPreview(around, 96, 160);
+                            PenaltyRead read = PenaltyTextParser.Parse(text);
+                            if (read != null && !String.IsNullOrEmpty(read.Type)) { best = read; break; }
+                        }
+                        if (best != null) break;
+                    }
+                    if (best != null)
+                    {
+                        currentPenalty = best;
+                        currentPenaltyUtc = DateTime.UtcNow;
+                    }
+                }
+                catch { }
+                finally { Interlocked.Exchange(ref penaltyReadRunning, 0); }
+            });
+        }
+
+        private Dictionary<string, object> CurrentPenaltyDictionary()
+        {
+            try { MaybeContinuePenaltyRead(); } catch { }
+            PenaltyRead read = currentPenalty;
+            if (read == null) return null;
+            if ((DateTime.UtcNow - currentPenaltyUtc).TotalSeconds > 45) { currentPenalty = null; return null; }
+            return new Dictionary<string, object>
+            {
+                { "type", read.Type },
+                { "code", read.Code },
+                { "side", read.Side },
+                { "source", read.Source },
+                { "flagAt", currentPenaltyFlagUtc.ToString("o", CultureInfo.InvariantCulture) },
+                { "readAt", currentPenaltyUtc.ToString("o", CultureInfo.InvariantCulture) }
+            };
         }
 
         private void StartPenaltyProbe(string screenJsonPath, string phase)

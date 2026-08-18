@@ -1259,6 +1259,13 @@ function guestBootstrapSource(state, layout = {}) {
       mark(explicit('game.clock') || info[1], 'game.clock');
       mark(explicit('game.playClock') || info[2], 'game.playClock');
       mark(explicit('game.downDistance') || largestText(rows.down), 'game.downDistance');
+      // Any other data-cfb27-bind is a plain state path (e.g. away.confRecord,
+      // game.context.weekLabel, away.leaders.qbLine, game.penalty.text): keep
+      // it live too. Unknown paths simply render empty.
+      root.querySelectorAll('[data-cfb27-bind]').forEach((element) => {
+        const binding = element.getAttribute('data-cfb27-bind');
+        if (binding && !element.hasAttribute('data-cfb27-import-dynamic')) mark(element, binding);
+      });
       root.setAttribute('data-cfb27-import-root', explicitRoot ? 'explicit' : 'legacy-structure');
       return bindingsReady();
     };

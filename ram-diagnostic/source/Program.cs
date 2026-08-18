@@ -4006,6 +4006,21 @@ namespace CollegeFootballRamDiagnostic
                         throw new Exception("Toggle probe reported the wrong flips.");
                     if (ResearchProbeHelpers.AsciiPreview(new byte[] { 72, 111, 108, 100, 0, 65 }, 0, 10) != "Hold")
                         throw new Exception("ASCII preview did not stop at the terminator.");
+                    // Live penalty parsing from the three anchors seen in the probe game.
+                    PenaltyRead speech = PenaltyTextParser.Parse("BD13/GAME/SPCH/ABVF=1787084051&ctxn=PENALTY_DEF_ENCROACHMENT_WITHIN_5_YARDS&snti=691&cdwn=1&ytof=3");
+                    if (speech == null || speech.Type != "Encroachment" || speech.Side != "defense" || speech.Source != "speech")
+                        throw new Exception("Penalty speech context did not parse.");
+                    PenaltyRead clip = PenaltyTextParser.Parse("Sound/Speech/BASE/SoundWaves/bPENALTY_OFF_DELAY_OF_GAME_80LESS_OVR.CDM");
+                    if (clip == null || clip.Type != "Delay of Game" || clip.Side != "offense")
+                        throw new Exception("Penalty clip path did not parse: " + (clip == null ? "null" : clip.Type));
+                    PenaltyRead nis = PenaltyTextParser.Parse("ScriptableNode(_Penalty_0632_Encroachment_01 - 0): enabledState: 2, pendingActivation: 0");
+                    if (nis == null || nis.Type != "Encroachment" || nis.Side != null || nis.Source != "nis")
+                        throw new Exception("Penalty NIS node did not parse.");
+                    if (PenaltyTextParser.Parse("ScriptableNode(_Penalty_0619_Offsides - -1): enabledState: 0") != null)
+                        throw new Exception("An inactive penalty node was accepted.");
+                    if (PenaltyTextParser.Humanize("PASS_INTERFERENCE") != "Pass Interference"
+                        || PenaltyTextParser.Humanize("FACEMASK") != "Face Mask")
+                        throw new Exception("Penalty name humanizing is wrong.");
                 }
                 // Freshness stamps for downstream consumers: a stamp moves only
                 // when the published value actually changes, and transitions to

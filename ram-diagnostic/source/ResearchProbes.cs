@@ -7,6 +7,126 @@ namespace CollegeFootballRamDiagnostic
 {
     // Pure helpers for the research probes (penalty / stats / toggle). Kept
     // free of process access so the self-test can prove them offline.
+    // The penalty the game is announcing, as parsed from the strings the
+    // probe game proved exist at announcement time (speech context, clip
+    // path, referee node). Pure so the self-test can drive it.
+    internal sealed class PenaltyRead
+    {
+        public string Type;      // "Encroachment", "Delay of Game", ...
+        public string Code;      // raw token, e.g. ENCROACHMENT_WITHIN_5_YARDS
+        public string Side;      // "offense" | "defense" | null
+        public string Source;    // speech | clip | nis
+    }
+
+    internal static class PenaltyTextParser
+    {
+        // ctxn=PENALTY_DEF_ENCROACHMENT_WITHIN_5_YARDS&snti=...
+        // Sound/Speech/BASE/SoundWaves/bPENALTY_DEF_ENCROACHMENT
+        // ScriptableNode(_Penalty_0632_Encroachment_01 - 0): enabledState: 2
+        public static PenaltyRead Parse(string text)
+        {
+            if (String.IsNullOrEmpty(text)) return null;
+            int at = text.IndexOf("ctxn=PENALTY_", StringComparison.Ordinal);
+            if (at >= 0)
+            {
+                string tail = text.Substring(at + "ctxn=PENALTY_".Length);
+                int end = tail.IndexOf('&');
+                if (end > 0) tail = tail.Substring(0, end);
+                return FromCode(tail, "speech");
+            }
+            at = text.IndexOf("SoundWaves/bPENALTY_", StringComparison.Ordinal);
+            if (at >= 0)
+            {
+                string tail = text.Substring(at + "SoundWaves/bPENALTY_".Length);
+                int end = 0;
+                while (end < tail.Length && (Char.IsLetterOrDigit(tail[end]) || tail[end] == '_')) end++;
+                return FromCode(tail.Substring(0, end), "clip");
+            }
+            at = text.IndexOf("Penalty_", StringComparison.Ordinal);
+            if (at >= 0 && text.IndexOf("enabledState: 2", StringComparison.Ordinal) > at)
+            {
+                // Penalty_0632_Encroachment_01 -> Encroachment
+                string tail = text.Substring(at + "Penalty_".Length);
+                int digitsEnd = 0;
+                while (digitsEnd < tail.Length && Char.IsDigit(tail[digitsEnd])) digitsEnd++;
+                if (digitsEnd < tail.Length && tail[digitsEnd] == '_') tail = tail.Substring(digitsEnd + 1);
+                int end = 0;
+                while (end < tail.Length && (Char.IsLetterOrDigit(tail[end]) || tail[end] == '_')) end++;
+                string token = tail.Substring(0, end);
+                // strip trailing _01 variant suffix
+                int suffix = token.LastIndexOf('_');
+                if (suffix > 0 && suffix == token.Length - 3 && Char.IsDigit(token[suffix + 1])) token = token.Substring(0, suffix);
+                PenaltyRead read = new PenaltyRead();
+                read.Code = token;
+                read.Type = Humanize(SplitCamel(token));
+                read.Side = null;
+                read.Source = "nis";
+                return read;
+            }
+            return null;
+        }
+
+        private static PenaltyRead FromCode(string code, string source)
+        {
+            if (String.IsNullOrEmpty(code)) return null;
+            PenaltyRead read = new PenaltyRead();
+            read.Source = source;
+            string rest = code;
+            if (rest.StartsWith("DEF_", StringComparison.Ordinal)) { read.Side = "defense"; rest = rest.Substring(4); }
+            else if (rest.StartsWith("OFF_", StringComparison.Ordinal)) { read.Side = "offense"; rest = rest.Substring(4); }
+            read.Code = rest;
+            read.Type = Humanize(rest);
+            return read;
+        }
+
+        private static string SplitCamel(string token)
+        {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < token.Length; i++)
+            {
+                char c = token[i];
+                if (i > 0 && Char.IsUpper(c) && Char.IsLower(token[i - 1])) builder.Append('_');
+                builder.Append(c);
+            }
+            return builder.ToString().ToUpperInvariant();
+        }
+
+        // ENCROACHMENT_WITHIN_5_YARDS -> "Encroachment"; DELAY_OF_GAME ->
+        // "Delay of Game"; PASS_INTERFERENCE -> "Pass Interference".
+        public static string Humanize(string code)
+        {
+            if (String.IsNullOrEmpty(code)) return null;
+            string upper = code.ToUpperInvariant();
+            // Qualifiers the game appends for commentary that are not part of the call
+            foreach (string cut in new string[] { "_WITHIN_", "_OVER_", "_UNDER_", "_LESS_", "_MORE_", "_AT_", "_FREE_PLAY" })
+            {
+                int idx = upper.IndexOf(cut, StringComparison.Ordinal);
+                if (idx > 0) upper = upper.Substring(0, idx);
+            }
+            string[] words = upper.Split(new char[] { '_' }, StringSplitOptions.RemoveEmptyEntries);
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < words.Length; i++)
+            {
+                string word = words[i];
+                if (word.Length == 0) continue;
+                // Commentary variant suffixes (80LESS, OVR, CDM, HIGH/LOW...) are
+                // not part of the call: stop at the first one.
+                bool hasDigit = false;
+                foreach (char ch in word) if (Char.IsDigit(ch)) { hasDigit = true; break; }
+                if (i > 0 && (hasDigit || word == "OVR" || word == "CDM" || word == "HIGH" || word == "LOW" || word == "GEN" || word == "WEEK" || word == "LESS" || word == "MORE"))
+                    break;
+                if (i > 0) builder.Append(' ');
+                bool small = i > 0 && (word == "OF" || word == "THE" || word == "ON" || word == "TO" || word == "IN" || word == "A");
+                if (small) { builder.Append(word.ToLowerInvariant()); continue; }
+                builder.Append(word.Substring(0, 1));
+                builder.Append(word.Substring(1).ToLowerInvariant());
+            }
+            string result = builder.ToString();
+            if (result == "Facemask") result = "Face Mask";
+            return result;
+        }
+    }
+
     internal static class ResearchProbeHelpers
     {
         // The words the game's penalty result card is expected to contain.

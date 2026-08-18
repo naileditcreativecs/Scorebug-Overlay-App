@@ -672,6 +672,7 @@
       $(id).textContent = placementMode === 'locked' ? 'Position saved' : 'Save current position';
     });
     ['btn-follow-game', 'btn-follow-theme'].forEach((id) => { $(id).disabled = placementMode === 'follow-game'; });
+    if ($('dynasty-status') && status.overlay?.dynasty?.text) $('dynasty-status').textContent = status.overlay.dynasty.text;
     const bounds = status.overlay?.bounds;
     if ($('placement-readout-size')) {
       $('placement-readout-size').textContent = bounds ? `${Math.round(bounds.width)} × ${Math.round(bounds.height)} px` : '—';
@@ -751,6 +752,8 @@
     renderReadingProfile();
     $('auto-hide').checked = settings.overlay.autoHide !== false;
     $('hide-during-play-call').checked = settings.overlay.hideDuringPlayCall === true;
+    settings.dynasty ||= {};
+    $('dynasty-enabled').checked = settings.dynasty.enabled !== false;
     $('hide-unfocused').checked = settings.overlay.hideWhenGameUnfocused !== false;
     $('overlay-click-through').checked = settings.overlay.clickThrough !== false;
     $('overlay-always-on-top').checked = settings.overlay.alwaysOnTop !== false;
@@ -2163,6 +2166,15 @@
     }));
     $('btn-open-advanced').addEventListener('click', () => activatePanel('data'));
     $('btn-welcome-close').addEventListener('click', closeWelcomePopup);
+    $('btn-refresh-dynasty').addEventListener('click', async () => {
+      try {
+        $('dynasty-status').textContent = 'Reading…';
+        const summary = await api.refreshDynasty();
+        $('dynasty-status').textContent = summary?.text || 'Done.';
+      } catch (error) {
+        $('dynasty-status').textContent = `Could not read: ${error.message}`;
+      }
+    });
     $('btn-stats-search').addEventListener('click', async () => {
       const ids = ['away-total', 'home-total', 'away-rush', 'home-rush', 'away-pass', 'home-pass', 'away-plays', 'home-plays', 'away-fd', 'home-fd', 'away-rushatt', 'home-rushatt', 'away-comp', 'home-comp', 'away-att', 'home-att', 'away-pen', 'home-pen', 'away-penyds', 'home-penyds', 'away-top', 'home-top'];
       const request = {};
@@ -2370,6 +2382,8 @@
       settings.overlay ||= {};
       settings.overlay.autoHide = $('auto-hide').checked;
       settings.overlay.hideDuringPlayCall = $('hide-during-play-call').checked;
+      settings.dynasty ||= {};
+      settings.dynasty.enabled = $('dynasty-enabled').checked;
       settings.overlay.hideWhenGameUnfocused = $('hide-unfocused').checked;
       settings.overlay.clickThrough = $('overlay-click-through').checked;
       settings.overlay.alwaysOnTop = $('overlay-always-on-top').checked;

@@ -20,6 +20,7 @@ const {
   screen,
   session,
   shell,
+  utilityProcess,
 } = require('electron');
 
 // Chromium's Windows capture backend writes recoverable WGC diagnostics
@@ -80,6 +81,10 @@ const {
   parseThemeSettingsDeclaration,
   resolveThemeSettingValues,
 } = require('./theme-settings');
+const {
+  applyDynastyContext,
+  indexSaveTeams,
+} = require('./dynasty-context');
 const {
   DEFAULT_LOGO_TRANSFORM,
   logoLayoutKey,
@@ -330,6 +335,7 @@ let settings = {};
 
 const runtime = {
   playCallOpen: null,
+  dynasty: null,
   requestedVisible: false,
   autoVisible: true,
   editMode: false,
@@ -940,6 +946,34 @@ function ramScoreboardPayload(document) {
   // Side-aware value for themes with their own penalty treatment:
   // 'away'/'home' when the game attributed the flag, 'flag' when it did not.
   apply(state.game, 'penaltyFlag', flag.side || 'flag', flag.active, 'game.penaltyFlag');
+  // The penalty being announced (type + offense/defense), read by the
+  // reader from the game's own commentary/referee strings ~10 s after the
+  // banner. Which TEAM that is follows from possession: offense = the side
+  // with the ball. Cleared by the reader ~45 s after it was read.
+  const penalty = document.ram?.penalty;
+  if (penalty && typeof penalty === 'object' && penalty.type) {
+    const possessionSide = state.away.possession === true ? 'away' : (state.home.possession === true ? 'home' : null);
+    let team = null;
+    if (penalty.side === 'offense') team = possessionSide;
+    else if (penalty.side === 'defense' && possessionSide) team = possessionSide === 'away' ? 'home' : 'away';
+    const sideWord = penalty.side === 'offense' ? 'OFFENSE' : (penalty.side === 'defense' ? 'DEFENSE' : '');
+    apply(state.game, 'penalty', {
+      type: String(penalty.type),
+      code: penalty.code || null,
+      side: penalty.side || null,
+      team,
+      text: sideWord ? `${String(penalty.type).toUpperCase()} - ${sideWord}` : String(penalty.type).toUpperCase(),
+      readAt: penalty.readAt || null,
+    }, true, 'game.penalty');
+    apply(state.game, 'penaltyType', String(penalty.type), true, 'game.penaltyType');
+    apply(state.game, 'penaltySide', penalty.side || null, Boolean(penalty.side), 'game.penaltySide');
+    apply(state.game, 'penaltyTeam', team, Boolean(team), 'game.penaltyTeam');
+    apply(state.game, 'penaltyText', sideWord ? `${String(penalty.type).toUpperCase()} - ${sideWord}` : String(penalty.type).toUpperCase(), true, 'game.penaltyText');
+  }
+  // Play-call menu state (experimental byte published by the reader).
+  if (typeof document.ram?.playCallOpen === 'boolean') {
+    apply(state.game, 'playCallOpen', document.ram.playCallOpen, true, 'game.playCallOpen');
+  }
   if (fields.length === 0) return null;
   state.meta = {
     source: 'ram',
@@ -2049,6 +2083,7 @@ function publicStatus() {
       themePath: runtime.themePath,
       themeName: activeThemeDisplayName(),
       bounds: overlayBoundsForStatus(),
+      dynasty: dynastyStatusSummary(),
       chromaKey: normalizeGreenScreen(settings.theme?.chromaKey),
       layout: { ...runtime.layout },
     },
@@ -3260,6 +3295,27 @@ function setThemeSetting(payload = {}) {
   return inGameEditorState();
 }
 
+// The exact object every bug receives, for bug authors and testers:
+// UserData/data-export/latest-state.json (at most once per second; logos
+// replaced by their byte length so the file stays readable).
+let latestStateDebugAtMs = 0;
+function writeLatestStateDebug(state) {
+  const now = Date.now();
+  if (now - latestStateDebugAtMs < 1000) return;
+  latestStateDebugAtMs = now;
+  try {
+    const folder = dataExportRootPath();
+    fs.mkdirSync(folder, { recursive: true });
+    const compact = JSON.parse(JSON.stringify(state, (key, value) => (
+      typeof value === 'string' && value.startsWith('data:') ? `<data-url ${value.length} chars>` : value
+    )));
+    const target = path.join(folder, 'latest-state.json');
+    fs.writeFileSync(`${target}.tmp`, `${JSON.stringify(compact, null, 2)}
+`, 'utf8');
+    fs.renameSync(`${target}.tmp`, target);
+  } catch { /* debugging aid only */ }
+}
+
 function publishCurrentScoreboardState() {
   if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
   runtime.scoreboardState = applyTeamLogoLayouts(
@@ -3287,11 +3343,14 @@ function publishCurrentScoreboardState() {
       teamLogoVariantResolver,
     ),
   );
+  try { applyDynastyContext(runtime.scoreboardState, runtime.dynasty); } catch (error) { console.warn('[dynasty] apply failed:', error.message); }
+  try { maybeRequestDynastyLeaders(); } catch { /* optional */ }
   const themeSettingValues = currentThemeSettingValues();
   if (themeSettingValues) runtime.scoreboardState.themeSettings = themeSettingValues;
   else delete runtime.scoreboardState.themeSettings;
   sendToOverlay('overlay:scoreboard-state', runtime.scoreboardState);
   sendToControl('scoreboard:state', runtime.scoreboardState);
+  writeLatestStateDebug(runtime.scoreboardState);
   if (runtime.scoreboardState?.away?.name && runtime.scoreboardState?.home?.name) scheduleThemeSnapshot();
   if (automaticExtractionEnabled()) {
     try {
@@ -3796,6 +3855,173 @@ function deleteImportedTeamLogo(payload = {}) {
   pushInGameEditorState();
   logMessage(`${context.state.teamName} imported logo removed. Automatic team detection remains active.`);
   return inGameEditorState();
+}
+
+// ---- Dynasty save context ---------------------------------------------------
+// The dynasty save knows things the game's memory does not show the reader:
+// records and polls from kickoff, the week/bowl/playoff label, network,
+// weather, season totals and each team's offensive leaders. A utility
+// process reads the newest DYNASTY save (read-only) whenever it changes; the
+// result is layered onto the published state (record/rank only fill blanks).
+function dynastySettings() {
+  settings.dynasty ||= {};
+  return settings.dynasty;
+}
+
+function dynastySavesFolders() {
+  const configured = String(dynastySettings().savesFolder || '').trim();
+  const folders = [];
+  if (configured) folders.push(configured);
+  const home = app.getPath('home');
+  folders.push(path.join(home, 'OneDrive', 'Documents', 'EA Sports College Football 27', 'saves'));
+  folders.push(path.join(app.getPath('documents'), 'EA Sports College Football 27', 'saves'));
+  return [...new Set(folders)];
+}
+
+function newestDynastySave() {
+  for (const folder of dynastySavesFolders()) {
+    try {
+      if (!fs.existsSync(folder)) continue;
+      const files = fs.readdirSync(folder)
+        .filter((name) => /^DYNASTY/i.test(name) && !/\.(bak|tmp)$/i.test(name))
+        .map((name) => { const full = path.join(folder, name); const stat = fs.statSync(full); return stat.isFile() ? { full, mtimeMs: stat.mtimeMs, size: stat.size } : null; })
+        .filter(Boolean)
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
+      if (files.length) return files[0];
+    } catch { /* next folder */ }
+  }
+  return null;
+}
+
+let dynastyPollTimer = null;
+let dynastyWorkerBusy = false;
+let dynastyLastKey = '';
+let dynastyLeaderKey = '';
+
+function dynastyWorkerScript() {
+  // The worker requires madden-franchise, which must live outside the asar.
+  return path.join(__dirname, 'dynasty-context-worker.js');
+}
+
+function runDynastyWorker(savePath, { teams = null } = {}) {
+  return new Promise((resolve, reject) => {
+    const args = [savePath];
+    if (Array.isArray(teams) && teams.length) args.push('--teams', teams.join(','));
+    let child;
+    try {
+      child = utilityProcess.fork(dynastyWorkerScript(), args, { serviceName: 'cfb27-dynasty-context', stdio: 'ignore' });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    let settled = false;
+    const timer = setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch { } reject(new Error('dynasty read timed out')); } }, 90000);
+    child.on('message', (message) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (message?.ok) resolve(message.context);
+      else reject(new Error(message?.error || 'dynasty read failed'));
+    });
+    child.on('exit', (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(new Error(`dynasty worker exited (${code})`));
+    });
+  });
+}
+
+async function refreshDynastyContext({ force = false } = {}) {
+  if (dynastySettings().enabled === false) return;
+  if (dynastyWorkerBusy) return;
+  const newest = newestDynastySave();
+  if (!newest) {
+    if (runtime.dynasty && dynastyLastKey) { runtime.dynasty = null; dynastyLastKey = ''; publishCurrentScoreboardState(); }
+    return;
+  }
+  const key = `${newest.full}|${Math.round(newest.mtimeMs)}|${newest.size}`;
+  if (!force && key === dynastyLastKey) return;
+  // A save being written grows for a moment: wait until it has been quiet for 5 s.
+  if (Date.now() - newest.mtimeMs < 5000) return;
+  dynastyWorkerBusy = true;
+  try {
+    const context = await runDynastyWorker(newest.full);
+    if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
+    runtime.dynasty = {
+      context,
+      byAsset: indexSaveTeams(context, teamAssetResolver),
+      leaders: {},
+      savePath: newest.full,
+      loadedAt: new Date().toISOString(),
+    };
+    dynastyLastKey = key;
+    dynastyLeaderKey = '';
+    logMessage(`Dynasty save read: ${path.basename(newest.full)} - ${context.season?.seasonYear ?? '?'} ${context.season?.currentWeekType || ''} week ${context.season?.currentWeek ?? '?'}, ${context.teams?.length || 0} teams, ${context.gamesThisWeek?.length || 0} games this week (${runtime.dynasty.byAsset.size} matched to the roster).`);
+    publishCurrentScoreboardState();
+    broadcastStatus();
+  } catch (error) {
+    logMessage(`Dynasty save could not be read: ${error.message}`);
+    dynastyLastKey = key; // do not hammer a broken file; a new save re-triggers
+  } finally {
+    dynastyWorkerBusy = false;
+  }
+}
+
+// Once the live matchup is known, fetch the two teams' offensive leaders.
+function maybeRequestDynastyLeaders() {
+  const dynasty = runtime.dynasty;
+  if (!dynasty?.context || dynastyWorkerBusy) return;
+  const away = runtime.scoreboardState?.meta?.teamAssets?.away?.id;
+  const home = runtime.scoreboardState?.meta?.teamAssets?.home?.id;
+  if (!away || !home) return;
+  const awayTeam = dynasty.byAsset.get(String(away));
+  const homeTeam = dynasty.byAsset.get(String(home));
+  if (!awayTeam || !homeTeam) return;
+  const key = `${dynasty.savePath}|${awayTeam.index}|${homeTeam.index}`;
+  if (key === dynastyLeaderKey) return;
+  dynastyLeaderKey = key;
+  dynastyWorkerBusy = true;
+  runDynastyWorker(dynasty.savePath, { teams: [awayTeam.index, homeTeam.index] })
+    .then((context) => {
+      if (runtime.dynasty && runtime.dynasty.savePath === dynasty.savePath) {
+        runtime.dynasty.leaders = context.leaders || {};
+        logMessage(`Dynasty leaders loaded for ${awayTeam.name} and ${homeTeam.name}.`);
+        publishCurrentScoreboardState();
+      }
+    })
+    .catch((error) => logMessage(`Dynasty leaders could not be read: ${error.message}`))
+    .finally(() => { dynastyWorkerBusy = false; });
+}
+
+function startDynastyWatch() {
+  if (dynastyPollTimer) return;
+  refreshDynastyContext().catch(() => {});
+  dynastyPollTimer = setInterval(() => { refreshDynastyContext().catch(() => {}); }, 20000);
+  dynastyPollTimer.unref?.();
+}
+
+function dynastyStatusSummary() {
+  const dynasty = runtime.dynasty;
+  if (dynastySettings().enabled === false) return { enabled: false, text: 'Dynasty save reading is off.' };
+  if (!dynasty?.context) {
+    const newest = newestDynastySave();
+    return { enabled: true, text: newest ? `Reading ${path.basename(newest.full)}…` : 'No dynasty save found (Documents\EA Sports College Football 27\saves).' };
+  }
+  const season = dynasty.context.season || {};
+  const matched = runtime.scoreboardState?.meta?.dynasty?.matched;
+  const label = runtime.scoreboardState?.game?.context?.weekLabel || '';
+  return {
+    enabled: true,
+    save: path.basename(dynasty.savePath),
+    loadedAt: dynasty.loadedAt,
+    season: season.seasonYear ?? null,
+    week: season.currentWeek ?? null,
+    weekType: season.currentWeekType || null,
+    teams: dynasty.context.teams?.length || 0,
+    matched: Boolean(matched),
+    text: `${path.basename(dynasty.savePath)} · ${season.seasonYear ?? '?'} ${label || `week ${season.currentWeek ?? '?'}`} · ${dynasty.context.teams?.length || 0} teams${matched ? ' · this matchup found' : ''}`,
+  };
 }
 
 // ---- Team catalog with logo thumbnails ------------------------------------
@@ -6685,6 +6911,7 @@ async function scoreboardMethod(method, payload) {
     case 'ramReaderDoctor': return ramReaderDoctor();
     case 'copyRamReaderDoctor': return copyRamReaderDoctor();
     case 'requestStatsSearch': return requestStatsSearch(payload);
+    case 'refreshDynasty': { await refreshDynastyContext({ force: true }); return dynastyStatusSummary(); }
     case 'openDiagnosis': {
       createDiagnosisWindow();
       buildDiagnosisReport({ deep: true }).then(sendDiagnosisReport).catch(() => {});
@@ -7263,6 +7490,7 @@ if (!hasSingleInstanceLock) {
       applyScoreboardDataSourcePreference({ publish: false });
     }
     ensureBundledOriginalThemeInLibrary();
+    try { startDynastyWatch(); } catch (error) { logMessage(`Dynasty watch could not start: ${error.message}`); }
     runtime.positionLocked = settings.overlay?.positionLocked === true;
     const initialThemePath = configuredThemePath();
     runtime.themePath = null;

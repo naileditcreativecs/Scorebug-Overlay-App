@@ -131,6 +131,7 @@ contextBridge.exposeInMainWorld('scoreboard', Object.freeze({
   ramReaderDoctor: () => scoreboardMethod('ramReaderDoctor'),
   copyRamReaderDoctor: () => scoreboardMethod('copyRamReaderDoctor'),
   requestStatsSearch: (request) => scoreboardMethod('requestStatsSearch', request),
+  refreshDynasty: () => scoreboardMethod('refreshDynasty'),
   openDiagnosis: () => scoreboardMethod('openDiagnosis'),
   onRamProblem: (listener) => subscribe('scoreboard:ram-problem', listener),
   onStatus: (listener) => subscribe('scoreboard:status', listener),

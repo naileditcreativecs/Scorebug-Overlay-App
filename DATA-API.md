@@ -94,6 +94,13 @@ Top-level keys:
   discovery     The reader explaining itself (why a field is not
                 reading). Useful verbatim in bug reports.
 
+  ram.penalty   The penalty being announced (~10 s after the FLAG banner,
+                held 45 s): { type ("Encroachment"), code, side
+                ("offense"|"defense"|null), source, flagAt, readAt }.
+                Read from the game's commentary/referee strings.
+  ram.playCallOpen  true/false while all mirrored copies of the play-call
+                state byte agree; null otherwise. Experimental.
+
   ram.freshness
                 Per-field staleness data, so you never have to guess
                 with your own freeze heuristics. For each field

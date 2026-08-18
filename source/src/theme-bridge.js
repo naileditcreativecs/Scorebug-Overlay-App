@@ -385,6 +385,14 @@ class ThemeBridge {
       const element = this.bindings.get(name);
       if (element) element.textContent = value;
     }
+    // Any other binding is a state path (away.confRecord, game.weekLabel,
+    // away.leaders.qbLine, game.penalty.text ...).
+    for (const [name, element] of this.bindings) {
+      if (name in text || /\.(logo|timeouts|possession)$/.test(name)) continue;
+      const value = name.split('.').reduce((acc, key) => (acc == null ? acc : acc[key]), state);
+      if (value === undefined) continue;
+      element.textContent = value === null || typeof value === 'object' ? '' : String(value);
+    }
     this.updateTimeouts('away', state.away?.timeouts);
     this.updateTimeouts('home', state.home?.timeouts);
     this.updatePossession('away', Boolean(state.away?.possession));

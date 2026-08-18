@@ -14,7 +14,7 @@
       <h1>Scorebug Center</h1>
       <p class="header-subtitle">Every overlay tool has its own tab. In game, Ctrl+Alt+O opens the scorebug editor.</p>
     </div>
-    <span id="app-version" class="version">v1.4.46</span>
+    <span id="app-version" class="version">v1.4.47</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -354,6 +354,7 @@
         <article class="card">
           <div class="card-heading"><div><p class="eyebrow">OVERLAY BEHAVIOR</p><h2>How the app behaves in-game</h2></div></div>
           <label class="check"><input id="auto-hide" type="checkbox" checked><span>Hide when the donor scoreboard is absent</span></label>
+          <label class="check"><input id="dynasty-enabled" type="checkbox" checked><span>Read the newest Dynasty save for records, ranks, week/bowl and season stats <em>(read-only; the save is never changed)</em></span></label>
           <label class="check"><input id="hide-during-play-call" type="checkbox"><span>Hide the scorebug while a play is being picked <em>(experimental - reads the game's play-call state from memory; found in the 2026-08-18 probe game, still being confirmed)</em></span></label>
           <label class="check"><input id="hide-unfocused" type="checkbox" checked><span>Hide when CFB27 is not focused</span></label>
           <label class="check"><input id="overlay-click-through" type="checkbox" checked><span>Let mouse clicks pass through the overlay when it is locked</span></label>
@@ -404,6 +405,11 @@
         <div class="card-heading"><div><p class="eyebrow">AUTOMATIC DATA EXTRACTION</p><h2>CSV, events, text, and screenshots</h2></div><div class="button-row"><button id="btn-open-data-export" class="primary">Open data folder</button></div></div>
         <p class="status-detail">The test build writes validated scorebug changes to <strong>scoreboard.csv</strong> and saves discovered touchdown, penalty, and statistics text while the reader runs.</p>
         <p id="ram-reader-status" class="status-detail">Read-only RAM reader is starting inside this app.</p>
+      </article>
+      <article class="card" id="dynasty-card">
+        <div class="card-heading"><div><p class="eyebrow">DYNASTY SAVE</p><h2>Matchup context from the save</h2></div><div class="button-row"><button id="btn-refresh-dynasty">Re-read save now</button></div></div>
+        <p id="dynasty-status" class="status-detail">Waiting for the first read…</p>
+        <p class="hint">Bugs get <code>away/home.record</code> and <code>rank</code> filled from the save when the reader has not confirmed them yet, plus <code>confRecord</code>, <code>streak</code>, <code>season.*</code> (yards per game, 3rd-down %, turnovers…), <code>leaders.qbLine/rbLine/wrLine</code>, and <code>game.context</code> (week label, bowl, playoff, network, weather, rematch, conference game).</p>
       </article>
       <article class="card" id="stats-search-card">
         <div class="card-heading"><div><p class="eyebrow">DATA HUNT · TEST 2 (ROUND 2)</p><h2>Find the live box score in memory</h2></div><div class="button-row"><button id="btn-stats-search" class="primary">Search memory now</button></div></div>
