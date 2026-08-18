@@ -14,7 +14,7 @@
       <h1>Scoreboard Overlay</h1>
       <p class="header-subtitle">Every overlay tool has its own tab.</p>
     </div>
-    <span id="app-version" class="version">v1.4.26</span>
+    <span id="app-version" class="version">v1.4.27</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -39,8 +39,6 @@
     <button class="tab active" data-tab="dashboard">Home</button>
     <button class="tab" data-tab="library">HTML library <span id="theme-library-tab-count" class="tab-count">0</span></button>
     <button class="tab" data-tab="data">Reader &amp; live data</button>
-    <button class="tab" data-tab="theme">Theme &amp; placement</button>
-    <button class="tab" data-tab="green-screen">Green screen</button>
     <button class="tab" data-tab="settings">Settings</button>
     <button class="tab" data-tab="diagnostics">Diagnostics</button>
   </nav>
@@ -286,7 +284,7 @@
       </article>
     </section>
 
-    <section class="panel" data-panel="theme">
+    <section class="panel" data-panel="theme" hidden aria-hidden="true">
       <div class="advanced-page-heading"><div><p class="eyebrow">OVERLAY</p><h2>Theme &amp; exact placement</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
       <div class="grid two">
         <article class="card">
@@ -319,10 +317,14 @@
       </div>
     </section>
 
-    <section class="panel" data-panel="green-screen">
-      <div class="advanced-page-heading"><div><p class="eyebrow">BACKGROUND REMOVAL</p><h2>Green screen</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
-      <article class="card">
-        <div class="card-heading"><div><p class="eyebrow">GREEN CANVAS</p><h2>Remove the green background</h2></div></div>
+
+
+    <section class="panel" data-panel="settings">
+      <div class="advanced-page-heading"><div><p class="eyebrow">APP PREFERENCES</p><h2>Settings</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
+      <div class="grid two">
+        <article class="card">
+        <div class="card-heading"><div><p class="eyebrow">GREEN SCREEN</p><h2>Green-canvas scorebugs</h2></div></div>
+          <p class="hint">Only for scorebug HTMLs that paint a solid green background. Transparent HTMLs need nothing here.</p>
         <div class="chroma-key-settings">
           <label class="check"><input id="green-screen-enabled" type="checkbox"><span>Remove green canvas background</span></label>
           <label class="check"><input id="green-screen-backdrop" type="checkbox"><span>Paint a solid green backdrop behind the bug (use this if the see-through area shows up black - e.g. OBS window capture - then chroma key the green in your streaming software)</span></label>
@@ -338,11 +340,6 @@
           <button id="btn-save-green-screen" class="primary full">Apply green-screen filter</button>
         </div>
       </article>
-    </section>
-
-    <section class="panel" data-panel="settings">
-      <div class="advanced-page-heading"><div><p class="eyebrow">APP PREFERENCES</p><h2>Settings</h2></div><button class="back-home" data-tab="dashboard">Back to Home</button></div>
-      <div class="grid two">
         <article class="card">
           <div class="card-heading"><div><p class="eyebrow">IN-GAME SHORTCUTS</p><h2>Control the overlay without Alt-Tab</h2></div></div>
           <p>Clear a field to disable that shortcut. Use a different key combination for each action.</p>
