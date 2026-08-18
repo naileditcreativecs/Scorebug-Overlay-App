@@ -931,6 +931,349 @@ namespace CollegeFootballRamDiagnostic
                     Read("playClock", 0, 99), down, distance);
             }
             catch { }
+            try
+            {
+                WriteStatsProbe(screenJsonPath, quarter, gameClock, awayScore, homeScore, down, distance);
+            }
+            catch { }
+            try
+            {
+                WriteToggleProbe(screenJsonPath, quarter, gameClock, Read("playClock", 0, 99), down, distance);
+            }
+            catch { }
+            try
+            {
+                MaybeRunPenaltyProbeBaseline(screenJsonPath, quarter, gameClock);
+            }
+            catch { }
+        }
+
+        // ---- RESEARCH PROBE: live game/team stats -----------------------------
+        // Hunts for the running box-score block. Every down change (the same
+        // trigger the ball-spot probe uses) it snapshots a 512 KB window around
+        // the live game record and logs the int32 slots that ROSE by a stat-
+        // like step and never went down all game. Post-game, the offsets whose
+        // rises track the real box score (first downs, yards, attempts,
+        // penalties, TOP...) are the block we want.
+        private const int StatsProbeWindowBefore = 0x40000;
+        private const int StatsProbeWindowLength = 0x80000;
+        private string statsProbeSignature;
+        private int[] statsProbePrevious;
+        private bool[] statsProbeDisqualified;
+        private int[] statsProbeRises;
+        private long statsProbeBase;
+        private int statsProbeTicks;
+
+        private void WriteStatsProbe(string screenJsonPath, RamReadResult quarter, RamReadResult gameClock,
+            RamReadResult awayScore, RamReadResult homeScore, RamReadResult down, RamReadResult distance)
+        {
+            if (!down.Available || !distance.Available) return;
+            List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
+            if (quarterAddresses.Count != 1) return;
+            string signature = down.Value + "|" + distance.Value + "|"
+                + (awayScore.Available ? awayScore.Value : -1) + "|" + (homeScore.Available ? homeScore.Value : -1)
+                + "|" + (quarter.Available ? quarter.Value : -1);
+            if (String.Equals(signature, statsProbeSignature, StringComparison.Ordinal)) return;
+            statsProbeSignature = signature;
+
+            long block = quarterAddresses[0] - 0xC8;
+            long windowBase = block - StatsProbeWindowBefore;
+            if (windowBase < 0) windowBase = 0;
+            byte[] bytes;
+            try { bytes = scanner.ReadBytes(windowBase, StatsProbeWindowLength); }
+            catch { return; }
+            int slots = bytes.Length / 4;
+            int[] current = new int[slots];
+            for (int index = 0; index < slots; index++) current[index] = BitConverter.ToInt32(bytes, index * 4);
+
+            if (statsProbePrevious == null || statsProbeBase != windowBase || statsProbePrevious.Length != slots)
+            {
+                statsProbePrevious = current;
+                statsProbeBase = windowBase;
+                statsProbeDisqualified = new bool[slots];
+                statsProbeRises = new int[slots];
+                statsProbeTicks = 0;
+                Dictionary<string, object> start = new Dictionary<string, object>
+                {
+                    { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                    { "kind", "window" },
+                    { "windowBase", "0x" + windowBase.ToString("X", CultureInfo.InvariantCulture) },
+                    { "gameRecord", "0x" + block.ToString("X", CultureInfo.InvariantCulture) },
+                    { "length", StatsProbeWindowLength },
+                    { "note", "offsets below are relative to windowBase; the live game record sits at +0x40000" }
+                };
+                AppendProbeLine(screenJsonPath, "stats-probe.jsonl", start);
+                return;
+            }
+
+            statsProbeTicks++;
+            Dictionary<int, int[]> rises = ResearchProbeHelpers.DiffMonotonicCounters(
+                statsProbePrevious, current, statsProbeDisqualified, statsProbeRises, 5000, 200, 400);
+            statsProbePrevious = current;
+            Dictionary<string, object> up = new Dictionary<string, object>();
+            foreach (KeyValuePair<int, int[]> rise in rises)
+                up["0x" + (rise.Key * 4).ToString("X", CultureInfo.InvariantCulture)] = rise.Value;
+
+            Dictionary<string, object> entry = new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "kind", "tick" },
+                { "quarter", quarter.Available ? (object)quarter.Value : null },
+                { "clock", gameClock.Available ? (object)gameClock.Value : null },
+                { "awayScore", awayScore.Available ? (object)awayScore.Value : null },
+                { "homeScore", homeScore.Available ? (object)homeScore.Value : null },
+                { "down", down.Value },
+                { "distance", distance.Value },
+                { "riseCount", rises.Count },
+                { "up", up }
+            };
+            AppendProbeLine(screenJsonPath, "stats-probe.jsonl", entry);
+
+            // Every 8th tick, the running shortlist: slots that rose at least
+            // three times and never fell - the candidates worth matching to
+            // the box score.
+            if (statsProbeTicks % 8 == 0)
+            {
+                Dictionary<string, object> steady = new Dictionary<string, object>();
+                int listed = 0;
+                for (int index = 0; index < slots && listed < 600; index++)
+                {
+                    if (statsProbeDisqualified[index] || statsProbeRises[index] < 3) continue;
+                    steady["0x" + (index * 4).ToString("X", CultureInfo.InvariantCulture)] = new int[] { statsProbeRises[index], current[index] };
+                    listed++;
+                }
+                Dictionary<string, object> summary = new Dictionary<string, object>
+                {
+                    { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                    { "kind", "steady" },
+                    { "ticks", statsProbeTicks },
+                    { "quarter", quarter.Available ? (object)quarter.Value : null },
+                    { "clock", gameClock.Available ? (object)gameClock.Value : null },
+                    { "awayScore", awayScore.Available ? (object)awayScore.Value : null },
+                    { "homeScore", homeScore.Available ? (object)homeScore.Value : null },
+                    { "candidates", steady }
+                };
+                AppendProbeLine(screenJsonPath, "stats-probe.jsonl", summary);
+            }
+        }
+
+        // ---- RESEARCH PROBE: play-call menu (byte toggles) -------------------
+        // Every ~250 ms, the bytes within +-8 KB of the live game record that
+        // flipped between tiny values (0..3). A menu-open flag flips exactly
+        // when the picker opens and closes; the tester notes those moments (or
+        // we correlate with the play-clock reset) and the offset falls out.
+        private const int ToggleProbeRadius = 0x2000;
+        private byte[] toggleProbePrevious;
+        private long toggleProbeBase;
+        private DateTime toggleProbeLastUtc = DateTime.MinValue;
+
+        private void WriteToggleProbe(string screenJsonPath, RamReadResult quarter, RamReadResult gameClock,
+            RamReadResult playClock, RamReadResult down, RamReadResult distance)
+        {
+            DateTime now = DateTime.UtcNow;
+            if ((now - toggleProbeLastUtc).TotalMilliseconds < 250) return;
+            toggleProbeLastUtc = now;
+            List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
+            if (quarterAddresses.Count != 1) return;
+            long block = quarterAddresses[0] - 0xC8;
+            long windowBase = block - ToggleProbeRadius;
+            if (windowBase < 0) windowBase = 0;
+            byte[] bytes;
+            try { bytes = scanner.ReadBytes(windowBase, ToggleProbeRadius * 2); }
+            catch { return; }
+            if (toggleProbePrevious == null || toggleProbeBase != windowBase || toggleProbePrevious.Length != bytes.Length)
+            {
+                toggleProbePrevious = bytes;
+                toggleProbeBase = windowBase;
+                Dictionary<string, object> start = new Dictionary<string, object>
+                {
+                    { "t", now.ToString("o", CultureInfo.InvariantCulture) },
+                    { "kind", "window" },
+                    { "windowBase", "0x" + windowBase.ToString("X", CultureInfo.InvariantCulture) },
+                    { "gameRecord", "0x" + block.ToString("X", CultureInfo.InvariantCulture) },
+                    { "note", "offsets are relative to windowBase; the game record sits at +0x2000; only byte flips between 0..3 are logged" }
+                };
+                AppendProbeLine(screenJsonPath, "toggle-probe.jsonl", start);
+                return;
+            }
+            Dictionary<int, int[]> changes = ResearchProbeHelpers.DiffSmallBytes(toggleProbePrevious, bytes, 3, 80);
+            toggleProbePrevious = bytes;
+            if (changes.Count == 0) return;
+            Dictionary<string, object> flips = new Dictionary<string, object>();
+            foreach (KeyValuePair<int, int[]> change in changes)
+                flips["0x" + change.Key.ToString("X", CultureInfo.InvariantCulture)] = change.Value;
+            Dictionary<string, object> entry = new Dictionary<string, object>
+            {
+                { "t", now.ToString("o", CultureInfo.InvariantCulture) },
+                { "kind", "flip" },
+                { "quarter", quarter.Available ? (object)quarter.Value : null },
+                { "clock", gameClock.Available ? (object)gameClock.Value : null },
+                { "playClock", playClock.Available ? (object)playClock.Value : null },
+                { "down", down.Available ? (object)down.Value : null },
+                { "distance", distance.Available ? (object)distance.Value : null },
+                { "flips", flips }
+            };
+            AppendProbeLine(screenJsonPath, "toggle-probe.jsonl", entry);
+        }
+
+        // ---- RESEARCH PROBE: penalty card (type + player) ---------------------
+        // The FLAG banner we already read carries no type or player. The
+        // result card that shows "Holding - Offense - #72" must hold that data
+        // in an object of its own. Twice per flag (at the banner, and ~25 s
+        // later when the card is gone) plus once at baseline, this logs:
+        //   * every occurrence of a penalty word in the ScoreHud heap window,
+        //     with the 32 ints around it (a player id / team id / yards sit
+        //     near the text in a typical UI record), and
+        //   * every heap object whose vtable sits in the ScoreHud vtable
+        //     neighbourhood (the family the team/message/down objects belong
+        //     to), with its first 32 ints and any strings it points at.
+        // Text present at the flag but gone afterwards is the live card.
+        private const int PenaltyFlagMessageId = 1150630092;
+        private int penaltyProbeRunning;
+        private bool penaltyProbeBaselineDone;
+        private DateTime penaltyProbeFlagUtc = DateTime.MinValue;
+        private bool penaltyProbeAfterQueued;
+        private DateTime firstLivePublishUtc = DateTime.MinValue;
+
+        private void MaybeRunPenaltyProbeBaseline(string screenJsonPath, RamReadResult quarter, RamReadResult gameClock)
+        {
+            if (firstLivePublishUtc == DateTime.MinValue) firstLivePublishUtc = DateTime.UtcNow;
+            if (!penaltyProbeBaselineDone && (DateTime.UtcNow - firstLivePublishUtc).TotalSeconds > 45)
+            {
+                penaltyProbeBaselineDone = true;
+                StartPenaltyProbe(screenJsonPath, "baseline");
+            }
+            if (penaltyProbeAfterQueued && (DateTime.UtcNow - penaltyProbeFlagUtc).TotalSeconds > 25)
+            {
+                penaltyProbeAfterQueued = false;
+                StartPenaltyProbe(screenJsonPath, "after");
+            }
+        }
+
+        private void NotePenaltyFlagForProbe(ScoreHudMessageCandidate message)
+        {
+            if (message == null) return;
+            bool isFlag = message.MessageId == PenaltyFlagMessageId
+                || String.Equals(message.DisplayText, "FLAG", StringComparison.OrdinalIgnoreCase)
+                || String.Equals(message.InfoText, "PENALTY", StringComparison.OrdinalIgnoreCase);
+            if (!isFlag) return;
+            if ((DateTime.UtcNow - penaltyProbeFlagUtc).TotalSeconds < 20) return;
+            penaltyProbeFlagUtc = DateTime.UtcNow;
+            penaltyProbeAfterQueued = true;
+            StartPenaltyProbe(probeOutputSeedPath, "flag");
+        }
+
+        private void StartPenaltyProbe(string screenJsonPath, string phase)
+        {
+            if (String.IsNullOrWhiteSpace(screenJsonPath)) return;
+            if (Interlocked.CompareExchange(ref penaltyProbeRunning, 1, 0) != 0) return;
+            RamReadResult quarter = Read("quarter", 1, 20);
+            RamReadResult clock = Read("gameClockSeconds", 0, 3600);
+            int quarterValue = quarter.Available ? quarter.Value : -1;
+            int clockValue = clock.Available ? clock.Value : -1;
+            List<Dictionary<string, object>> messagesNow = new List<Dictionary<string, object>>(recentScoreHudMessages);
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try { RunPenaltyProbe(screenJsonPath, phase, quarterValue, clockValue, messagesNow); }
+                catch (Exception error)
+                {
+                    Dictionary<string, object> failed = new Dictionary<string, object>
+                    {
+                        { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                        { "phase", phase }, { "kind", "error" }, { "error", error.Message }
+                    };
+                    AppendProbeLine(screenJsonPath, "penalty-probe.jsonl", failed);
+                }
+                finally { Interlocked.Exchange(ref penaltyProbeRunning, 0); }
+            });
+        }
+
+        private void RunPenaltyProbe(string screenJsonPath, string phase, int quarter, int clock,
+            List<Dictionary<string, object>> messagesNow)
+        {
+            Stopwatch watch = Stopwatch.StartNew();
+            Dictionary<string, object> header = new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "phase", phase }, { "kind", "start" },
+                { "quarter", quarter }, { "clock", clock },
+                { "messages", messagesNow }
+            };
+            AppendProbeLine(screenJsonPath, "penalty-probe.jsonl", header);
+
+            // (a) penalty words in the private heap below 4 GB
+            Dictionary<string, List<long>> textHits =
+                scanner.FindAsciiTextsPrivateBelow4G(ResearchProbeHelpers.PenaltyWords, 24);
+            int textCount = 0;
+            foreach (KeyValuePair<string, List<long>> pair in textHits)
+            {
+                foreach (long address in pair.Value)
+                {
+                    byte[] around;
+                    try { around = scanner.ReadBytes(Math.Max(0, address - 64), 64 + 96); }
+                    catch { continue; }
+                    Dictionary<string, object> entry = new Dictionary<string, object>
+                    {
+                        { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                        { "phase", phase }, { "kind", "text" },
+                        { "word", pair.Key },
+                        { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                        { "text", ResearchProbeHelpers.AsciiPreview(around, 64, 48) },
+                        { "intsBefore", ResearchProbeHelpers.Int32Window(around, 0, 16) },
+                        { "intsAfter", ResearchProbeHelpers.Int32Window(around, 64 + 32, 16) }
+                    };
+                    AppendProbeLine(screenJsonPath, "penalty-probe.jsonl", entry);
+                    textCount++;
+                }
+            }
+
+            // (b) the ScoreHud object family: sweep the vtable neighbourhood
+            long moduleBase = scanner.Process.MainModule.BaseAddress.ToInt64();
+            List<long> targets = new List<long>();
+            for (long vtable = moduleBase + 0xB0F2C00L; vtable <= moduleBase + 0xB0F3C00L; vtable += 8) targets.Add(vtable);
+            long knownTeam = moduleBase + 0xB0F3168L, knownDown = moduleBase + 0xB0F3128L, knownMessage = moduleBase + 0xB0F3368L;
+            Dictionary<long, List<long>> objects = scanner.FindPrivateInt64ReferencesBelow4G(targets.ToArray(), 12);
+            int objectCount = 0;
+            foreach (KeyValuePair<long, List<long>> pair in objects)
+            {
+                if (pair.Value.Count == 0) continue;
+                if (pair.Key == knownTeam || pair.Key == knownDown || pair.Key == knownMessage) continue;
+                foreach (long address in pair.Value)
+                {
+                    byte[] body;
+                    try { body = scanner.ReadBytes(address, 0x100); }
+                    catch { continue; }
+                    List<string> strings = new List<string>();
+                    for (int offset = 8; offset + 8 <= body.Length && strings.Count < 6; offset += 8)
+                    {
+                        long pointer = BitConverter.ToInt64(body, offset);
+                        if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
+                        byte[] text;
+                        try { text = scanner.ReadBytes(pointer, 48); } catch { continue; }
+                        string preview = ResearchProbeHelpers.AsciiPreview(text, 0, 48);
+                        if (preview.Length >= 3) strings.Add(ResearchProbeHelpers.HexOffset(offset) + "=" + preview);
+                    }
+                    Dictionary<string, object> entry = new Dictionary<string, object>
+                    {
+                        { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                        { "phase", phase }, { "kind", "object" },
+                        { "vtableOffset", "0x" + (pair.Key - moduleBase).ToString("X", CultureInfo.InvariantCulture) },
+                        { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                        { "ints", ResearchProbeHelpers.Int32Window(body, 8, 32) },
+                        { "strings", strings }
+                    };
+                    AppendProbeLine(screenJsonPath, "penalty-probe.jsonl", entry);
+                    objectCount++;
+                }
+            }
+            Dictionary<string, object> footer = new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "phase", phase }, { "kind", "done" },
+                { "textHits", textCount }, { "objects", objectCount },
+                { "elapsedMs", watch.ElapsedMilliseconds }
+            };
+            AppendProbeLine(screenJsonPath, "penalty-probe.jsonl", footer);
         }
 
         private void WritePossessionProbe(string screenJsonPath,
@@ -3740,6 +4083,7 @@ namespace CollegeFootballRamDiagnostic
                 recentScoreHudMessages.Add(entry);
                 if (recentScoreHudMessages.Count > MaximumRecentMessages)
                     recentScoreHudMessages.RemoveAt(0);
+                try { NotePenaltyFlagForProbe(message); } catch { }
             }
         }
 

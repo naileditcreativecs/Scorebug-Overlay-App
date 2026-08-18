@@ -34,9 +34,11 @@ reader-status.json      Always present while the reader runs. Plain-
                         gameExeVersion/gameModuleSize once attached.
 
 possession-probe.jsonl / ballspot-probe.jsonl /
-messages-probe.jsonl / hudstate-probe.jsonl
+messages-probe.jsonl / hudstate-probe.jsonl /
+penalty-probe.jsonl / stats-probe.jsonl / toggle-probe.jsonl
                         Append-only research logs (capped at 5 MB).
-                        Ignore them, or send them with bug reports.
+                        Ignore them, or send them with bug reports
+                        (see PROBE-TESTS.md for what each one hunts).
 
 ram-live-profile-cache.json
                         The reader's own cache. Ignore.

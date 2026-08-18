@@ -648,6 +648,102 @@ namespace CollegeFootballRamDiagnostic
             return matches.ToArray();
         }
 
+        // Multi-pattern ASCII search restricted to the private heap below 4 GB -
+        // where every ScoreHud object has been found so far. Cheap enough to
+        // run at flag time (~0.5 GB), unlike the whole-process FindAsciiTextsAll.
+        public Dictionary<string, List<long>> FindAsciiTextsPrivateBelow4G(string[] values, int maximumPerValue)
+        {
+            EnsureAttached();
+            if (values == null || values.Length == 0) throw new ArgumentException("Text values are required.");
+            Dictionary<string, List<long>> result = new Dictionary<string, List<long>>(StringComparer.Ordinal);
+            List<KeyValuePair<string, byte[]>> patterns = new List<KeyValuePair<string, byte[]>>();
+            int longest = 1;
+            for (int index = 0; index < values.Length; index++)
+            {
+                if (String.IsNullOrWhiteSpace(values[index]) || result.ContainsKey(values[index])) continue;
+                byte[] pattern = Encoding.ASCII.GetBytes(values[index]);
+                patterns.Add(new KeyValuePair<string, byte[]>(values[index], pattern));
+                result.Add(values[index], new List<long>());
+                if (pattern.Length > longest) longest = pattern.Length;
+            }
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize + longest];
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                MemoryRegion region = regions[regionIndex];
+                if (region.BaseAddress < 0 || region.BaseAddress >= 0x100000000L) continue;
+                long offset = 0;
+                while (offset < region.Size)
+                {
+                    int requested = (int)Math.Min(buffer.Length, region.Size - offset);
+                    int bytesRead = Read(region.BaseAddress + offset, buffer, requested);
+                    if (bytesRead <= 0) break;
+                    for (int patternIndex = 0; patternIndex < patterns.Count; patternIndex++)
+                    {
+                        byte[] pattern = patterns[patternIndex].Value;
+                        List<long> hits = result[patterns[patternIndex].Key];
+                        if (hits.Count >= maximumPerValue || bytesRead < pattern.Length) continue;
+                        int search = 0;
+                        while (search <= bytesRead - pattern.Length)
+                        {
+                            int hit = Array.IndexOf(buffer, pattern[0], search, bytesRead - search);
+                            if (hit < 0 || hit > bytesRead - pattern.Length) break;
+                            search = hit + 1;
+                            if (!Matches(buffer, hit, pattern, -1, -1)) continue;
+                            long address = region.BaseAddress + offset + hit;
+                            if (hits.Count == 0 || hits[hits.Count - 1] != address) hits.Add(address);
+                            if (hits.Count >= maximumPerValue) break;
+                        }
+                    }
+                    if (requested <= longest) break;
+                    offset += requested - (longest - 1);
+                }
+            }
+            return result;
+        }
+
+        // Every private-heap object (below 4 GB) whose first 8 bytes point at
+        // one of `targets` - used to enumerate the ScoreHud object family by
+        // sweeping the vtable neighbourhood around the three known types.
+        public Dictionary<long, List<long>> FindPrivateInt64ReferencesBelow4G(long[] targets, int maximumPerTarget)
+        {
+            EnsureAttached();
+            if (targets == null || targets.Length == 0) throw new ArgumentException("Targets are required.");
+            Dictionary<long, List<long>> result = new Dictionary<long, List<long>>();
+            HashSet<long> wanted = new HashSet<long>();
+            for (int index = 0; index < targets.Length; index++)
+            {
+                if (!result.ContainsKey(targets[index])) result.Add(targets[index], new List<long>());
+                wanted.Add(targets[index]);
+            }
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize];
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                MemoryRegion region = regions[regionIndex];
+                if (region.BaseAddress < 0 || region.BaseAddress >= 0x100000000L) continue;
+                long offset = 0;
+                while (offset < region.Size)
+                {
+                    int requested = (int)Math.Min(buffer.Length, region.Size - offset);
+                    int bytesRead = Read(region.BaseAddress + offset, buffer, requested);
+                    if (bytesRead <= 0) break;
+                    long chunkAddress = region.BaseAddress + offset;
+                    int alignment = (int)((8 - (chunkAddress & 7)) & 7);
+                    for (int byteIndex = alignment; byteIndex <= bytesRead - 8; byteIndex += 8)
+                    {
+                        long value = BitConverter.ToInt64(buffer, byteIndex);
+                        if (!wanted.Contains(value)) continue;
+                        List<long> bucket = result[value];
+                        if (bucket.Count < maximumPerTarget) bucket.Add(chunkAddress + byteIndex);
+                    }
+                    if (requested <= 8) break;
+                    offset += requested - 8;
+                }
+            }
+            return result;
+        }
+
         public Dictionary<string, List<long>> FindAsciiTextsAll(string[] values, int maximumPerValue,
             CancellationToken token)
         {

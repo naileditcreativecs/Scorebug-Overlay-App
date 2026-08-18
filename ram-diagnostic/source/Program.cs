@@ -3984,6 +3984,29 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.MessageTeamSide(5, 1211, 77) != null
                     || RamLiveExporter.MessageTeamSide(0, 0, 0) != null)
                     throw new Exception("Message team-side attribution guessed a side.");
+                // Research probes: the stats diff keeps rising stat-like slots,
+                // disqualifies anything that goes down inside range, and ignores
+                // pointer-sized garbage; the toggle diff only reports tiny flips.
+                {
+                    int[] before = new int[] { 3, 120, 7, 999999, 5, 40 };
+                    int[] after = new int[] { 4, 131, 6, 999998, 5, 900 };
+                    bool[] disqualified = new bool[6];
+                    int[] rises = new int[6];
+                    Dictionary<int, int[]> up = ResearchProbeHelpers.DiffMonotonicCounters(before, after, disqualified, rises, 5000, 200, 100);
+                    if (!up.ContainsKey(0) || up[0][0] != 3 || up[0][1] != 4) throw new Exception("Stats probe missed a +1 rise.");
+                    if (!up.ContainsKey(1)) throw new Exception("Stats probe missed a +11 rise.");
+                    if (up.ContainsKey(2) || !disqualified[2]) throw new Exception("Stats probe did not disqualify a drop.");
+                    if (up.ContainsKey(3) || disqualified[3]) throw new Exception("Stats probe treated garbage as a stat.");
+                    if (up.ContainsKey(4)) throw new Exception("Stats probe reported an unchanged slot.");
+                    if (up.ContainsKey(5)) throw new Exception("Stats probe accepted an oversized jump.");
+                    if (rises[0] != 1 || rises[1] != 1 || rises[5] != 0) throw new Exception("Stats probe rise counts are wrong.");
+                    Dictionary<int, int[]> flips = ResearchProbeHelpers.DiffSmallBytes(
+                        new byte[] { 0, 1, 40, 2 }, new byte[] { 1, 1, 41, 0 }, 3, 10);
+                    if (!flips.ContainsKey(0) || !flips.ContainsKey(3) || flips.ContainsKey(1) || flips.ContainsKey(2))
+                        throw new Exception("Toggle probe reported the wrong flips.");
+                    if (ResearchProbeHelpers.AsciiPreview(new byte[] { 72, 111, 108, 100, 0, 65 }, 0, 10) != "Hold")
+                        throw new Exception("ASCII preview did not stop at the terminator.");
+                }
                 // Freshness stamps for downstream consumers: a stamp moves only
                 // when the published value actually changes, and transitions to
                 // and from null (unavailable) count as changes.
