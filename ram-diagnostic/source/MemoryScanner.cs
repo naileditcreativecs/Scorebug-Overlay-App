@@ -766,6 +766,15 @@ namespace CollegeFootballRamDiagnostic
                 for (int k = start; k <= index; k++) distinct.Add(hits[k].Value);
                 if (distinct.Count < minimumDistinct) continue;
                 if (hits[start].Key <= lastClusterEnd) continue;
+                // A lookup curve (0,3,6,8,11,13,15...) matches many small
+                // numbers by accident: skip windows whose hits are strictly
+                // increasing with address.
+                bool ascending = true;
+                for (int k = start + 1; k <= index; k++)
+                {
+                    if (hits[k].Value <= hits[k - 1].Value) { ascending = false; break; }
+                }
+                if (ascending && index - start >= 3) continue;
                 ValueCluster cluster = new ValueCluster();
                 cluster.Start = hits[start].Key;
                 cluster.Width = (int)(hits[index].Key - hits[start].Key) + 4;

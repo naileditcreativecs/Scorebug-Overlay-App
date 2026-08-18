@@ -1242,7 +1242,7 @@ namespace CollegeFootballRamDiagnostic
             };
             AppendProbeLine(screenJsonPath, "stats-search.jsonl", header);
             if (values.Count == 0) return;
-            List<MemoryScanner.ValueCluster> clusters = scanner.FindValueClustersBelow4G(values.ToArray(), 256, 4, 200);
+            List<MemoryScanner.ValueCluster> clusters = scanner.FindValueClustersBelow4G(values.ToArray(), 256, 5, 200);
             int written = 0;
             foreach (MemoryScanner.ValueCluster cluster in clusters)
             {
@@ -1289,6 +1289,7 @@ namespace CollegeFootballRamDiagnostic
         private bool penaltyProbeBaselineDone;
         private DateTime penaltyProbeFlagUtc = DateTime.MinValue;
         private bool penaltyProbeAfterQueued;
+        private bool penaltyProbeCardQueued;
         private DateTime firstLivePublishUtc = DateTime.MinValue;
 
         private void MaybeRunPenaltyProbeBaseline(string screenJsonPath, RamReadResult quarter, RamReadResult gameClock)
@@ -1299,7 +1300,14 @@ namespace CollegeFootballRamDiagnostic
                 penaltyProbeBaselineDone = true;
                 StartPenaltyProbe(screenJsonPath, "baseline");
             }
-            if (penaltyProbeAfterQueued && (DateTime.UtcNow - penaltyProbeFlagUtc).TotalSeconds > 25)
+            if (penaltyProbeCardQueued && (DateTime.UtcNow - penaltyProbeFlagUtc).TotalSeconds > 12)
+            {
+                // The referee announcement + result card come ~10 s after the
+                // banner; the speech/NIS strings only exist then.
+                penaltyProbeCardQueued = false;
+                StartPenaltyProbe(screenJsonPath, "card");
+            }
+            if (penaltyProbeAfterQueued && (DateTime.UtcNow - penaltyProbeFlagUtc).TotalSeconds > 40)
             {
                 penaltyProbeAfterQueued = false;
                 StartPenaltyProbe(screenJsonPath, "after");
@@ -1316,6 +1324,7 @@ namespace CollegeFootballRamDiagnostic
             if ((DateTime.UtcNow - penaltyProbeFlagUtc).TotalSeconds < 20) return;
             penaltyProbeFlagUtc = DateTime.UtcNow;
             penaltyProbeAfterQueued = true;
+            penaltyProbeCardQueued = true;
             StartPenaltyProbe(probeOutputSeedPath, "flag");
         }
 
@@ -1381,7 +1390,7 @@ namespace CollegeFootballRamDiagnostic
                 foreach (long address in pair.Value)
                 {
                     byte[] around;
-                    try { around = scanner.ReadBytes(Math.Max(0, address - 64), 64 + 96); }
+                    try { around = scanner.ReadBytes(Math.Max(0, address - 96), 96 + 224); }
                     catch { continue; }
                     Dictionary<string, object> entry = new Dictionary<string, object>
                     {
@@ -1389,9 +1398,10 @@ namespace CollegeFootballRamDiagnostic
                         { "phase", phase }, { "kind", "text" },
                         { "word", pair.Key },
                         { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
-                        { "text", ResearchProbeHelpers.AsciiPreview(around, 64, 48) },
-                        { "intsBefore", ResearchProbeHelpers.Int32Window(around, 0, 16) },
-                        { "intsAfter", ResearchProbeHelpers.Int32Window(around, 64 + 32, 16) }
+                        { "text", ResearchProbeHelpers.AsciiPreview(around, 96, 200) },
+                        { "before", ResearchProbeHelpers.AsciiRun(around, 0, 96) },
+                        { "intsBefore", ResearchProbeHelpers.Int32Window(around, 32, 16) },
+                        { "intsAfter", ResearchProbeHelpers.Int32Window(around, 96 + 32, 16) }
                     };
                     AppendProbeLine(screenJsonPath, "penalty-probe.jsonl", entry);
                     textCount++;

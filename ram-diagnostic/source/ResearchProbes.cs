@@ -16,14 +16,23 @@ namespace CollegeFootballRamDiagnostic
         // string table (present at both times).
         public static readonly string[] PenaltyWords = new string[]
         {
-            "Holding", "HOLDING", "Interference", "INTERFERENCE", "False Start", "FALSE START",
+            // Round 2 (probe game 2026-08-18) found the live penalty in three
+            // places, none of them the on-screen card text: the commentary
+            // speech context ("ctxn=PENALTY_DEF_ENCROACHMENT_WITHIN_5_YARDS&
+            // snti=..&cdwn=..&ytof=.."), the announcer clip path
+            // ("Sound/Speech/BASE/SoundWaves/bPENALTY_DEF_ENCROACHMENT") and
+            // the referee-presentation node ("Penalty_0632_Encroachment_01 -
+            // 0): enabledState: 2, activated: 1"). Search those anchors first;
+            // the bare words stay as a fallback.
+            "ctxn=PENALTY", "SoundWaves/bPENALTY", "enabledState: 2", "NIS_Penalty_", "AFT_DEF_PENALTY", "AFT_OFF_PENALTY",
+            "Holding", "HOLDING", "Interference", "INTERFERENCE", "False Start", "FALSE START", "FalseStart",
             "Offside", "OFFSIDE", "Facemask", "FACEMASK", "Face Mask", "FACE MASK",
-            "Roughing", "ROUGHING", "Encroachment", "ENCROACHMENT", "Delay of Game", "DELAY OF GAME",
-            "Illegal", "ILLEGAL", "Unsportsmanlike", "UNSPORTSMANLIKE", "Personal Foul", "PERSONAL FOUL",
+            "Roughing", "ROUGHING", "Encroachment", "ENCROACHMENT", "Delay of Game", "DELAY OF GAME", "DelayOfGame", "DELAY_OF_GAME",
+            "Illegal", "ILLEGAL", "Unsportsmanlike", "UNSPORTSMANLIKE", "Personal Foul", "PERSONAL FOUL", "PersonalFoul",
             "Targeting", "TARGETING", "Grounding", "GROUNDING", "Clipping", "CLIPPING",
             "Chop Block", "CHOP BLOCK", "Horse Collar", "HORSE COLLAR", "Neutral Zone", "NEUTRAL ZONE",
             "Too Many", "TOO MANY", "Ineligible", "INELIGIBLE", "Tripping", "TRIPPING",
-            "Kick Catch", "KICK CATCH", "Sideline", "SIDELINE"
+            "Kick Catch", "KICK CATCH"
         };
 
         // Compare two int32 snapshots of the same window. Returns the offsets
@@ -92,6 +101,19 @@ namespace CollegeFootballRamDiagnostic
                 if (value < 0x20 || value > 0x7E) break;
                 builder.Append((char)value);
             }
+            return builder.ToString();
+        }
+
+        // Printable ASCII run ENDING at `end` (walks backwards), for the text
+        // that precedes a matched word.
+        public static string AsciiRun(byte[] bytes, int start, int end)
+        {
+            if (bytes == null || end <= 0) return String.Empty;
+            int begin = Math.Min(end, bytes.Length);
+            int index = begin - 1;
+            while (index >= start && index >= 0 && bytes[index] >= 0x20 && bytes[index] <= 0x7E) index--;
+            StringBuilder builder = new StringBuilder();
+            for (int i = index + 1; i < begin; i++) builder.Append((char)bytes[i]);
             return builder.ToString();
         }
 

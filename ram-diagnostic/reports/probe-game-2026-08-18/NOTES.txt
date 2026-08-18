@@ -1,0 +1,6 @@
+Probe game 2026-08-18 (Pitt, tester = Coffee), reader v1.4.44 first half + v1.4.45 second session
+Flags (session 1, Q1): 1:57 encroachment Pitt (no #); 1:41 offsides Pitt #40; 0:56 delay of game Pitt #11 - all accepted
+Flags (session 2, Q1): 0:30 offense delay of game Pitt #11; 0:05 defense encroachment Pitt #29
+Play picker (session 1, open->close, game clock): 51->48, 36->36, 33->28, 15->10, 26->28
+Halftime box (session 2): away 42 total (0 rush/42 pass, 10 plays, 3 FD, 0 rush att, 6/10, 0 pen, TOP 2:20) | home 72 (40/32, 9 plays, 4 FD, 5 rush att, 2/4, 3 pen 15 yds, TOP 3:40)
+Final box (session 2): away 154 (6/148, 30 plays, 8 FD, 11 rush att, 12/19, 0 pen, TOP 7:27) | home 108 (40/68, 16 plays, 6 FD, 5 rush att, 5/11, 4 pen 20 yds, TOP 5:13)
