@@ -5638,6 +5638,17 @@ function createOverlayWindow() {
       logMessage(`Protected scoreboard HTML blocked ${reason || type || 'an unsafe action'}.`);
     },
   });
+  // A <webview> guest paints an opaque backdrop by default, so a scorebug
+  // built with a transparent background showed BLACK around the artwork
+  // (green-screen mode hid this only because the key filter forces alpha
+  // compositing). Make the guest surface itself transparent so transparent
+  // HTML is see-through natively - no green canvas or filter required.
+  overlayWindow.webContents.on('did-attach-webview', (_event, guestWebContents) => {
+    try { guestWebContents.setBackgroundColor('#00000000'); } catch { }
+    guestWebContents.on('did-finish-load', () => {
+      try { guestWebContents.setBackgroundColor('#00000000'); } catch { }
+    });
+  });
   installLocalNavigationGuard(overlayWindow, [OVERLAY_DOCUMENT]);
   overlayWindow.loadFile(OVERLAY_DOCUMENT);
   overlayWindow.once('ready-to-show', () => applyVisibility('ready'));

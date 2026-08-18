@@ -50,12 +50,13 @@ body {
   opacity: 0;
 }
 
-.overlay.has-theme .native-cover {
+/* The dark plate under the theme was a screen-reader-era device for hiding
+   the game's own scorebug beneath the overlay. With free placement it just
+   painted a near-black box behind every theme that was not green-screened -
+   a fully transparent scorebug HTML showed black around its artwork. It is
+   now off by default; the element stays for an explicit opt-in class. */
+.overlay.has-theme.cover-native-scorebug:not(.chroma-key-enabled) .native-cover {
   opacity: 1;
-}
-
-.overlay.has-theme.chroma-key-enabled .native-cover {
-  opacity: 0;
 }
 
 .theme-view {
