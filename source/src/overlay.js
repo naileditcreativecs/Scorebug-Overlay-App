@@ -600,10 +600,21 @@ function applyTeamLogoTransformFast(payload = {}) {
   const y = Math.max(-2000, Math.min(2000, finite(value.y, 0)));
   const scale = Math.max(0.1, Math.min(5, finite(value.scale, 1.13)));
   const rotation = Math.max(-180, Math.min(180, finite(value.rotation, 0)));
-  const image = document.querySelector('[data-cfb27-logo-side="' + side + '"]');
-  if (!image || !image.isConnected) return { applied: false, side, fast: false };
-  const box = image.getBoundingClientRect?.();
-  if (!box || (box.width === 0 && box.height === 0)) return { applied: false, side, fast: false };
+  // Only a VISIBLE tagged image may take the fast path. Themes that keep
+  // the bound logo hidden and mirror it into a visible copy can leave the
+  // tag on the hidden one; moving that does nothing on screen. Prefer the
+  // live copy, then any painted tagged image; otherwise fall back to the
+  // full resolver.
+  const tagged = Array.from(document.querySelectorAll('[data-cfb27-logo-side="' + side + '"]'));
+  const painted = tagged.filter((candidate) => {
+    if (!candidate.isConnected) return false;
+    const box = candidate.getBoundingClientRect?.();
+    if (!box || (box.width === 0 && box.height === 0)) return false;
+    const style = getComputedStyle(candidate);
+    return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) > 0.01;
+  });
+  const image = painted.find((candidate) => candidate.getAttribute('data-cfb27-live-logo') === side) || painted[0];
+  if (!image) return { applied: false, side, fast: false };
   image.dataset.cfb27LogoScale = String(scale);
   image.dataset.cfb27LogoX = String(x);
   image.dataset.cfb27LogoY = String(y);
