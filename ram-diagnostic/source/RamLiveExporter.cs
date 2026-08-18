@@ -82,6 +82,13 @@ namespace CollegeFootballRamDiagnostic
         private long pendingHomeScoreHudAddress;
         private int scoreHudOrientationConfirmations;
         private bool matchupTransitionPending;
+        // Independent verification of the live core by the background full
+        // sweep: how many times the sweep re-located the same core the reader
+        // is publishing from, and when. Makes the fast cached re-attach's
+        // double-check visible instead of implicit.
+        private int coreCrossCheckAgreements;
+        private int coreCrossCheckDisagreements;
+        private DateTime lastCoreCrossCheckUtc = DateTime.MinValue;
         private string retiredAwayTeamName;
         private string retiredHomeTeamName;
         private string retiredAwayTeamAddressSignature;
@@ -199,6 +206,9 @@ namespace CollegeFootballRamDiagnostic
         {
             profile = null;
             profileWriteTimeUtc = DateTime.MinValue;
+            coreCrossCheckAgreements = 0;
+            coreCrossCheckDisagreements = 0;
+            lastCoreCrossCheckUtc = DateTime.MinValue;
             lastAwayTeamName = null;
             lastHomeTeamName = null;
             teamKeyNames = null;
@@ -815,6 +825,11 @@ namespace CollegeFootballRamDiagnostic
                 { "screenBackedFields", new string[0] },
                 { "remainingRamWork", new string[0] },
                 { "automaticLocator", autoDiscoverySummary },
+                { "coreCrossCheck", lastCoreCrossCheckUtc == DateTime.MinValue
+                    ? "not yet re-verified by an independent full read"
+                    : "independent full read agreed " + coreCrossCheckAgreements.ToString(CultureInfo.InvariantCulture)
+                        + "x, disagreed " + coreCrossCheckDisagreements.ToString(CultureInfo.InvariantCulture)
+                        + "x, last " + ((int)(DateTime.UtcNow - lastCoreCrossCheckUtc).TotalSeconds).ToString(CultureInfo.InvariantCulture) + "s ago" },
                 { "timeoutBind", timeoutBindDiagnostic },
                 { "timeoutInstall", timeoutInstallDiagnostic },
                 { "timeoutCatalog", catalogTimeoutDiagnostic },
@@ -3069,6 +3084,8 @@ namespace CollegeFootballRamDiagnostic
                     nextTeamNameDiscoveryUtc = DateTime.UtcNow.AddSeconds(5);
                     return;
                 }
+                coreCrossCheckDisagreements++;
+                lastCoreCrossCheckUtc = DateTime.UtcNow;
                 string differentSignature = DiscoveryCoreSignature(result);
                 bool confirmedDifferentCore = AdvanceDifferentCoreConfirmation(
                     ref candidateDifferentCoreSignature, ref differentCoreConfirmations,
@@ -3087,6 +3104,8 @@ namespace CollegeFootballRamDiagnostic
             }
             candidateDifferentCoreSignature = null;
             differentCoreConfirmations = 0;
+            coreCrossCheckAgreements++;
+            lastCoreCrossCheckUtc = DateTime.UtcNow;
             if (result.TeamRoleEvidenceAmbiguous && !matchupTransitionPending)
             {
                 // Ambiguous role evidence means we cannot say which team is on

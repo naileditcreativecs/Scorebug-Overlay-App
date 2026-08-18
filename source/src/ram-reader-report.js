@@ -175,6 +175,17 @@ function buildRamReaderReport(input = {}) {
     lines.push(translateTeamRole(discovery.teamRole, away.name, home.name, namesReading));
     lines.push(translateRankBind(discovery.rankBind));
     lines.push(translateTimeoutBind(discovery.timeoutBind));
+    // The fast re-attach is double-checked by an independent full memory
+    // read in the background; say so in plain words.
+    const crossCheck = String(discovery.coreCrossCheck || '');
+    if (/agreed (\d+)x, disagreed (\d+)x/.test(crossCheck)) {
+      const [, agreed, disagreed] = crossCheck.match(/agreed (\d+)x, disagreed (\d+)x/);
+      lines.push(Number(disagreed) > 0 && Number(agreed) === 0
+        ? line(WARN, 'Double-check', 'An independent full read disagreed with the fast attach; the reader is re-locating.')
+        : line(OK, 'Double-check', `An independent full memory read has confirmed the live scoreboard ${agreed} time(s).`));
+    } else if (crossCheck) {
+      lines.push(line(INFO, 'Double-check', 'Independent full read not finished yet - it runs in the background right after attach.'));
+    }
     const possessionKnown = typeof away.possession === 'boolean' || typeof home.possession === 'boolean';
     lines.push(possessionKnown
       ? line(OK, 'Possession', `Reading (${away.possession ? 'away' : 'home'} has the ball).`)
@@ -215,7 +226,7 @@ function buildRamReaderReport(input = {}) {
   text.push('  live data age: ' + (liveAtMs === null ? 'no live file' : Math.round((now - liveAtMs) / 1000) + 's'));
   if (live?.discovery) {
     const discovery = live.discovery;
-    for (const key of ['automaticLocator', 'teamRole', 'matchupBind', 'rankBind', 'teamIdNames',
+    for (const key of ['automaticLocator', 'coreCrossCheck', 'teamRole', 'matchupBind', 'rankBind', 'teamIdNames',
       'timeoutBind', 'timeoutInstall', 'timeoutCatalog', 'possessionBind']) {
       if (discovery[key] !== undefined && discovery[key] !== null) {
         text.push('  ' + key + ': ' + String(discovery[key]));
