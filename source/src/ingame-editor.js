@@ -359,20 +359,46 @@ function renderScorebugColors() {
     button.textContent = label;
     button.disabled = (scope === 'team-away' && !ctx.awayTeamId) || (scope === 'team-home' && !ctx.homeTeamId)
       || (scope === 'matchup' && !(ctx.awayTeamId && ctx.homeTeamId)) || (scope === 'theme' && !ctx.themeId);
-    button.classList.toggle('selected', selectedColorScope === scope);
-    button.setAttribute('aria-checked', String(selectedColorScope === scope));
+    if (button.disabled) selectedColorScopes.delete(scope);
+    button.classList.toggle('selected', selectedColorScopes.has(scope));
+    button.setAttribute('aria-checked', String(selectedColorScopes.has(scope)));
   }
   const saveButton = document.getElementById('save-color-scope');
-  if (saveButton) saveButton.disabled = Boolean(document.getElementById(`save-scope-${selectedColorScope}`)?.disabled);
+  if (saveButton) {
+    saveButton.disabled = selectedColorScopes.size === 0;
+    saveButton.title = colorScopeSummary();
+  }
   // Saved profiles as tags: what each one is for, its color(s), and a remove.
   const profileList = document.getElementById('color-profile-list');
   if (profileList) {
     profileList.replaceChildren();
-    const rules = colors.rules || [];
+    // Only the profiles that apply RIGHT NOW: this side's teams, this
+    // matchup, this bug. Everything else stays saved but out of the way
+    // (a "show all" link reveals it for housekeeping).
+    const allRules = colors.rules || [];
+    const ruleApplies = (rule) => {
+      if (rule.themeId && rule.themeId !== ctx.themeId) return false;
+      if (rule.awayTeamId && rule.homeTeamId && !(rule.awayTeamId === ctx.awayTeamId && rule.homeTeamId === ctx.homeTeamId)) return false;
+      if (rule.scope === 'team') return rule.teamId === ctx.awayTeamId || rule.teamId === ctx.homeTeamId;
+      if (rule.scope === 'matchup') return true;
+      return rule.scope === 'theme' && rule.themeId === ctx.themeId;
+    };
+    const relevant = allRules.filter(ruleApplies);
+    const rules = showAllColorProfiles ? allRules : relevant;
     if (!rules.length) {
       const empty = document.createElement('em');
-      empty.textContent = 'Nothing saved yet';
+      empty.textContent = allRules.length
+        ? 'Nothing saved for these teams or this bug'
+        : 'Nothing saved yet';
       profileList.append(empty);
+    }
+    if (allRules.length > relevant.length) {
+      const toggle = document.createElement('button');
+      toggle.type = 'button';
+      toggle.className = 'color-profile-toggle';
+      toggle.textContent = showAllColorProfiles ? 'Show only current' : `Show all ${allRules.length} saved`;
+      toggle.addEventListener('click', () => { showAllColorProfiles = !showAllColorProfiles; renderScorebugColors(); });
+      profileList.append(toggle);
     }
     for (const rule of rules) {
       const tag = document.createElement('span');
@@ -393,10 +419,7 @@ function renderScorebugColors() {
         () => api.deleteScorebugColorRule({ rule }),
         `Removed: ${rule.label || rule.scope}`,
       ));
-      const isActive = (rule.scope === 'team' && (rule.teamId === ctx.awayTeamId || rule.teamId === ctx.homeTeamId))
-        || (rule.scope === 'matchup' && rule.awayTeamId === ctx.awayTeamId && rule.homeTeamId === ctx.homeTeamId)
-        || (rule.scope === 'theme' && rule.themeId === ctx.themeId);
-      tag.classList.toggle('active', Boolean(isActive));
+      tag.classList.toggle('active', Boolean(ruleApplies(rule)));
       tag.append(label, ...dots, remove);
       profileList.append(tag);
     }
@@ -500,7 +523,21 @@ function wireRecordControls() {
   }
 }
 
-let selectedColorScope = 'team-away';
+// Mix and match: any set of {left team, right team} plus qualifiers
+// {this matchup only, this bug only}. Save writes every combination asked.
+const selectedColorScopes = new Set(['team-away']);
+let showAllColorProfiles = false;
+function colorScopeSummary() {
+  const sides = [];
+  if (selectedColorScopes.has('team-away')) sides.push('left team');
+  if (selectedColorScopes.has('team-home')) sides.push('right team');
+  const quals = [];
+  if (selectedColorScopes.has('matchup')) quals.push('this matchup');
+  if (selectedColorScopes.has('theme')) quals.push('this bug');
+  if (!sides.length && !quals.length) return 'Pick who these colors are for';
+  if (!sides.length) return `Both colors, ${quals.join(' + ')} only`;
+  return `${sides.join(' + ')}${quals.length ? `, ${quals.join(' + ')} only` : ' (every game)'}`;
+}
 
 // ---- In-panel color wheel. The editor window is non-activating (the game
 // keeps focus), and Windows will not open the native color dialog from a
@@ -939,15 +976,18 @@ function wireScorebugColorControls() {
   wireColorWheel();
   for (const scope of ['team-away', 'team-home', 'matchup', 'theme']) {
     document.getElementById(`save-scope-${scope}`)?.addEventListener('click', () => {
-      selectedColorScope = scope;
+      if (selectedColorScopes.has(scope)) selectedColorScopes.delete(scope);
+      else selectedColorScopes.add(scope);
       renderScorebugColors();
     });
   }
-  document.getElementById('save-color-scope')?.addEventListener('click', () => runColorCommand(
-    () => api.saveScorebugColorScope({ scope: selectedColorScope }),
-    { 'team-away': 'Saved for the left team', 'team-home': 'Saved for the right team',
-      matchup: 'Saved for this matchup only', theme: 'Saved for this scorebug only' }[selectedColorScope],
-  ));
+  document.getElementById('save-color-scope')?.addEventListener('click', () => {
+    const sides = ['away', 'home'].filter((side) => selectedColorScopes.has(`team-${side}`));
+    runColorCommand(
+      () => api.saveScorebugColorScope({ sides, matchup: selectedColorScopes.has('matchup'), theme: selectedColorScopes.has('theme') }),
+      `Saved: ${colorScopeSummary()}`,
+    );
+  });
   for (const side of ['away', 'home']) {
     const sideLabel = side === 'away' ? 'Away' : 'Home';
     document.getElementById(`${side}-color-auto`)?.addEventListener('click', () => runColorCommand(

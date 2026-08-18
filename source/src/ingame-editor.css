@@ -849,3 +849,4 @@ button { font: inherit; }
 .bug-settings-list .color-row-setting input[type="text"] { min-height: 30px; border: 1px solid #45506b; border-radius: 6px; padding: 4px 8px; color: #f2f6fc; background: #0d1320; font: 700 12px "Segoe UI", sans-serif; }
 .bug-settings-list .bug-settings-empty { grid-column: 1 / -1; color: #94a3b8; font-size: 12px; line-height: 1.5; }
 .bug-settings-list .bug-setting .reset { justify-self: end; border: none; background: transparent; color: #94a3b8; font-size: 10px; cursor: pointer; text-decoration: underline; }
+.color-profile-toggle { border: none; background: transparent; color: #7dd3fc; font-size: 11px; cursor: pointer; text-decoration: underline; padding: 0 4px; }

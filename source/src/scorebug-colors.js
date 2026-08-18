@@ -43,27 +43,62 @@ function normalizeId(value) {
   return id || null;
 }
 
+// Rules mix and match. A team rule may be qualified to "only in this
+// matchup" (awayTeamId + homeTeamId) and/or "only on this bug" (themeId); a
+// matchup rule may be qualified to one bug. More conditions = more specific
+// = wins. Unqualified rules read exactly as before.
 function normalizeRule(value) {
   const scope = String(value?.scope || '').toLowerCase();
+  const themeId = normalizeId(value?.themeId);
   if (scope === 'team') {
     const teamId = normalizeId(value.teamId);
     const color = normalizeHex(value.color);
-    return teamId && color ? { scope, teamId, color } : null;
+    if (!teamId || !color) return null;
+    const rule = { scope, teamId, color };
+    const awayTeamId = normalizeId(value.awayTeamId);
+    const homeTeamId = normalizeId(value.homeTeamId);
+    if (awayTeamId && homeTeamId) { rule.awayTeamId = awayTeamId; rule.homeTeamId = homeTeamId; }
+    if (themeId) rule.themeId = themeId;
+    return rule;
   }
   if (scope === 'matchup') {
     const awayTeamId = normalizeId(value.awayTeamId);
     const homeTeamId = normalizeId(value.homeTeamId);
     const away = normalizeHex(value.away);
     const home = normalizeHex(value.home);
-    return awayTeamId && homeTeamId && (away || home)
-      ? { scope, awayTeamId, homeTeamId, away, home } : null;
+    if (!(awayTeamId && homeTeamId && (away || home))) return null;
+    const rule = { scope, awayTeamId, homeTeamId, away, home };
+    if (themeId) rule.themeId = themeId;
+    return rule;
   }
   if (scope === 'theme') {
-    const themeId = normalizeId(value.themeId);
     const away = normalizeHex(value.away);
     const home = normalizeHex(value.home);
     return themeId && (away || home) ? { scope, themeId, away, home } : null;
   }
+  return null;
+}
+
+// How many conditions a rule carries; the most specific matching rule wins.
+function ruleSpecificity(rule) {
+  let score = 0;
+  if (rule.scope === 'team') score += 2;
+  if (rule.scope === 'matchup' || (rule.awayTeamId && rule.homeTeamId)) score += 4;
+  if (rule.themeId) score += 1;
+  return score;
+}
+
+// Does this rule apply to `side` in this context, and with which color?
+function ruleColorFor(rule, side, context) {
+  const { awayTeamId, homeTeamId, themeId } = context;
+  if (rule.themeId && rule.themeId !== themeId) return null;
+  if (rule.awayTeamId && rule.homeTeamId && !(rule.awayTeamId === awayTeamId && rule.homeTeamId === homeTeamId)) return null;
+  if (rule.scope === 'team') {
+    const teamId = side === 'away' ? awayTeamId : homeTeamId;
+    return teamId && rule.teamId === teamId ? rule.color : null;
+  }
+  if (rule.scope === 'matchup') return rule[side] || null;
+  if (rule.scope === 'theme') return rule.themeId === themeId ? (rule[side] || null) : null;
   return null;
 }
 
@@ -84,9 +119,11 @@ function normalizeScorebugColors(value) {
 
 function sameRuleKey(left, right) {
   if (!left || !right || left.scope !== right.scope) return false;
+  if ((left.themeId || null) !== (right.themeId || null)) return false;
+  if ((left.awayTeamId || null) !== (right.awayTeamId || null) || (left.homeTeamId || null) !== (right.homeTeamId || null)) return false;
   if (left.scope === 'team') return left.teamId === right.teamId;
-  if (left.scope === 'matchup') return left.awayTeamId === right.awayTeamId && left.homeTeamId === right.homeTeamId;
-  if (left.scope === 'theme') return left.themeId === right.themeId;
+  if (left.scope === 'matchup') return true;
+  if (left.scope === 'theme') return true;
   return false;
 }
 
@@ -119,29 +156,38 @@ function removeScorebugColorRule(colors, rule) {
  */
 function resolveScorebugColors(colors, context = {}) {
   const normalized = normalizeScorebugColors(colors);
-  const awayTeamId = normalizeId(context.awayTeamId);
-  const homeTeamId = normalizeId(context.homeTeamId);
-  const themeId = normalizeId(context.themeId);
-  const matchup = awayTeamId && homeTeamId
-    ? normalized.rules.find((rule) => rule.scope === 'matchup'
-      && rule.awayTeamId === awayTeamId && rule.homeTeamId === homeTeamId)
-    : null;
-  const theme = themeId
-    ? normalized.rules.find((rule) => rule.scope === 'theme' && rule.themeId === themeId)
-    : null;
+  const resolvedContext = {
+    awayTeamId: normalizeId(context.awayTeamId),
+    homeTeamId: normalizeId(context.homeTeamId),
+    themeId: normalizeId(context.themeId),
+  };
   const result = {};
   for (const side of ['away', 'home']) {
-    const teamId = side === 'away' ? awayTeamId : homeTeamId;
-    const teamRule = teamId
-      ? normalized.rules.find((rule) => rule.scope === 'team' && rule.teamId === teamId)
-      : null;
-    if (matchup && matchup[side]) result[side] = { color: matchup[side], source: 'matchup' };
-    else if (teamRule) result[side] = { color: teamRule.color, source: 'team' };
-    else if (theme && theme[side]) result[side] = { color: theme[side], source: 'theme' };
+    let best = null;
+    let bestScore = -1;
+    for (const rule of normalized.rules) {
+      const color = ruleColorFor(rule, side, resolvedContext);
+      if (!color) continue;
+      const score = ruleSpecificity(rule);
+      if (score > bestScore) { best = { color, source: rule.scope, rule }; bestScore = score; }
+    }
+    if (best) result[side] = { color: best.color, source: best.source };
     else if (normalized[side].mode === 'custom') result[side] = { color: normalized[side].color, source: 'pin' };
     else result[side] = { color: null, source: 'auto' };
   }
   return result;
+}
+
+/** True when the rule would apply (to either side) in this context. */
+function ruleAppliesInContext(rule, context = {}) {
+  const normalized = normalizeRule(rule);
+  if (!normalized) return false;
+  const resolvedContext = {
+    awayTeamId: normalizeId(context.awayTeamId),
+    homeTeamId: normalizeId(context.homeTeamId),
+    themeId: normalizeId(context.themeId),
+  };
+  return Boolean(ruleColorFor(normalized, 'away', resolvedContext) || ruleColorFor(normalized, 'home', resolvedContext));
 }
 
 function defaultScorebugColors() {
@@ -206,6 +252,8 @@ function applyScorebugColorPreset(colors, name) {
 }
 
 module.exports = {
+  ruleAppliesInContext,
+  ruleSpecificity,
   MAXIMUM_PRESETS,
   MAXIMUM_RULES,
   applyScorebugColorPreset,

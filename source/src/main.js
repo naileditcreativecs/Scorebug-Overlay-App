@@ -3220,12 +3220,20 @@ function scorebugColorState() {
     } catch { }
     return 'this bug';
   };
-  const rules = colors.rules.map((rule) => ({
-    ...rule,
-    label: rule.scope === 'team' ? teamName(rule.teamId)
-      : rule.scope === 'matchup' ? `${teamName(rule.awayTeamId)} vs ${teamName(rule.homeTeamId)}`
-        : `${themeName(rule.themeId)} (bug only)`,
-  }));
+  const rules = colors.rules.map((rule) => {
+    const bits = [];
+    if (rule.scope === 'team') {
+      bits.push(teamName(rule.teamId));
+      if (rule.awayTeamId && rule.homeTeamId) bits.push(`vs ${teamName(rule.teamId === rule.awayTeamId ? rule.homeTeamId : rule.awayTeamId)} only`);
+      if (rule.themeId) bits.push(`on ${themeName(rule.themeId)} only`);
+    } else if (rule.scope === 'matchup') {
+      bits.push(`${teamName(rule.awayTeamId)} vs ${teamName(rule.homeTeamId)}`);
+      if (rule.themeId) bits.push(`on ${themeName(rule.themeId)} only`);
+    } else {
+      bits.push(`${themeName(rule.themeId)} (bug only)`);
+    }
+    return { ...rule, label: bits.join(' · ') };
+  });
   return {
     ...colors,
     rules,
@@ -3311,7 +3319,63 @@ function setScorebugColor(payload = {}) {
 
 // Scoped save: 'team-away' | 'team-home' | 'matchup' | 'theme'. Saves the
 // colors currently showing on the bug under that scope.
+// Save the colors on the bug under any mix of conditions: sides
+// (left/right team) plus qualifiers (this matchup only, this bug only).
+// - sides picked -> one team rule per side, qualified as requested
+// - no side, matchup -> a matchup rule for both colors (bug-qualified if asked)
+// - no side, bug only -> a bug rule for both colors
+function saveScorebugColorMix(payload = {}) {
+  const context = scorebugColorContext();
+  const away = runtime.scoreboardState?.away?.color;
+  const home = runtime.scoreboardState?.home?.color;
+  const sides = [...new Set((Array.isArray(payload.sides) ? payload.sides : []).map((side) => String(side).toLowerCase()).filter((side) => side === 'away' || side === 'home'))];
+  const matchup = payload.matchup === true;
+  const theme = payload.theme === true;
+  if (!sides.length && !matchup && !theme) throw new Error('Choose what the colors should apply to.');
+  if (matchup && !(context.awayTeamId && context.homeTeamId)) throw new Error('Both teams need to be identified for a matchup rule.');
+  if (theme && !context.themeId) throw new Error('No scorebug HTML is active.');
+  let colors = normalizeScorebugColors(settings.scorebugColors);
+  const labels = [];
+  const qualifiers = [];
+  if (matchup) qualifiers.push('this matchup');
+  if (theme) qualifiers.push('this bug');
+  const suffix = qualifiers.length ? ` (${qualifiers.join(', ')} only)` : '';
+  if (sides.length) {
+    for (const side of sides) {
+      const teamId = context[`${side}TeamId`];
+      const color = side === 'away' ? away : home;
+      if (!teamId) throw new Error(`The ${side === 'away' ? 'left' : 'right'} side has no identified team yet.`);
+      if (!isScorebugHexColor(color)) throw new Error(`The ${side === 'away' ? 'left' : 'right'} team has no visible color yet.`);
+      colors = upsertScorebugColorRule(colors, {
+        scope: 'team', teamId, color,
+        ...(matchup ? { awayTeamId: context.awayTeamId, homeTeamId: context.homeTeamId } : {}),
+        ...(theme ? { themeId: context.themeId } : {}),
+      });
+      labels.push(`${teamAssetResolver?.resolveTeamId(teamId)?.name || teamId}${suffix}`);
+    }
+  } else if (matchup) {
+    if (!isScorebugHexColor(away) && !isScorebugHexColor(home)) throw new Error('No visible colors to save yet.');
+    colors = upsertScorebugColorRule(colors, {
+      scope: 'matchup', awayTeamId: context.awayTeamId, homeTeamId: context.homeTeamId,
+      away: isScorebugHexColor(away) ? away : null, home: isScorebugHexColor(home) ? home : null,
+      ...(theme ? { themeId: context.themeId } : {}),
+    });
+    labels.push(`this matchup${theme ? ' on this bug' : ''} only`);
+  } else {
+    if (!isScorebugHexColor(away) && !isScorebugHexColor(home)) throw new Error('No visible colors to save yet.');
+    colors = upsertScorebugColorRule(colors, {
+      scope: 'theme', themeId: context.themeId,
+      away: isScorebugHexColor(away) ? away : null, home: isScorebugHexColor(home) ? home : null,
+    });
+    labels.push('this scorebug only');
+  }
+  return publishScorebugColors(colors, `Scorebug colors saved for ${labels.join('; ')}.`);
+}
+
 function saveScorebugColorScopeCommand(payload = {}) {
+  if (Array.isArray(payload.sides) || payload.matchup !== undefined || payload.theme !== undefined) {
+    return saveScorebugColorMix(payload);
+  }
   const scope = String(payload.scope || '').toLowerCase();
   const context = scorebugColorContext();
   const away = runtime.scoreboardState?.away?.color;

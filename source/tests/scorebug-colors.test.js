@@ -128,3 +128,29 @@ test('rules upsert by identity, remove by identity, and apply through applyScore
   // Garbage rules are dropped, never thrown at publish time.
   assert.deepStrictEqual(require('../src/scorebug-colors').normalizeScorebugColors({ rules: [{ scope: 'team' }, { scope: 'nope', teamId: 'x', color: '#000000' }] }).rules, []);
 });
+
+test('mix and match: qualified team rules beat plain ones and only apply in their context', () => {
+  const { resolveScorebugColors, upsertScorebugColorRule, ruleAppliesInContext } = require('../src/scorebug-colors');
+  let colors = upsertScorebugColorRule(null, { scope: 'team', teamId: 'bama', color: '#111111' });
+  colors = upsertScorebugColorRule(colors, { scope: 'team', teamId: 'bama', color: '#222222', themeId: 'espn' });
+  colors = upsertScorebugColorRule(colors, { scope: 'team', teamId: 'bama', color: '#333333', awayTeamId: 'bama', homeTeamId: 'aub' });
+  colors = upsertScorebugColorRule(colors, { scope: 'team', teamId: 'bama', color: '#444444', awayTeamId: 'bama', homeTeamId: 'aub', themeId: 'espn' });
+  colors = upsertScorebugColorRule(colors, { scope: 'matchup', awayTeamId: 'bama', homeTeamId: 'aub', home: '#555555', themeId: 'fox' });
+  assert.equal(colors.rules.length, 5, 'qualified rules are distinct identities');
+  // Plain context: only the unqualified team rule.
+  assert.equal(resolveScorebugColors(colors, { awayTeamId: 'bama', homeTeamId: 'lsu', themeId: 'fox' }).away.color, '#111111');
+  // On the ESPN bug the bug-qualified rule wins.
+  assert.equal(resolveScorebugColors(colors, { awayTeamId: 'bama', homeTeamId: 'lsu', themeId: 'espn' }).away.color, '#222222');
+  // Matchup-qualified beats bug-qualified; matchup+bug beats both.
+  assert.equal(resolveScorebugColors(colors, { awayTeamId: 'bama', homeTeamId: 'aub', themeId: 'fox' }).away.color, '#333333');
+  assert.equal(resolveScorebugColors(colors, { awayTeamId: 'bama', homeTeamId: 'aub', themeId: 'espn' }).away.color, '#444444');
+  // Bug-qualified matchup rule for the home side only on FOX.
+  assert.equal(resolveScorebugColors(colors, { awayTeamId: 'bama', homeTeamId: 'aub', themeId: 'fox' }).home.color, '#555555');
+  assert.equal(resolveScorebugColors(colors, { awayTeamId: 'bama', homeTeamId: 'aub', themeId: 'espn' }).home.color, null);
+  // Context filter used by the editor's tag list.
+  assert.equal(ruleAppliesInContext(colors.rules[1], { awayTeamId: 'bama', homeTeamId: 'lsu', themeId: 'fox' }), false);
+  assert.equal(ruleAppliesInContext(colors.rules[1], { awayTeamId: 'bama', homeTeamId: 'lsu', themeId: 'espn' }), true);
+  // Legacy shape (no qualifiers) still normalizes unchanged.
+  const legacy = upsertScorebugColorRule(null, { scope: 'matchup', awayTeamId: 'a', homeTeamId: 'b', away: '#abcdef', home: null });
+  assert.deepEqual(legacy.rules[0], { scope: 'matchup', awayTeamId: 'a', homeTeamId: 'b', away: '#abcdef', home: null });
+});
