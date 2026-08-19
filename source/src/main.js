@@ -84,6 +84,7 @@ const {
 const {
   applyDynastyContext,
   applyDynastyNameFallback,
+  applyDynastySideCorrection,
   indexSaveTeams,
   indexSaveTeamsByPresentationId,
   registerUnmatchedSaveTeams,
@@ -1058,7 +1059,7 @@ function applyRamScoreboardState(screenState) {
   }
   return applyScoreboardDataSource(
     screenState,
-    runtime.ramScoreboardState,
+    applyDynastySideCorrection(runtime.ramScoreboardState, runtime.dynasty),
     scoreboardDataSourceMode(),
   );
 }

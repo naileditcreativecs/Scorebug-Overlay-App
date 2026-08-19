@@ -173,6 +173,11 @@ Known limitations
   itself. The Scoreboard Overlay app joins those ids to the selected save to
   supply exact names, colours, records and ranks. Other clients can perform
   the same join; without it, the standalone name can remain null.
+- At some tied playoff/neutral-site kickoffs, the standalone ScoreHud pair can
+  initially arrive in the opposite home/away orientation. The Overlay app
+  corrects team-bound fields only when both unique ids and TeamBuilder flags
+  exactly match one current-week save game. Standalone consumers that also
+  parse the save should apply the same schedule proof; never invert by default.
 - Automatic TeamBuilder logo download is not enabled until a real
   TeamBuilder save validates the stored URL lifetime/authentication/format.
 - Ranks/records normally show from the kickoff (the reader matches the

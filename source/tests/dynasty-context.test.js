@@ -5,8 +5,14 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { TeamAssetResolver } = require('../src/recognition/team-assets');
 const {
+  applyManualTeamOverrides,
+  emptyManualTeamOverrides,
+  normalizeManualTeamOverride,
+} = require('../src/manual-team-overrides');
+const {
   applyDynastyContext,
   applyDynastyNameFallback,
+  applyDynastySideCorrection,
   indexSaveTeams,
   indexSaveTeamsByPresentationId,
   leaderLine,
@@ -181,6 +187,101 @@ test('dynasty context: live presentation ids choose the exact scheduled save tea
   ambiguousContext.teams.push({ ...ambiguousContext.teams[0], index: 999 });
   assert.equal(indexSaveTeamsByPresentationId(ambiguousContext).has(1186), false);
   assert.equal(indexSaveTeamsByPresentationId({ teams: [{ presentationId: 2048 }] }).size, 0);
+});
+
+test('dynasty context: a reversed playoff identity pair is corrected before publication', () => {
+  const local = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
+  const ctx = JSON.parse(JSON.stringify(context));
+  ctx.season.currentWeekType = 'Playoff';
+  ctx.gamesThisWeek[0].weekType = 'Playoff';
+  ctx.gamesThisWeek[0].bowl = { name: 'College Football Playoff', isPlayoff: true };
+  registerUnmatchedSaveTeams(ctx, local);
+  const dynasty = {
+    context: ctx,
+    byAsset: indexSaveTeams(ctx, local),
+    byPresentationId: indexSaveTeamsByPresentationId(ctx),
+  };
+  const reversed = {
+    away: {
+      name: 'Cincinnati', presentationId: 1120, isTeamBuilder: false,
+      rank: 5, record: '9-1', timeouts: 2, possession: false, score: 14,
+    },
+    home: {
+      name: 'Pittsburgh', presentationId: 1186, isTeamBuilder: false,
+      rank: null, record: '2-8', timeouts: 3, possession: true, score: 7,
+    },
+    game: {
+      clock: '12:34', penaltyFlag: 'home', penaltyTeam: 'home',
+      penalty: { type: 'Holding', team: 'home' },
+      hudTexts: [{ kind: 'stat', texts: ['B. Stull'], teamSide: 'home' }],
+    },
+    meta: {
+      ramTeamIdentity: {
+        away: { presentationId: 1120, isTeamBuilder: false, source: 'ram-scorehud' },
+        home: { presentationId: 1186, isTeamBuilder: false, source: 'ram-scorehud' },
+      },
+    },
+  };
+
+  // Two independent reader starts produce the same correction; there is no
+  // cache or previous-game orientation involved.
+  for (let restart = 0; restart < 2; restart += 1) {
+    const corrected = applyDynastySideCorrection(JSON.parse(JSON.stringify(reversed)), dynasty);
+    assert.match(corrected.away.name, /Pitt/);
+    assert.equal(corrected.home.name, 'Cincinnati');
+    assert.equal(corrected.away.presentationId, 1186);
+    assert.equal(corrected.home.presentationId, 1120);
+    assert.equal(corrected.away.rank, null);
+    assert.equal(corrected.home.rank, 5);
+    assert.equal(corrected.away.record, '2-8');
+    assert.equal(corrected.home.record, '9-1');
+    assert.equal(corrected.away.timeouts, 3);
+    assert.equal(corrected.home.timeouts, 2);
+    assert.equal(corrected.away.possession, true);
+    assert.equal(corrected.home.possession, false);
+    assert.equal(corrected.away.score, 14, 'core score stays on its original side');
+    assert.equal(corrected.home.score, 7, 'core score stays on its original side');
+    assert.equal(corrected.game.clock, '12:34');
+    assert.equal(corrected.game.penaltyFlag, 'away');
+    assert.equal(corrected.game.penaltyTeam, 'away');
+    assert.equal(corrected.game.penalty.team, 'away');
+    assert.equal(corrected.game.hudTexts[0].teamSide, 'away');
+    assert.equal(corrected.meta.ramTeamIdentity.away.presentationId, 1186);
+    assert.equal(corrected.meta.dynastySideCorrection.gameIndex, 1);
+    assert.deepEqual(corrected.meta.dynastySideCorrection.rawPresentationIds, { away: 1120, home: 1186 });
+
+    const published = applyDynastyNameFallback(corrected, dynasty, local);
+    assert.match(published.away.name, /Pitt/);
+    assert.equal(published.home.name, 'Cincinnati');
+    assert.equal(published.meta.dynastyNameFallback.flipped, false);
+  }
+
+  const alreadyCorrect = {
+    away: { presentationId: 1186, isTeamBuilder: false },
+    home: { presentationId: 1120, isTeamBuilder: false }, game: {}, meta: {},
+  };
+  assert.equal(applyDynastySideCorrection(alreadyCorrect, dynasty), alreadyCorrect, 'correct orientation is untouched');
+  const wrongFlag = {
+    away: { presentationId: 1120, isTeamBuilder: true },
+    home: { presentationId: 1186, isTeamBuilder: false }, game: {}, meta: {},
+  };
+  assert.equal(applyDynastySideCorrection(wrongFlag, dynasty), wrongFlag, 'flag mismatch fails closed');
+
+  const partial = applyDynastySideCorrection({
+    away: { presentationId: 1120, isTeamBuilder: false, record: '9-1' },
+    home: { presentationId: 1186, isTeamBuilder: false }, game: {}, meta: {},
+  }, dynasty);
+  assert.equal(partial.away.record, undefined, 'a one-sided field is removed from the wrong side');
+  assert.equal(partial.home.record, '9-1', 'a one-sided field moves to its scheduled side');
+
+  const corrected = applyDynastySideCorrection(JSON.parse(JSON.stringify(reversed)), dynasty);
+  const overrides = emptyManualTeamOverrides();
+  overrides.away = normalizeManualTeamOverride(local, { teamId: local.resolve('Ohio State').id });
+  const withManualAway = applyDynastyNameFallback(
+    applyManualTeamOverrides(corrected, overrides, local), dynasty, local,
+  );
+  assert.equal(withManualAway.away.name, 'Ohio State', 'manual side remains the top layer');
+  assert.equal(withManualAway.home.name, 'Cincinnati', 'orientation correction does not disturb the untouched side');
 });
 
 test('dynasty context: a TeamBuilder named like a roster school keeps a separate stable identity', () => {

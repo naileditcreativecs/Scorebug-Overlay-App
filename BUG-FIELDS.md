@@ -1,4 +1,4 @@
-CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.53)
+CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.54)
 =========================================================
 
 Every bug gets one state object on every change: in `update(obj)` /
@@ -60,8 +60,12 @@ META  (meta.*)
                               presentationId and isTeamBuilder
   dynastyTeamAssets           exact per-side Dynasty id hints when both live
                               PresentationIds match this week's save schedule
-  ramTeamIdentity             raw score-guarded away/home PresentationIds and
-                              TeamBuilder flags (source "ram-scorehud")
+  ramTeamIdentity             score-guarded away/home PresentationIds and
+                              TeamBuilder flags (source "ram-scorehud"); the
+                              app schedule-corrects their sides when proven
+  dynastySideCorrection      present when the selected save proved the two
+                              live team objects arrived on opposite sides;
+                              includes gameIndex plus raw/corrected ids
   scorebugColors, teamLogoLayouts, dynasty { matched, season, teams }
 
 THEME SETTINGS  (themeSettings.*)   see THEME-SETTINGS.md
@@ -88,6 +92,13 @@ Team names in Dynasty
   conflicting readable name) and uses nameSource "dynasty-save". Older readers
   retain the legacy fallback, which fills only missing/not-real names from a
   known team or the user's scheduled game.
+
+  If both unique live ids match this week's game but arrive home/away reversed
+  (seen at playoff/neutral-site kickoffs), the save schedule corrects the full
+  team package before publication: identity, name, rank, record, timeouts,
+  possession and team-attributed HUD/penalty fields. Core scores and the game
+  clock never move. A stale save, ambiguous id or TeamBuilder-flag mismatch
+  cannot trigger this correction.
 
   Manual team overrides are side-scoped. A manually selected team is never
   used as matchup evidence for filling the opposite side, so overriding away

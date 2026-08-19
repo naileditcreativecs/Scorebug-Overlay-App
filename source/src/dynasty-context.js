@@ -188,6 +188,113 @@ function findMatchupGame(context, awayTeam, homeTeam) {
   return null;
 }
 
+function exactDynastyIdentityMatch(payload, dynasty) {
+  if (!payload || !dynasty?.context) return null;
+  const context = dynasty.context;
+  const byPresentationId = dynasty.byPresentationId instanceof Map
+    ? dynasty.byPresentationId
+    : indexSaveTeamsByPresentationId(context);
+  const ids = {};
+  const flags = {};
+  for (const side of ['away', 'home']) {
+    const raw = payload[side]?.presentationId;
+    const id = raw === null || raw === undefined || String(raw).trim() === '' ? NaN : Number(raw);
+    if (!Number.isInteger(id) || id < 1 || id > 2047 || !byPresentationId.has(id)) return null;
+    if (typeof payload[side]?.isTeamBuilder !== 'boolean') return null;
+    ids[side] = id;
+    flags[side] = payload[side].isTeamBuilder;
+  }
+  if (ids.away === ids.home) return null;
+  const teams = {
+    away: byPresentationId.get(ids.away),
+    home: byPresentationId.get(ids.home),
+  };
+  if (!['away', 'home'].every((side) => (
+    (teams[side]?.isTeamBuilder === true) === flags[side]
+  ))) return null;
+  const match = findMatchupGame(context, teams.away, teams.home);
+  return match ? { ids, flags, teams, match } : null;
+}
+
+function swapOwnFields(away, home, fields) {
+  const nextAway = { ...away };
+  const nextHome = { ...home };
+  for (const field of fields) {
+    const awayHas = Object.hasOwn(away, field);
+    const homeHas = Object.hasOwn(home, field);
+    if (homeHas) nextAway[field] = home[field]; else delete nextAway[field];
+    if (awayHas) nextHome[field] = away[field]; else delete nextHome[field];
+  }
+  return { away: nextAway, home: nextHome };
+}
+
+function oppositeSide(side) {
+  return side === 'away' ? 'home' : (side === 'home' ? 'away' : side);
+}
+
+// A freshly-created ScoreHud pair can occasionally be oriented backwards at
+// a tied neutral-site/playoff kickoff. The selected Dynasty save is allowed to
+// correct that only with the strongest proof we have: two unique live ids,
+// matching TeamBuilder flags, and those exact teams scheduled against each
+// other this week. This runs on RAM-only state before screen/manual layers, so
+// only team-bound RAM values move; core scores and game clocks never do.
+function applyDynastySideCorrection(payload, dynasty) {
+  const proof = exactDynastyIdentityMatch(payload, dynasty);
+  if (!proof?.match.flipped) return payload;
+
+  const originalAway = payload.away || {};
+  const originalHome = payload.home || {};
+  const swapped = swapOwnFields(originalAway, originalHome, [
+    'presentationId', 'presentationIdSource', 'isTeamBuilder', 'isTeamBuilderSource',
+    'name', 'nameSource', 'shortName', 'nickname', 'rank', 'rankSource',
+    'record', 'recordSource', 'timeouts', 'timeoutsSource',
+    'possession', 'possessionSource', 'color', 'logo',
+  ]);
+  const game = { ...(payload.game || {}) };
+  if (game.penaltyFlag === 'away' || game.penaltyFlag === 'home') {
+    game.penaltyFlag = oppositeSide(game.penaltyFlag);
+  }
+  if (game.penaltyTeam === 'away' || game.penaltyTeam === 'home') {
+    game.penaltyTeam = oppositeSide(game.penaltyTeam);
+  }
+  if (game.penalty && typeof game.penalty === 'object') {
+    game.penalty = { ...game.penalty };
+    if (game.penalty.team === 'away' || game.penalty.team === 'home') {
+      game.penalty.team = oppositeSide(game.penalty.team);
+    }
+  }
+  if (Array.isArray(game.hudTexts)) {
+    game.hudTexts = game.hudTexts.map((item) => {
+      if (!item || typeof item !== 'object') return item;
+      return { ...item, teamSide: oppositeSide(item.teamSide) };
+    });
+  }
+
+  const meta = { ...(payload.meta || {}) };
+  if (meta.ramTeamIdentity?.away && meta.ramTeamIdentity?.home) {
+    meta.ramTeamIdentity = {
+      away: { ...meta.ramTeamIdentity.home },
+      home: { ...meta.ramTeamIdentity.away },
+    };
+  }
+  meta.dynastySideCorrection = {
+    method: 'presentation-id-schedule',
+    gameIndex: proof.match.game.index,
+    rawPresentationIds: { ...proof.ids },
+    correctedPresentationIds: {
+      away: proof.ids.home,
+      home: proof.ids.away,
+    },
+  };
+  return {
+    ...payload,
+    away: swapped.away,
+    home: swapped.home,
+    game,
+    meta,
+  };
+}
+
 function weekLabel(season, game) {
   const type = String(game?.weekType || season?.currentWeekType || '');
   if (game?.bowl?.name) return game.bowl.name;
@@ -305,41 +412,14 @@ function applyDynastyNameFallback(payload, dynasty, resolver) {
   // PresentationId and TeamBuilder bit. Both ids must be unique in this save,
   // agree with the save's TeamBuilder flags, and form a game scheduled for the
   // current week. That prevents a stale/wrong save from renaming the bug.
-  const byPresentationId = dynasty.byPresentationId instanceof Map
-    ? dynasty.byPresentationId
-    : indexSaveTeamsByPresentationId(context);
-  const livePresentationId = (side) => {
-    const value = payload[side]?.presentationId;
-    return value === null || value === undefined || String(value).trim() === '' ? NaN : Number(value);
-  };
-  const presentationIds = { away: livePresentationId('away'), home: livePresentationId('home') };
-  const liveTeamBuilder = {
-    away: payload.away?.isTeamBuilder,
-    home: payload.home?.isTeamBuilder,
-  };
-  const idsUsable = ['away', 'home'].every((side) => (
-    Number.isInteger(presentationIds[side])
-      && presentationIds[side] >= 1
-      && presentationIds[side] <= 2047
-      && typeof liveTeamBuilder[side] === 'boolean'
-      && byPresentationId.has(presentationIds[side])
-  )) && presentationIds.away !== presentationIds.home;
-  if (idsUsable) {
-    const saveTeams = {
-      away: byPresentationId.get(presentationIds.away),
-      home: byPresentationId.get(presentationIds.home),
-    };
-    const flagsAgree = ['away', 'home'].every((side) => (
-      (saveTeams[side]?.isTeamBuilder === true) === liveTeamBuilder[side]
-    ));
-    const assets = flagsAgree ? {
+  const identityProof = exactDynastyIdentityMatch(payload, dynasty);
+  if (identityProof) {
+    const { ids: presentationIds, flags: liveTeamBuilder, teams: saveTeams, match } = identityProof;
+    const assets = {
       away: resolveSaveTeam(saveTeams.away, resolver),
       home: resolveSaveTeam(saveTeams.home, resolver),
-    } : { away: null, home: null };
-    const match = flagsAgree && assets.away && assets.home
-      ? findMatchupGame(context, saveTeams.away, saveTeams.home)
-      : null;
-    if (match) {
+    };
+    if (match && assets.away && assets.home) {
       const hints = {};
       for (const side of ['away', 'home']) {
         // A deliberate operator team choice remains the top layer.
@@ -485,6 +565,7 @@ module.exports = {
   applyDynastyContext,
   resolveSaveTeam,
   applyDynastyNameFallback,
+  applyDynastySideCorrection,
   userGame,
   confRecord,
   findMatchupGame,
