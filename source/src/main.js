@@ -4043,7 +4043,10 @@ function repairKnownThemeLibraryBugs() {
   if (!repaired.length) return repaired;
   for (const item of repaired) {
     copyThemeProfileToRepairedHash(item.oldSha256, item.newSha256);
-    logMessage(`Repaired ${item.name}: team names containing & now display correctly.`);
+    const details = [];
+    if (item.repairs.includes('allow-team-name-ampersand')) details.push('team names containing & now display correctly');
+    if (item.repairs.includes('fox-v7-live-identity')) details.push('live team names and ranks now replace preview text');
+    logMessage(`Repaired ${item.name}: ${details.join('; ') || 'known compatibility update applied'}.`);
   }
   persistSettings();
   return repaired;

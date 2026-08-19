@@ -55,3 +55,50 @@ test('saved theme repair updates integrity metadata without changing its library
   assert.equal(manifest.themes[0].sha256, repaired[0].newSha256);
   assert.equal(library.list().length, 1, 'updated integrity metadata remains valid');
 });
+
+test('known FOX-family bundle receives live name bridge and renders Texas A&M', () => {
+  const template = `<!DOCTYPE html><html><body>
+    <div data-cfb27-bind="away.name"></div>
+    <div data-cfb27-bind="home.name"></div>
+    <div data-cfb27-bind="away.rank"></div>
+    <script type="text/x-dc" data-props="awayNameText homeNameText rankLeftText rankRightText"></script>
+  </body></html>`;
+  const encoded = JSON.stringify(template).replace(/<\//g, '<\\u002F');
+  const source = `<html><body><script type="__bundler/template">${encoded}</script></body></html>`;
+  const repaired = repairKnownThemeHtml(Buffer.from(source));
+  assert.equal(repaired.changed, true);
+  assert.deepEqual(repaired.repairs, ['fox-v7-live-identity']);
+
+  const stored = repaired.bytes.toString('utf8');
+  const decoded = JSON.parse(stored.match(/<script type="__bundler\/template">([\s\S]*?)<\/script>/)[1]);
+  assert.match(decoded, /data-cfb27-fox-v7-live-identity/);
+  const bridge = decoded.match(/<script data-cfb27-fox-v7-live-identity>([\s\S]*?)<\/script>/)[1];
+  const elements = new Map([
+    ['away.name', { textContent: 'NOTRE DAME' }],
+    ['home.name', { textContent: 'ILLINOIS' }],
+    ['away.rank', { textContent: '21' }],
+  ]);
+  const listeners = {};
+  const window = {
+    addEventListener: (name, listener) => { listeners[name] = listener; },
+  };
+  const document = {
+    querySelectorAll: (selector) => {
+      const binding = selector.match(/data-cfb27-bind="([^"]+)"/)?.[1];
+      return elements.has(binding) ? [elements.get(binding)] : [];
+    },
+  };
+  Function('window', 'document', bridge)(window, document);
+  listeners['cfb27-scoreboard-state']({
+    detail: {
+      away: { name: 'Texas A&M', shortName: 'Texas A&M', rank: 7 },
+      home: { name: 'Pittsburgh' },
+    },
+  });
+  assert.equal(elements.get('away.name').textContent, 'Texas A&M');
+  assert.equal(elements.get('home.name').textContent, 'Pittsburgh');
+  assert.equal(elements.get('away.rank').textContent, '7');
+
+  const secondPass = repairKnownThemeHtml(repaired.bytes);
+  assert.equal(secondPass.changed, false, 'repair is idempotent');
+});

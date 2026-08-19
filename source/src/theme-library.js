@@ -28,22 +28,86 @@ function sha256(bytes) {
 // known rule; arbitrary imported theme code is otherwise left untouched.
 const BAD_AMPERSAND_NAME_RULE = 'var NAME_REJECT = /&|\\d{1,2}:\\d{2}|\\b(1ST|2ND|3RD|4TH|GOAL|INCHES)\\b/i;';
 const FIXED_AMPERSAND_NAME_RULE = 'var NAME_REJECT = /\\d{1,2}:\\d{2}|\\b(1ST|2ND|3RD|4TH|GOAL|INCHES)\\b/i;';
+const FOX_V7_IDENTITY_MARKER = 'data-cfb27-fox-v7-live-identity';
+const FOX_V7_IDENTITY_BRIDGE = `<script ${FOX_V7_IDENTITY_MARKER}>
+(function () {
+  if (window.__CFB27_FOX_V7_IDENTITY_BRIDGE__) return;
+  window.__CFB27_FOX_V7_IDENTITY_BRIDGE__ = true;
+  function write(binding, value) {
+    document.querySelectorAll('[data-cfb27-bind="' + binding + '"]').forEach(function (element) {
+      var next = value === undefined || value === null ? '' : String(value);
+      if (element.textContent !== next) element.textContent = next;
+    });
+  }
+  function apply(state) {
+    if (!state || typeof state !== 'object') return;
+    ['away', 'home'].forEach(function (side) {
+      var team = state[side] || {};
+      write(side + '.name', team.shortName || team.name || '');
+      write(side + '.rank', team.rank || '');
+      write(side + '.record', team.record || '');
+      write(side + '.mascot', team.nickname || team.mascot || '');
+    });
+  }
+  ['cfb27-scoreboard-state', 'cfb27:scoreboardState', 'cfb27-update', 'cfb27:update'].forEach(function (name) {
+    window.addEventListener(name, function (event) { apply(event && event.detail); });
+  });
+  apply(window.__CFB27_SCOREBOARD_STATE__);
+})();
+</script>`;
+
+function repairFoxV7IdentityBridge(source) {
+  if (source.includes(FOX_V7_IDENTITY_MARKER)) return { html: source, changed: false };
+  const signatures = [
+    'awayNameText',
+    'homeNameText',
+    'rankLeftText',
+    'rankRightText',
+    'data-cfb27-bind=\\"away.name\\"',
+    'data-cfb27-bind=\\"home.name\\"',
+  ];
+  if (!signatures.every((signature) => source.includes(signature))) {
+    return { html: source, changed: false };
+  }
+  const match = /(<script type="__bundler\/template">\s*)([\s\S]*?)(\s*<\/script>)/.exec(source);
+  if (!match) return { html: source, changed: false };
+  let template;
+  try {
+    template = JSON.parse(match[2]);
+  } catch {
+    return { html: source, changed: false };
+  }
+  if (!/<\/body>/i.test(template)) return { html: source, changed: false };
+  const repairedTemplate = template.replace(/<\/body>/i, `${FOX_V7_IDENTITY_BRIDGE}\n</body>`);
+  const encoded = JSON.stringify(repairedTemplate).replace(/<\//g, '<\\u002F');
+  return {
+    html: `${source.slice(0, match.index)}${match[1]}${encoded}${match[3]}${source.slice(match.index + match[0].length)}`,
+    changed: true,
+  };
+}
 
 function repairKnownThemeHtml(bytes) {
   const source = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : String(bytes || '');
-  if (!source.includes(BAD_AMPERSAND_NAME_RULE)) {
-    return { bytes: Buffer.from(source, 'utf8'), changed: false, repairs: [] };
+  let html = source;
+  const repairs = [];
+  if (html.includes(BAD_AMPERSAND_NAME_RULE)) {
+    html = html
+      .replace(
+        '// A team name never contains "&", a clock, or an ordinal down — those are stray writes.',
+        '// Ampersands are valid in school names such as Texas A&M; reject only clock/down text.',
+      )
+      .replaceAll(BAD_AMPERSAND_NAME_RULE, FIXED_AMPERSAND_NAME_RULE);
+    repairs.push('allow-team-name-ampersand');
   }
-  const html = source
-    .replace(
-      '// A team name never contains "&", a clock, or an ordinal down — those are stray writes.',
-      '// Ampersands are valid in school names such as Texas A&M; reject only clock/down text.',
-    )
-    .replaceAll(BAD_AMPERSAND_NAME_RULE, FIXED_AMPERSAND_NAME_RULE);
+  const foxV7 = repairFoxV7IdentityBridge(html);
+  if (foxV7.changed) {
+    html = foxV7.html;
+    repairs.push('fox-v7-live-identity');
+  }
   return {
     bytes: Buffer.from(html, 'utf8'),
     changed: html !== source,
-    repairs: ['allow-team-name-ampersand'],
+    repairs,
   };
 }
 
