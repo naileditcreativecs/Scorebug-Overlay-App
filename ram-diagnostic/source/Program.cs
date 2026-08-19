@@ -3986,6 +3986,65 @@ namespace CollegeFootballRamDiagnostic
                     if (RamLiveExporter.TrySelectScoreHudSidesByName(ambiguous, "Air Force", "Fresno State", names, tied, tied, out a, out h))
                         throw new Exception("Name orientation accepted clones with disagreeing ranks.");
                 }
+                // Live TeamId/TeamBuilder publication is atomic and fail-closed:
+                // both oriented objects must match the current core scores and
+                // the orientation must belong to the current matchup epoch.
+                // Pending ordered names do not block a fresh ScoreHud binding.
+                {
+                    RamReadResult awayIdentityScore = new RamReadResult(true, 14, 1, 1, 1);
+                    RamReadResult homeIdentityScore = new RamReadResult(true, 7, 1, 1, 1);
+                    ScoreHudTeamCandidate awayIdentity = new ScoreHudTeamCandidate
+                    {
+                        Address = 0x5100,
+                        TeamId = 1174,
+                        Score = 14,
+                        IsTeambuilder = 1
+                    };
+                    ScoreHudTeamCandidate homeIdentity = new ScoreHudTeamCandidate
+                    {
+                        Address = 0x6200,
+                        TeamId = 1186,
+                        Score = 7,
+                        IsTeambuilder = 0
+                    };
+                    if (!RamLiveExporter.ScoreHudIdentityBindingAllowed(true, true)
+                        || RamLiveExporter.ScoreHudIdentityBindingAllowed(true, false)
+                        || RamLiveExporter.ScoreHudIdentityBindingAllowed(false, false))
+                        throw new Exception("ScoreHud identity epoch gate failed for pending names.");
+
+                    if (!RamLiveExporter.ScoreHudTeamIdentityPairIsSafe(true,
+                            awayIdentityScore, homeIdentityScore, 1174, 1186,
+                            awayIdentity, homeIdentity)
+                        || RamLiveExporter.ScoreHudTeamIdentityPairIsSafe(false,
+                            awayIdentityScore, homeIdentityScore, 1174, 1186,
+                            awayIdentity, homeIdentity)
+                        || RamLiveExporter.ScoreHudTeamIdentityPairIsSafe(true,
+                            RamReadResult.Missing(1), homeIdentityScore, 1174, 1186,
+                            awayIdentity, homeIdentity))
+                        throw new Exception("ScoreHud team identity epoch/availability gate failed.");
+
+                    awayIdentity.Score = 13;
+                    if (RamLiveExporter.ScoreHudTeamIdentityPairIsSafe(true,
+                        awayIdentityScore, homeIdentityScore, 1174, 1186,
+                        awayIdentity, homeIdentity))
+                        throw new Exception("ScoreHud team identity accepted a stale score.");
+                    awayIdentity.Score = 14;
+                    if (RamLiveExporter.ScoreHudTeamIdentityPairIsSafe(true,
+                        awayIdentityScore, homeIdentityScore, 999, 1186,
+                        awayIdentity, homeIdentity))
+                        throw new Exception("ScoreHud team identity accepted a changed orientation.");
+                    awayIdentity.IsTeambuilder = 2;
+                    if (RamLiveExporter.ScoreHudTeamIdentityPairIsSafe(true,
+                        awayIdentityScore, homeIdentityScore, 1174, 1186,
+                        awayIdentity, homeIdentity))
+                        throw new Exception("ScoreHud team identity accepted an invalid TeamBuilder flag.");
+                    awayIdentity.IsTeambuilder = 1;
+                    awayIdentity.TeamId = 2048;
+                    if (RamLiveExporter.ScoreHudTeamIdentityPairIsSafe(true,
+                        awayIdentityScore, homeIdentityScore, 2048, 1186,
+                        awayIdentity, homeIdentity))
+                        throw new Exception("ScoreHud team identity accepted an out-of-schema PresentationId.");
+                }
                 // Message team attribution: only a positive id matching an
                 // oriented side resolves; unknown ids and the -1/0 "no team"
                 // sentinels stay null rather than guessing a side.
@@ -5013,7 +5072,7 @@ namespace CollegeFootballRamDiagnostic
                         Directory.Delete(atomicDirectory, true);
                 }
 
-                string result = "{\"passed\":true,\"away\":\"Texas\",\"clockSeconds\":257,\"manualClockSeconds\":291,\"oneScanOverride\":true,\"matchupConfirmationTests\":true,\"rankOrientationTests\":true,\"fixedSideTimeoutTests\":true,\"possessionFailClosedTests\":true,\"wideDuplicateDownTests\":true,\"wideProgressionTests\":true,\"teamRoleVectorTests\":true,\"roleBindingLifecycleTests\":true,\"processIdentityTests\":true,\"timeoutContextMaskTests\":true,\"specialDownStateTests\":true,\"atomicSharedOutputTests\":true,\"fullScanCoordinatorTests\":true,\"backgroundGenerationTests\":true,\"pendingEpochRestartTests\":true}";
+                string result = "{\"passed\":true,\"away\":\"Texas\",\"clockSeconds\":257,\"manualClockSeconds\":291,\"oneScanOverride\":true,\"matchupConfirmationTests\":true,\"rankOrientationTests\":true,\"scoreHudTeamIdentityTests\":true,\"fixedSideTimeoutTests\":true,\"possessionFailClosedTests\":true,\"wideDuplicateDownTests\":true,\"wideProgressionTests\":true,\"teamRoleVectorTests\":true,\"roleBindingLifecycleTests\":true,\"processIdentityTests\":true,\"timeoutContextMaskTests\":true,\"specialDownStateTests\":true,\"atomicSharedOutputTests\":true,\"fullScanCoordinatorTests\":true,\"backgroundGenerationTests\":true,\"pendingEpochRestartTests\":true}";
                 if (!String.IsNullOrWhiteSpace(outputPath)) File.WriteAllText(outputPath, result);
                 return 0;
             }

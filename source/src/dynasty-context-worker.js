@@ -87,6 +87,24 @@ function teamName(rec) {
 }
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+const optionalNum = (v) => (v === null || v === undefined || String(v).trim() === '' ? null : num(v));
+const identityNum = (v) => {
+  const number = optionalNum(v);
+  return Number.isInteger(number) && number >= 0 && number <= 2047 ? number : null;
+};
+
+function safeLogoUrl(value) {
+  const text = String(value || '').trim();
+  if (!text || text.length > 501) return null;
+  try {
+    const parsed = new URL(text);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return null;
+    // Preserve the source bytes because URL canonicalization can invalidate a
+    // signed CDN query. These strings remain private/dormant until validated
+    // against a real TeamBuilder save and are never fetched here.
+    return text;
+  } catch { return null; }
+}
 
 function rgbHex(r, g, b) {
   const parts = [r, g, b].map((v) => Number(v));
@@ -122,6 +140,8 @@ async function main() {
       const ties = (num(s.HomeTie) || 0) + (num(s.RoadTie) || 0) + (num(s.NeutralTie) || 0);
       const team = {
         index: i, teamIndex: num(s.TeamIndex), name: teamName(r), nickname: String(s.NickName || s.Nickname || '').trim() || null,
+        presentationId: identityNum(s.PresentationId), originalId: identityNum(s.TEAM_ORIGID),
+        isTeamBuilder: s.IsTeamBuilder === true || s.IsTeamBuilder === 1,
         wins, losses, ties, confWins: num(s.ConfWin) || 0, confLosses: num(s.ConfLoss) || 0,
         mediaRank: num(s.MediaPoll_CurrentRank), coachesRank: num(s.CoachesPoll_CurrentRank), cfpRank: num(s.CFPPoll_CurrentRank),
         mediaRankLastWeek: num(s.MediaPoll_LastWeeksRank), playoffStatus: s.PlayoffStatus || null,
@@ -132,13 +152,34 @@ async function main() {
         abbreviation: String(s.ShortName || '').trim() || null,
         assetName: String(s.AssetName || '').trim() || null,
         longName: String(s.LongName || '').trim() || null,
+        logoAssetName: String(s.TEAM_LOGO_ASSETNAME || '').trim() || null,
+        logoLibraryPath: String(s.TEAM_LOGO_SWAPPABLE_LIBRARY_PATH || '').trim() || null,
         primary: rgbHex(s.TEAM_BACKGROUNDCOLORR, s.TEAM_BACKGROUNDCOLORG, s.TEAM_BACKGROUNDCOLORB),
         secondary: s.TEAM_HAS_SECONDARY_COLOR === false ? null : rgbHex(s.TEAM_BACKGROUNDCOLORR2, s.TEAM_BACKGROUNDCOLORG2, s.TEAM_BACKGROUNDCOLORB2),
         conferenceIndex: decodeRef(r.Conference)?.recordIndex ?? null,
         // The user's team is the one with a UserCharacter reference.
         isUser: Boolean(decodeRef(r.UserCharacter)),
         seasonTotals: null,
+        teamBuilderData: null,
       };
+      // CFB27 stores a TeamBuilderData reference with the downloaded team's
+      // binary and logo URLs. Preserve validated HTTP(S) metadata for future
+      // logo caching, but do not fetch or trust it until a real TeamBuilder
+      // save fixture has verified lifetime/auth/format behavior.
+      if (team.isTeamBuilder) {
+        try {
+          const hit = await derefRecord(franchise, r.TeamBuilderData);
+          const v = hit?.table === 'TeamBuilderData' ? scalar(hit.record) : null;
+          if (v) {
+            const data = {
+              primaryLogoUrl: safeLogoUrl(v.PrimaryLogoURL),
+              secondaryLogoUrl: safeLogoUrl(v.SecondaryLogoURL),
+              tertiaryLogoUrl: safeLogoUrl(v.TertiaryLogoURL),
+            };
+            if (Object.values(data).some(Boolean)) team.teamBuilderData = data;
+          }
+        } catch { /* optional TeamBuilder enrichment */ }
+      }
       // Season totals: Team.TeamSeasonStats -> TeamStats rows (one per season); pick
       // the slot whose W-L matches the live record, else the first.
       try {

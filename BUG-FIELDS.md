@@ -1,4 +1,4 @@
-CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.49)
+CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.52)
 =========================================================
 
 Every bug gets one state object on every change: in `update(obj)` /
@@ -11,6 +11,8 @@ never guesses.
 TEAMS  (away.* and home.*)
   name, shortName, nickname, rank (1-25 or null), record ("5-2"),
   score, timeouts (0-3), possession (bool), color (#hex), logo (data URL)
+  presentationId              stable ScoreHud/save team id (RAM)
+  isTeamBuilder               true/false from the live ScoreHud team object
   recordSource / rankSource   "ram" normally; "dynasty-save" when the save
                               filled it in before the reader confirmed it
   confRecord                  "3-1"                       (dynasty save)
@@ -54,7 +56,13 @@ GAME  (game.*)
   bowlName        bowl name or null
 
 META  (meta.*)
-  teamAssets, scorebugColors, teamLogoLayouts, dynasty { matched, season, teams }
+  teamAssets                  per-side resolved asset; includes id, source,
+                              presentationId and isTeamBuilder
+  dynastyTeamAssets           exact per-side Dynasty id hints when both live
+                              PresentationIds match this week's save schedule
+  ramTeamIdentity             raw score-guarded away/home PresentationIds and
+                              TeamBuilder flags (source "ram-scorehud")
+  scorebugColors, teamLogoLayouts, dynasty { matched, season, teams }
 
 THEME SETTINGS  (themeSettings.*)   see THEME-SETTINGS.md
 
@@ -71,7 +79,20 @@ Team names in Dynasty
   never by look-alike), and any school the roster does not have (FCS East /
   Midwest / Northwest / Southeast / West, TeamBuilder or mod schools) is
   created from the save itself - name, nickname, abbreviation and the
-  save's colours (no logo is invented). If the reader's name for a side is
-  missing or is not a real team, the side is filled from this week's
-  schedule (nameSource "dynasty-save"). Diagnostics > Dynasty shows
-  "N/N teams identified".
+  save's colours (no logo is invented). The reader publishes each live
+  ScoreHud PresentationId and TeamBuilder flag as an atomic, score-guarded
+  pair. The app joins both ids to the selected save only when they are unique
+  and form a game in this week's schedule, so duplicate names and TeamBuilder
+  teams named after a real school remain separate. When that proof succeeds,
+  the matched save name is authoritative for each non-manual side (even over a
+  conflicting readable name) and uses nameSource "dynasty-save". Older readers
+  retain the legacy fallback, which fills only missing/not-real names from a
+  known team or the user's scheduled game.
+
+  TeamBuilder logo URL metadata is retained from the save but is not fetched
+  yet; a real TeamBuilder save sample is needed to verify URL lifetime,
+  authentication and image format before automatic logo caching is safe.
+  A uniquely matching logo manually added in Custom Teams takes precedence
+  automatically. If two save teams share the same name, neither is assigned
+  that one custom asset by row order; choose it manually for a side instead.
+  Diagnostics > Dynasty shows "N/N teams identified".

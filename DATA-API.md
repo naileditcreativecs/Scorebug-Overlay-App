@@ -62,8 +62,13 @@ Top-level keys:
     timeouts      0-3 or null
     possession    true/false or null (null = no clean answer right now,
                   e.g. kickoffs/dead balls - hide your indicator then)
+    presentationId  stable integer identity from the oriented ScoreHud
+                    object, or null
+    isTeamBuilder   true/false for that same object, or null
     Each field has a matching *Source key; the value is real when the
-    source is "ram".
+    source is "ram". The two identity fields use source "ram-scorehud"
+    and publish for BOTH teams or neither: both ids must match the current
+    live scores/orientation and have valid TeamBuilder flags.
 
   game
     quarter / quarterText     1..n / "1st".."4th","OT"
@@ -118,7 +123,8 @@ Top-level keys:
                 (quarter, gameClockSeconds, playClock, awayScore,
                 homeScore, possessionAwayIsOne, down, distance,
                 awayTimeouts, homeTimeouts, awayRank, homeRank,
-                awayRecord, homeRecord, awayTeamName, homeTeamName):
+                awayRecord, homeRecord, awayTeamName, homeTeamName,
+                awayPresentationId, homePresentationId):
 
                   changedAt            ISO time the PUBLISHED value
                                        last changed
@@ -162,7 +168,13 @@ Rules of thumb
 
 Known limitations
 -----------------
-- Team names for TeamBuilder/custom teams are not read yet.
+- The standalone reader publishes a TeamBuilder team's stable
+  presentationId and isTeamBuilder flag, but it does not parse Dynasty saves
+  itself. The Scoreboard Overlay app joins those ids to the selected save to
+  supply exact names, colours, records and ranks. Other clients can perform
+  the same join; without it, the standalone name can remain null.
+- Automatic TeamBuilder logo download is not enabled until a real
+  TeamBuilder save validates the stored URL lifetime/authentication/format.
 - Ranks/records normally show from the kickoff (the reader matches the
   scoreboard team objects to the away/home names). If the two teams
   cannot be told apart by name (identical or unreadable names), they

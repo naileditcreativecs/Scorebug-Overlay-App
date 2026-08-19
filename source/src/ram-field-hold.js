@@ -18,6 +18,8 @@ const IDENTITY_HOLD_MS = Number.POSITIVE_INFINITY;
 // absent from this list would blink again, so keep it in step with that
 // function.
 const HELD_FIELDS = [
+  ['away', 'presentationId', IDENTITY_HOLD_MS],
+  ['away', 'isTeamBuilder', IDENTITY_HOLD_MS],
   ['away', 'name', IDENTITY_HOLD_MS],
   ['away', 'rank', IDENTITY_HOLD_MS],
   ['away', 'record', IDENTITY_HOLD_MS],
@@ -26,6 +28,8 @@ const HELD_FIELDS = [
   // tried in v1.4.48 left stale counts on screen for testers).
   ['away', 'timeouts', RAM_FIELD_HOLD_MS],
   ['away', 'possession', RAM_FIELD_HOLD_MS],
+  ['home', 'presentationId', IDENTITY_HOLD_MS],
+  ['home', 'isTeamBuilder', IDENTITY_HOLD_MS],
   ['home', 'name', IDENTITY_HOLD_MS],
   ['home', 'rank', IDENTITY_HOLD_MS],
   ['home', 'record', IDENTITY_HOLD_MS],
@@ -42,13 +46,32 @@ const HELD_FIELDS = [
 ];
 
 function createRamFieldHoldCache() {
-  return { processId: undefined, entries: new Map() };
+  return { processId: undefined, teamIdentitySignature: null, entries: new Map() };
 }
 
 function clearRamFieldHold(cache) {
   if (!cache) return;
   cache.processId = undefined;
+  cache.teamIdentitySignature = null;
   cache.entries = new Map();
+}
+
+function teamIdentitySignature(state) {
+  const parts = [];
+  for (const side of ['away', 'home']) {
+    const team = state?.[side];
+    if (!Number.isInteger(team?.presentationId) || typeof team?.isTeamBuilder !== 'boolean') return null;
+    parts.push(`${team.presentationId}:${team.isTeamBuilder ? 1 : 0}`);
+  }
+  return parts.join('|');
+}
+
+function clearTeamIdentityEntries(entries) {
+  for (const side of ['away', 'home']) {
+    for (const key of ['presentationId', 'isTeamBuilder', 'name', 'rank', 'record']) {
+      entries.delete(`${side}.${key}`);
+    }
+  }
 }
 
 function applyRamFieldHold(payload, cache, nowMs, holdOverrideMs = null) {
@@ -56,9 +79,17 @@ function applyRamFieldHold(payload, cache, nowMs, holdOverrideMs = null) {
   const processId = payload.state.meta?.ramProcessId ?? null;
   if (cache.processId !== processId) {
     cache.processId = processId;
+    cache.teamIdentitySignature = null;
     cache.entries = new Map();
   }
   const entries = cache.entries;
+  const identitySignature = teamIdentitySignature(payload.state);
+  if (identitySignature && cache.teamIdentitySignature && identitySignature !== cache.teamIdentitySignature) {
+    // A newly verified ScoreHud pair is a new identity epoch. Never combine
+    // its ids with the previous matchup's infinitely-held names/ranks/records.
+    clearTeamIdentityEntries(entries);
+  }
+  if (identitySignature) cache.teamIdentitySignature = identitySignature;
   for (const [section, key, fieldHoldMs] of HELD_FIELDS) {
     const holdMs = holdOverrideMs ?? fieldHoldMs;
     const target = payload.state[section];

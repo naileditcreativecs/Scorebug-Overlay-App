@@ -4,15 +4,25 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { TeamAssetResolver } = require('../src/recognition/team-assets');
-const { applyDynastyContext, indexSaveTeams, weekLabel, leaderLine, streakText } = require('../src/dynasty-context');
+const {
+  applyDynastyContext,
+  applyDynastyNameFallback,
+  indexSaveTeams,
+  indexSaveTeamsByPresentationId,
+  leaderLine,
+  registerUnmatchedSaveTeams,
+  resolveSaveTeam,
+  streakText,
+  weekLabel,
+} = require('../src/dynasty-context');
 
 const resolver = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
 
 const context = {
   season: { currentWeek: 12, currentWeekType: 'RegularSeason', seasonYear: 2008, regularSeasonLastWeek: 14, confChampWeek: 15 },
   teams: [
-    { index: 95, teamIndex: 75, name: 'Pittsburgh', nickname: 'Panthers', wins: 2, losses: 8, ties: 0, confWins: 1, confLosses: 5, mediaRank: 122, coachesRank: 122, cfpRank: 0, streak: -2, offensiveRank: 40, defensiveRank: 103, conferenceIndex: 3, seasonTotals: { games: 10, offYards: 4362, passYards: 2816, rushYards: 1546, firstDowns: 201, penalties: 53, penaltyYards: 400, possessionTime: 16552, thirdDowns: 120, thirdDownConv: 40, turnovers: 10, takeaways: 8, sacks: 20, defPassYards: 2000, defRushYards: 1500 } },
-    { index: 20, teamIndex: 21, name: 'Cincinnati', nickname: 'Bearcats', wins: 9, losses: 1, ties: 0, confWins: 5, confLosses: 0, mediaRank: 5, coachesRank: 5, cfpRank: 5, streak: 4, offensiveRank: 14, defensiveRank: 13, conferenceIndex: 3, seasonTotals: null },
+    { index: 95, teamIndex: 75, presentationId: 1186, isTeamBuilder: false, name: 'Pittsburgh', nickname: 'Panthers', wins: 2, losses: 8, ties: 0, confWins: 1, confLosses: 5, mediaRank: 122, coachesRank: 122, cfpRank: 0, streak: -2, offensiveRank: 40, defensiveRank: 103, conferenceIndex: 3, seasonTotals: { games: 10, offYards: 4362, passYards: 2816, rushYards: 1546, firstDowns: 201, penalties: 53, penaltyYards: 400, possessionTime: 16552, thirdDowns: 120, thirdDownConv: 40, turnovers: 10, takeaways: 8, sacks: 20, defPassYards: 2000, defRushYards: 1500 } },
+    { index: 20, teamIndex: 21, presentationId: 1120, isTeamBuilder: false, name: 'Cincinnati', nickname: 'Bearcats', wins: 9, losses: 1, ties: 0, confWins: 5, confLosses: 0, mediaRank: 5, coachesRank: 5, cfpRank: 5, streak: 4, offensiveRank: 14, defensiveRank: 13, conferenceIndex: 3, seasonTotals: null },
   ],
   gamesThisWeek: [
     { index: 1, week: 12, weekType: 'RegularSeason', status: 'Unplayed', homeIndex: 20, awayIndex: 95, isRematch: false, gameOfWeek: false, network: 'National', weather: 'Rain', temperature: 48, bowl: null },
@@ -58,7 +68,6 @@ test('dynasty context: labels and lines', () => {
 });
 
 test('dynasty context: names fall back to the save game, never over a real reader name', () => {
-  const { applyDynastyNameFallback } = require('../src/dynasty-context');
   const ctx = JSON.parse(JSON.stringify(context));
   ctx.userGameIndex = 1;
   ctx.teams[0].isUser = true;
@@ -82,8 +91,184 @@ test('dynasty context: names fall back to the save game, never over a real reade
   assert.equal(both.meta.dynastyNameFallback, undefined);
 });
 
+test('dynasty context: live presentation ids choose the exact scheduled save teams', () => {
+  const local = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
+  const ctx = JSON.parse(JSON.stringify(context));
+  registerUnmatchedSaveTeams(ctx, local);
+  const dynasty = {
+    context: ctx,
+    byAsset: indexSaveTeams(ctx, local),
+    byPresentationId: indexSaveTeamsByPresentationId(ctx),
+  };
+  const out = applyDynastyNameFallback({
+    away: { presentationId: 1186, isTeamBuilder: false },
+    home: { presentationId: 1120, isTeamBuilder: false },
+    game: {},
+    meta: {},
+  }, dynasty, local);
+  assert.match(out.away.name, /Pitt/);
+  assert.equal(out.home.name, 'Cincinnati');
+  assert.equal(out.away.nameSource, 'dynasty-save');
+  assert.equal(out.meta.dynastyNameFallback.method, 'presentation-id');
+  assert.equal(out.meta.dynastyNameFallback.gameIndex, 1);
+  assert.equal(out.meta.dynastyTeamAssets.away.id, local.resolve('Pittsburgh').id);
+  assert.equal(out.meta.dynastyTeamAssets.home.id, local.resolve('Cincinnati').id);
+
+  const conflictingNames = applyDynastyNameFallback({
+    away: { name: 'Alabama', nameSource: 'ram', presentationId: 1186, isTeamBuilder: false },
+    home: { name: 'Auburn', nameSource: 'ram', presentationId: 1120, isTeamBuilder: false },
+    game: {}, meta: {},
+  }, dynasty, local);
+  assert.match(conflictingNames.away.name, /Pitt/);
+  assert.equal(conflictingNames.home.name, 'Cincinnati');
+  assert.equal(conflictingNames.away.nameSource, 'dynasty-save');
+
+  // A stale save, duplicate id, or disagreeing TeamBuilder bit cannot rename
+  // the scorebug. With no userGame fallback these stay completely untouched.
+  const staleContext = JSON.parse(JSON.stringify(context));
+  staleContext.gamesThisWeek = [];
+  const stale = applyDynastyNameFallback({
+    away: { presentationId: 1186, isTeamBuilder: false },
+    home: { presentationId: 1120, isTeamBuilder: false },
+    game: {}, meta: {},
+  }, { context: staleContext, byAsset: dynasty.byAsset, byPresentationId: indexSaveTeamsByPresentationId(staleContext) }, local);
+  assert.equal(stale.away.name, undefined);
+  assert.equal(stale.meta.dynastyNameFallback, undefined);
+  const wrongFlag = applyDynastyNameFallback({
+    away: { presentationId: 1186, isTeamBuilder: true },
+    home: { presentationId: 1120, isTeamBuilder: false },
+    game: {}, meta: {},
+  }, dynasty, local);
+  assert.equal(wrongFlag.away.name, undefined);
+  const ambiguousContext = JSON.parse(JSON.stringify(context));
+  ambiguousContext.teams.push({ ...ambiguousContext.teams[0], index: 999 });
+  assert.equal(indexSaveTeamsByPresentationId(ambiguousContext).has(1186), false);
+  assert.equal(indexSaveTeamsByPresentationId({ teams: [{ presentationId: 2048 }] }).size, 0);
+});
+
+test('dynasty context: a TeamBuilder named like a roster school keeps a separate stable identity', () => {
+  const local = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
+  const bundledAlabama = local.resolve('Alabama');
+  assert.ok(bundledAlabama);
+  const ctx = {
+    season: { currentWeek: 1, currentWeekType: 'RegularSeason' },
+    teams: [
+      { index: 1, presentationId: 1102, isTeamBuilder: false, name: 'Alabama', nickname: 'Crimson Tide' },
+      { index: 2, presentationId: 1901, originalId: 1102, isTeamBuilder: true, name: 'Alabama', nickname: 'Forge', abbreviation: 'FORG', primary: '#123456', secondary: '#abcdef' },
+      { index: 3, presentationId: 1109, isTeamBuilder: false, name: 'Auburn', nickname: 'Tigers' },
+    ],
+    gamesThisWeek: [{ index: 8, awayIndex: 2, homeIndex: 3, week: 1, weekType: 'RegularSeason' }],
+  };
+  const synthesized = registerUnmatchedSaveTeams(ctx, local);
+  assert.deepEqual(synthesized.map((team) => team.index), [2]);
+  const teamBuilder = local.resolveDynastyTeam(ctx.teams[1]);
+  assert.ok(teamBuilder);
+  assert.equal(teamBuilder.id, 'dyn-pid-1901');
+  assert.equal(teamBuilder.isTeamBuilder, true);
+  assert.equal(teamBuilder.primary, '#123456');
+  assert.equal(local.resolve('Alabama').id, bundledAlabama.id, 'global roster alias is not stolen');
+  const byAsset = indexSaveTeams(ctx, local);
+  assert.equal(byAsset.size, 3);
+  assert.equal(byAsset.get(teamBuilder.id).index, 2);
+
+  const out = applyDynastyNameFallback({
+    away: { presentationId: 1901, isTeamBuilder: true },
+    home: { presentationId: 1109, isTeamBuilder: false },
+    game: {}, meta: {},
+  }, { context: ctx, byAsset, byPresentationId: indexSaveTeamsByPresentationId(ctx) }, local);
+  assert.equal(out.meta.dynastyTeamAssets.away.id, 'dyn-pid-1901');
+  assert.equal(out.meta.dynastyTeamAssets.home.id, local.resolve('Auburn').id);
+});
+
+test('dynasty context: duplicate TeamBuilder names remain two teams by presentation id', () => {
+  const local = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
+  const ctx = {
+    teams: [
+      { index: 10, presentationId: 1601, isTeamBuilder: true, name: 'Metro Owls', nickname: 'Owls', primary: '#111111' },
+      { index: 11, presentationId: 1602, isTeamBuilder: true, name: 'Metro Owls', nickname: 'Owls', primary: '#222222' },
+    ],
+    gamesThisWeek: [{ index: 1, awayIndex: 10, homeIndex: 11 }],
+  };
+  assert.equal(registerUnmatchedSaveTeams(ctx, local).length, 2);
+  const first = local.resolveDynastyTeam(ctx.teams[0]);
+  const second = local.resolveDynastyTeam(ctx.teams[1]);
+  assert.ok(first && second);
+  assert.notEqual(first.id, second.id);
+  assert.equal(first.primary, '#111111');
+  assert.equal(second.primary, '#222222');
+  assert.equal(indexSaveTeams(ctx, local).size, 2);
+  assert.equal(local.resolve('Metro Owls'), null, 'ambiguous dynamic name has no global alias');
+
+  const legacyContext = {
+    teams: [
+      ...ctx.teams,
+      { index: 12, presentationId: 1109, isTeamBuilder: false, name: 'Auburn', nickname: 'Tigers' },
+      { index: 13, presentationId: 1131, isTeamBuilder: false, name: 'Florida', nickname: 'Gators' },
+    ],
+    gamesThisWeek: [
+      { index: 1, awayIndex: 10, homeIndex: 12 },
+      { index: 2, awayIndex: 11, homeIndex: 13 },
+    ],
+  };
+  registerUnmatchedSaveTeams(legacyContext, local);
+  const legacy = applyDynastyNameFallback({
+    away: { name: 'Metro Owls', nameSource: 'ram' }, home: {}, game: {}, meta: {},
+  }, {
+    context: legacyContext,
+    byAsset: indexSaveTeams(legacyContext, local),
+    byPresentationId: indexSaveTeamsByPresentationId(legacyContext),
+  }, local);
+  assert.equal(legacy.home.name, undefined, 'one ambiguous name cannot choose either opponent');
+});
+
+test('dynasty context: reloading custom teams before the save gives custom art precedence', () => {
+  const saveTeam = { index: 5, presentationId: 1605, isTeamBuilder: true, name: 'Idaho', nickname: 'Vandals', abbreviation: 'IDHO' };
+  for (const customFirst of [false, true]) {
+    const local = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
+    if (!customFirst) {
+      registerUnmatchedSaveTeams({ teams: [saveTeam] }, local);
+      assert.equal(local.resolveDynastyTeam(saveTeam)?.source, 'dynasty-save');
+      local.setDynastyTeams([]);
+    }
+    local.setCustomTeams([{ id: 'custom-idaho', name: 'Idaho', nickname: 'Vandals', abbreviation: 'IDHO', primary: '#ff0000' }]);
+    const synthesized = registerUnmatchedSaveTeams({ teams: [saveTeam] }, local);
+    assert.deepEqual(synthesized, []);
+    assert.equal(resolveSaveTeam(saveTeam, local)?.id, 'custom-idaho');
+    assert.equal(local.resolve('Idaho')?.id, 'custom-idaho');
+  }
+});
+
+test('dynasty context: one custom asset never guesses between multiple claiming save teams', () => {
+  const scenarios = [
+    [
+      { index: 10, presentationId: 1601, isTeamBuilder: true, name: 'Metro Owls', nickname: 'Owls' },
+      { index: 11, presentationId: 1602, isTeamBuilder: true, name: 'Metro Owls', nickname: 'Owls' },
+    ],
+    [
+      { index: 10, presentationId: 1601, isTeamBuilder: true, name: 'Metro East', longName: 'Metro Owls', nickname: 'Owls' },
+      { index: 11, presentationId: 1602, isTeamBuilder: true, name: 'Metro West', longName: 'Metro Owls', nickname: 'Owls' },
+    ],
+    [
+      { index: 10, presentationId: 1601, isTeamBuilder: true, name: 'Metro East', abbreviation: 'MOW', nickname: 'Owls' },
+      { index: 11, presentationId: 1602, isTeamBuilder: true, name: 'Metro West', abbreviation: 'MOW', nickname: 'Owls' },
+    ],
+  ];
+  for (const rows of scenarios) {
+    for (const teams of [rows, [...rows].reverse()]) {
+      const local = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
+      local.setCustomTeams([{ id: 'custom-metro', name: 'Metro Owls', abbreviation: 'MOW', nickname: 'Owls', primary: '#ff00ff' }]);
+      const synthesized = registerUnmatchedSaveTeams({ teams }, local);
+      assert.equal(synthesized.length, 2);
+      for (const team of rows) {
+        const asset = resolveSaveTeam(team, local);
+        assert.equal(asset?.source, 'dynasty-save');
+        assert.notEqual(asset?.id, 'custom-metro');
+      }
+    }
+  }
+});
+
 test('dynasty context: every save team gets an identity - unknown schools are synthesized from the save', () => {
-  const { registerUnmatchedSaveTeams, applyDynastyNameFallback } = require('../src/dynasty-context');
   const ctx = JSON.parse(JSON.stringify(context));
   ctx.teams.push(
     { index: 30, teamIndex: 30, name: 'FCS East', nickname: 'Sentinels', abbreviation: 'FCSE', longName: 'FCS East', primary: '#000a26', secondary: '#af975a', wins: 0, losses: 0 },
@@ -117,7 +302,6 @@ test('dynasty context: every save team gets an identity - unknown schools are sy
 });
 
 test('dynasty context: save names never drift to a look-alike roster team', () => {
-  const { resolveSaveTeam } = require('../src/dynasty-context');
   const name = (n, k) => resolveSaveTeam({ name: n, nickname: k }, resolver)?.name ?? null;
   // Game spellings of roster teams resolve.
   assert.equal(name('NIU', 'Huskies'), 'Northern Illinois');

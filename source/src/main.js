@@ -85,6 +85,7 @@ const {
   applyDynastyContext,
   applyDynastyNameFallback,
   indexSaveTeams,
+  indexSaveTeamsByPresentationId,
   registerUnmatchedSaveTeams,
 } = require('./dynasty-context');
 const {
@@ -902,9 +903,29 @@ function ramScoreboardPayload(document) {
     target[key] = value;
     fields.push(label);
   };
+  const teamIdentityPair = Object.fromEntries(['away', 'home'].map((side) => {
+    const source = document[side] || {};
+    const presentationId = normalizeRamInteger(source.presentationId, { min: 1, max: 2047 });
+    return [side, {
+      presentationId,
+      isTeamBuilder: source.isTeamBuilder,
+      valid: source.presentationIdSource === 'ram-scorehud'
+        && source.isTeamBuilderSource === 'ram-scorehud'
+        && presentationId !== null
+        && typeof source.isTeamBuilder === 'boolean',
+    }];
+  }));
+  const teamIdentityPairValid = teamIdentityPair.away.valid
+    && teamIdentityPair.home.valid
+    && teamIdentityPair.away.presentationId !== teamIdentityPair.home.presentationId;
   for (const side of ['away', 'home']) {
     const source = document[side] || {};
     const target = state[side];
+    // Stable team identity comes from an atomically validated pair of live
+    // ScoreHud objects. The C# reader withholds both sides unless their ids,
+    // scores, orientation and TeamBuilder flags all agree on this tick.
+    apply(target, 'presentationId', teamIdentityPair[side].presentationId, teamIdentityPairValid, `${side}.presentationId`);
+    apply(target, 'isTeamBuilder', teamIdentityPair[side].isTeamBuilder, teamIdentityPairValid, `${side}.isTeamBuilder`);
     // 'ram-pending' carries a placeholder ("Away"/"Home") while the reader
     // re-proves the matchup. Treat it as absent so the field hold keeps the
     // last real name instead of flashing AWAY/HOME over it.
@@ -995,6 +1016,20 @@ function ramScoreboardPayload(document) {
     ramProfileScope: document.process.profileScope || null,
     ramUpdatedAt: document.updatedAt,
   };
+  if (teamIdentityPairValid) {
+    state.meta.ramTeamIdentity = {
+      away: {
+        presentationId: teamIdentityPair.away.presentationId,
+        isTeamBuilder: teamIdentityPair.away.isTeamBuilder,
+        source: 'ram-scorehud',
+      },
+      home: {
+        presentationId: teamIdentityPair.home.presentationId,
+        isTeamBuilder: teamIdentityPair.home.isTeamBuilder,
+        source: 'ram-scorehud',
+      },
+    };
+  }
   return { state, fields };
 }
 
@@ -3946,6 +3981,36 @@ let dynastyPollTimer = null;
 let dynastyWorkerBusy = false;
 let dynastyLastKey = '';
 let dynastyLeaderKey = '';
+let dynastyRefreshQueued = false;
+let dynastyRefreshQueuedForce = false;
+let dynastyFailurePath = '';
+let dynastyFailureSinceMs = 0;
+const DYNASTY_SAME_SAVE_FAILURE_GRACE_MS = 60000;
+
+function dynastySaveKey(save) {
+  return save ? `${save.full}|${Math.round(save.mtimeMs)}|${save.size}` : '';
+}
+
+function queueDynastyRefresh(force = false) {
+  dynastyRefreshQueued = true;
+  dynastyRefreshQueuedForce ||= force;
+}
+
+function runQueuedDynastyRefresh() {
+  if (dynastyWorkerBusy || !dynastyRefreshQueued) return;
+  const force = dynastyRefreshQueuedForce;
+  dynastyRefreshQueued = false;
+  dynastyRefreshQueuedForce = false;
+  setImmediate(() => { refreshDynastyContext({ force }).catch(() => {}); });
+}
+
+function dynastyRequestIsCurrent(save, key) {
+  if (dynastySettings().enabled === false) return false;
+  try {
+    const current = newestDynastySave();
+    return Boolean(current && samePath(current.full, save.full) && dynastySaveKey(current) === key);
+  } catch { return false; }
+}
 
 function dynastyWorkerScript() {
   // The worker requires madden-franchise, which must live outside the asar.
@@ -3982,47 +4047,110 @@ function runDynastyWorker(savePath, { teams = null } = {}) {
 }
 
 async function refreshDynastyContext({ force = false } = {}) {
-  if (dynastySettings().enabled === false) return;
-  if (dynastyWorkerBusy) return;
-  const newest = newestDynastySave();
-  if (!newest) {
-    if (runtime.dynasty && dynastyLastKey) { runtime.dynasty = null; dynastyLastKey = ''; publishCurrentScoreboardState(); }
+  if (dynastySettings().enabled === false) {
+    dynastyRefreshQueued = false;
+    dynastyRefreshQueuedForce = false;
+    if (clearLoadedDynastyContext()) publishCurrentScoreboardState();
     return;
   }
-  const key = `${newest.full}|${Math.round(newest.mtimeMs)}|${newest.size}`;
+  const newest = newestDynastySave();
+  if (!newest) {
+    dynastyRefreshQueued = false;
+    dynastyRefreshQueuedForce = false;
+    if (clearLoadedDynastyContext()) publishCurrentScoreboardState();
+    return;
+  }
+  if (runtime.dynasty?.savePath && !samePath(runtime.dynasty.savePath, newest.full)) {
+    // A different selected/newest save may describe a completely different
+    // Dynasty. Do not serve the previous save while this one is queued/read.
+    if (clearLoadedDynastyContext()) {
+      publishCurrentScoreboardState();
+      broadcastStatus();
+    }
+  }
+  if (dynastyWorkerBusy) {
+    queueDynastyRefresh(force);
+    return;
+  }
+  const key = dynastySaveKey(newest);
   if (!force && key === dynastyLastKey) return;
   // A save being written grows for a moment: wait until it has been quiet for 5 s.
   if (Date.now() - newest.mtimeMs < 5000) return;
   dynastyWorkerBusy = true;
   let loaded = false;
+  let cleared = false;
   try {
     const context = await runDynastyWorker(newest.full);
-    if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
-    runtime.dynasty = {
-      context,
-      byAsset: new Map(),
-      synthesizedTeams: [],
-      leaders: {},
-      savePath: newest.full,
-      pinned: Boolean(newest.pinned),
-      loadedAt: new Date().toISOString(),
-    };
-    const synthesized = reindexDynastyTeams();
-    dynastyLastKey = key;
-    dynastyLeaderKey = '';
-    logMessage(`Dynasty save read: ${path.basename(newest.full)} - ${context.season?.seasonYear ?? '?'} ${context.season?.currentWeekType || ''} week ${context.season?.currentWeek ?? '?'}, ${context.teams?.length || 0} teams, ${context.gamesThisWeek?.length || 0} games this week (${runtime.dynasty.byAsset.size} of ${context.teams?.length || 0} identified; ${synthesized} from the save only${synthesized ? `: ${runtime.dynasty.synthesizedTeams.join(', ')}` : ''}).`);
-    loaded = true;
+    if (!dynastyRequestIsCurrent(newest, key)) {
+      // Settings/save changed while the worker was reading. Never let an
+      // obsolete result repopulate the resolver; service the newest request.
+      let current = null;
+      try { current = newestDynastySave(); } catch { current = null; }
+      if (runtime.dynasty?.savePath
+          && (!current || !samePath(runtime.dynasty.savePath, current.full))) {
+        cleared = clearLoadedDynastyContext();
+      }
+      if (dynastySettings().enabled !== false) queueDynastyRefresh(true);
+    } else {
+      if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
+      runtime.dynasty = {
+        context,
+        byAsset: new Map(),
+        byPresentationId: new Map(),
+        synthesizedTeams: [],
+        leaders: {},
+        savePath: newest.full,
+        pinned: Boolean(newest.pinned),
+        loadedAt: new Date().toISOString(),
+      };
+      const synthesized = reindexDynastyTeams();
+      dynastyLastKey = key;
+      dynastyLeaderKey = '';
+      dynastyFailurePath = '';
+      dynastyFailureSinceMs = 0;
+      logMessage(`Dynasty save read: ${path.basename(newest.full)} - ${context.season?.seasonYear ?? '?'} ${context.season?.currentWeekType || ''} week ${context.season?.currentWeek ?? '?'}, ${context.teams?.length || 0} teams, ${context.gamesThisWeek?.length || 0} games this week (${runtime.dynasty.byAsset.size} of ${context.teams?.length || 0} identified; ${synthesized} from the save only${synthesized ? `: ${runtime.dynasty.synthesizedTeams.join(', ')}` : ''}).`);
+      loaded = true;
+    }
   } catch (error) {
-    logMessage(`Dynasty save could not be read: ${error.message}`);
-    dynastyLastKey = key; // do not hammer a broken file; a new save re-triggers
+    if (!dynastyRequestIsCurrent(newest, key)) {
+      if (dynastySettings().enabled !== false) queueDynastyRefresh(true);
+    } else {
+      logMessage(`Dynasty save could not be read: ${error.message}`);
+      const retainingSameSave = runtime.dynasty?.savePath
+        && samePath(runtime.dynasty.savePath, newest.full);
+      if (retainingSameSave) {
+        if (!dynastyFailurePath || !samePath(dynastyFailurePath, newest.full)) {
+          dynastyFailurePath = newest.full;
+          dynastyFailureSinceMs = Date.now();
+        }
+        if (Date.now() - dynastyFailureSinceMs >= DYNASTY_SAME_SAVE_FAILURE_GRACE_MS) {
+          cleared = clearLoadedDynastyContext();
+        }
+      } else {
+        cleared = clearLoadedDynastyContext();
+      }
+      // Leave dynastyLastKey unchanged so polling retries a transient failure.
+    }
   } finally {
     dynastyWorkerBusy = false;
   }
-  if (loaded) {
+  if (loaded || cleared) {
     // Publish AFTER the busy flag drops so the leaders request can start.
     publishCurrentScoreboardState();
     broadcastStatus();
   }
+  runQueuedDynastyRefresh();
+}
+
+function clearLoadedDynastyContext() {
+  const changed = Boolean(runtime.dynasty || dynastyLastKey || dynastyLeaderKey);
+  runtime.dynasty = null;
+  dynastyLastKey = '';
+  dynastyLeaderKey = '';
+  dynastyFailurePath = '';
+  dynastyFailureSinceMs = 0;
+  teamAssetResolver?.setDynastyTeams?.([]);
+  return changed;
 }
 
 // Once the live matchup is known, fetch the two teams' offensive leaders.
@@ -4048,7 +4176,7 @@ function maybeRequestDynastyLeaders() {
       }
     })
     .catch((error) => logMessage(`Dynasty leaders could not be read: ${error.message}`))
-    .finally(() => { dynastyWorkerBusy = false; });
+    .finally(() => { dynastyWorkerBusy = false; runQueuedDynastyRefresh(); });
 }
 
 const dynastyFolderWatchers = new Map();
@@ -4326,6 +4454,10 @@ function customTeamsRoot() {
 
 function syncCustomTeamsToResolver() {
   if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
+  // Dynamic save aliases can temporarily own a name that a newly imported
+  // custom team needs. Clear that layer first, install custom teams, then
+  // rebuild the save layer in deterministic precedence order.
+  teamAssetResolver?.setDynastyTeams([]);
   teamAssetResolver?.setCustomTeams(settings.customTeams, customTeamsRoot());
   // A new custom team may now cover a save team; rebuild the save index.
   reindexDynastyTeams();
@@ -4336,9 +4468,14 @@ function syncCustomTeamsToResolver() {
 // abbreviation, colours). Returns how many had to be synthesized.
 function reindexDynastyTeams() {
   const context = runtime.dynasty?.context;
-  if (!context || !teamAssetResolver) return 0;
+  if (!teamAssetResolver) return 0;
+  if (!context) {
+    teamAssetResolver.setDynastyTeams([]);
+    return 0;
+  }
   const synthesized = registerUnmatchedSaveTeams(context, teamAssetResolver);
   runtime.dynasty.byAsset = indexSaveTeams(context, teamAssetResolver);
+  runtime.dynasty.byPresentationId = indexSaveTeamsByPresentationId(context);
   runtime.dynasty.synthesizedTeams = synthesized.map((t) => t.name);
   return synthesized.length;
 }
@@ -4687,6 +4824,7 @@ function applyPlacementSettings({ restoreLocked = false } = {}) {
 
 async function saveSettings(nextSettings) {
   if (!isPlainObject(nextSettings)) throw new Error('Settings must be a JSON object.');
+  const previousDynastySettings = JSON.stringify(settings.dynasty || {});
   const previousScoreboardDataSource = scoreboardDataSourceMode();
   const previousExplicitSourceId = String(settings.capture?.sourceId || '');
   const previousThemePath = runtime.themePath;
@@ -4740,6 +4878,11 @@ async function saveSettings(nextSettings) {
     applyPlacementSettings();
     rememberThemeSizing(runtime.themePath);
     persistSettings();
+  }
+  if (JSON.stringify(settings.dynasty || {}) !== previousDynastySettings) {
+    // Disabling clears immediately; folder/save changes start now or queue
+    // behind an in-flight read. Obsolete worker results are rejected on commit.
+    refreshDynastyContext({ force: true }).catch(() => {});
   }
   applyWindowBehaviorSettings();
   runtime.automaticEnabled = settings.overlay?.autoHide !== false;
@@ -6057,12 +6200,19 @@ function stabilizeTeamOcrRead(read) {
 }
 
 function applyBundledTeamAssets(payload) {
+  payload.meta ||= {};
   const resolved = {};
   for (const side of ['away', 'home']) {
-    const identity = resolveBundledTeamIdentity(payload[side]?.name, payload[side]?.rank);
+    const hint = payload.meta.manualTeamOverrides?.[side]?.teamId
+      ? null
+      : payload.meta.dynastyTeamAssets?.[side];
+    const hintedAsset = hint?.id ? teamAssetResolver?.resolveTeamId(hint.id) : null;
+    const identity = hintedAsset
+      ? { asset: hintedAsset, match: 'dynasty-presentation-id' }
+      : resolveBundledTeamIdentity(payload[side]?.name, payload[side]?.rank);
     const asset = identity?.asset;
     if (!asset) continue;
-    if (identity.match && identity.match !== 'exact') {
+    if (!hintedAsset && identity.match && identity.match !== 'exact') {
       payload[side].name = identity.name;
       payload[side].rank = identity.rank;
     }
@@ -6078,6 +6228,10 @@ function applyBundledTeamAssets(payload) {
       source: asset.source,
       width: asset.width,
       height: asset.height,
+      presentationId: hint?.presentationId ?? asset.presentationId,
+      isTeamBuilder: typeof hint?.isTeamBuilder === 'boolean'
+        ? hint.isTeamBuilder
+        : asset.isTeamBuilder === true,
     };
   }
   if (Object.keys(resolved).length > 0) payload.meta.teamAssets = resolved;
@@ -7062,7 +7216,7 @@ async function scoreboardMethod(method, payload) {
       const chosen = String(payload || '').trim();
       dynastySettings().savePath = chosen && fs.existsSync(chosen) ? chosen : '';
       persistSettings();
-      dynastyLastKey = '';
+      if (clearLoadedDynastyContext()) publishCurrentScoreboardState();
       await refreshDynastyContext({ force: true });
       return dynastyStatusSummary();
     }

@@ -40,8 +40,26 @@ const SAVE_NAME_ALIASES = new Map([
   ['nc state', 'N.C. State'],
 ]);
 
-function resolveSaveTeam(team, resolver) {
+function resolveSaveTeam(team, resolver, { allowCustomTeamMatch = true } = {}) {
   if (!team || !resolver) return null;
+  // Once the save-only layer is installed, stable save identity wins over
+  // every spelling-based lookup. This is what lets two same-name TeamBuilder
+  // schools coexist, and lets a TeamBuilder named after a bundled school keep
+  // its own colours/art without stealing that school's global name alias.
+  let dynastyAsset = null;
+  try { dynastyAsset = resolver.resolveDynastyTeam?.(team) || null; } catch { dynastyAsset = null; }
+  if (dynastyAsset) return dynastyAsset;
+
+  if (team.isTeamBuilder === true) {
+    let customAsset = null;
+    if (allowCustomTeamMatch) {
+      try { customAsset = resolver.resolveCustomTeamExact?.(team) || null; } catch { customAsset = null; }
+    }
+    // Never let a TeamBuilder team fall through to fuzzy/bundled name
+    // matching. A custom team called "Alabama" is not proof that it is the
+    // bundled Alabama roster entry; PresentationId is the proof.
+    return customAsset;
+  }
   const tries = [team.name, SAVE_NAME_ALIASES.get(normalizeName(team.name)), team.nickname ? `${team.name} ${team.nickname}` : null].filter(Boolean);
   for (const candidate of tries) {
     let asset = null;
@@ -100,8 +118,27 @@ function registerUnmatchedSaveTeams(context, resolver) {
   resolver.setDynastyTeams([]);
   const unmatched = [];
   const taken = new Set();
+  const customClaimByTeam = new Map();
+  const customClaimCounts = new Map();
   for (const team of context.teams) {
-    const asset = resolveSaveTeam(team, resolver);
+    if (team?.isTeamBuilder !== true) continue;
+    let custom = null;
+    try { custom = resolver.resolveCustomTeamExact?.(team) || null; } catch { custom = null; }
+    if (!custom?.id) continue;
+    const id = String(custom.id);
+    customClaimByTeam.set(team, id);
+    customClaimCounts.set(id, (customClaimCounts.get(id) || 0) + 1);
+  }
+  for (const team of context.teams) {
+    const customClaim = customClaimByTeam.get(team);
+    const ambiguousCustomClaim = customClaim && (customClaimCounts.get(customClaim) || 0) > 1;
+    const asset = resolveSaveTeam(team, resolver, {
+      // A single custom asset cannot be assigned to one of multiple claiming
+      // save rows by iteration order (name, long name, or abbreviation).
+      // Synthesize all claimants until a stable PID mapping is available;
+      // manual side overrides can still choose the custom art.
+      allowCustomTeamMatch: !ambiguousCustomClaim,
+    });
     // Two save teams landing on one roster team means the second is really a
     // different school (mod/TeamBuilder) - keep the save's own name for it.
     if (asset && !taken.has(String(asset.id))) { taken.add(String(asset.id)); continue; }
@@ -119,6 +156,26 @@ function indexSaveTeams(context, resolver) {
     if (asset && !byAsset.has(String(asset.id))) byAsset.set(String(asset.id), team);
   }
   return byAsset;
+}
+
+// Stable live ScoreHud identity -> save team. Duplicate ids are deliberately
+// omitted instead of choosing by row order: an ambiguous save must fall back
+// to the existing name/user-game logic.
+function indexSaveTeamsByPresentationId(context) {
+  const byPresentationId = new Map();
+  const ambiguous = new Set();
+  for (const team of context?.teams || []) {
+    if (team?.presentationId === null || team?.presentationId === undefined || String(team.presentationId).trim() === '') continue;
+    const id = Number(team?.presentationId);
+    if (!Number.isInteger(id) || id < 1 || id > 2047 || ambiguous.has(id)) continue;
+    if (byPresentationId.has(id)) {
+      byPresentationId.delete(id);
+      ambiguous.add(id);
+    } else {
+      byPresentationId.set(id, team);
+    }
+  }
+  return byPresentationId;
 }
 
 // This week's SeasonGame for the live matchup (either orientation).
@@ -218,6 +275,10 @@ function userGame(context) {
 function applyDynastyNameFallback(payload, dynasty, resolver) {
   if (!payload || !dynasty?.context || !resolver) return payload;
   const context = dynasty.context;
+  payload.meta ||= {};
+  // This function can be called repeatedly on a long-lived state object. A
+  // hint is valid only for the current two-id proof, never for a later tick.
+  delete payload.meta.dynastyTeamAssets;
   const resolvable = (name) => {
     try { return Boolean(resolver.resolve(name) || resolver.resolveIdentity?.(name)?.asset); } catch { return false; }
   };
@@ -235,6 +296,78 @@ function applyDynastyNameFallback(payload, dynasty, resolver) {
     const asset = resolveSaveTeam(team, resolver);
     return asset?.name || team.name || null;
   };
+
+  // Preferred path: both live ScoreHud objects expose a score-guarded stable
+  // PresentationId and TeamBuilder bit. Both ids must be unique in this save,
+  // agree with the save's TeamBuilder flags, and form a game scheduled for the
+  // current week. That prevents a stale/wrong save from renaming the bug.
+  const byPresentationId = dynasty.byPresentationId instanceof Map
+    ? dynasty.byPresentationId
+    : indexSaveTeamsByPresentationId(context);
+  const livePresentationId = (side) => {
+    const value = payload[side]?.presentationId;
+    return value === null || value === undefined || String(value).trim() === '' ? NaN : Number(value);
+  };
+  const presentationIds = { away: livePresentationId('away'), home: livePresentationId('home') };
+  const liveTeamBuilder = {
+    away: payload.away?.isTeamBuilder,
+    home: payload.home?.isTeamBuilder,
+  };
+  const idsUsable = ['away', 'home'].every((side) => (
+    Number.isInteger(presentationIds[side])
+      && presentationIds[side] >= 1
+      && presentationIds[side] <= 2047
+      && typeof liveTeamBuilder[side] === 'boolean'
+      && byPresentationId.has(presentationIds[side])
+  )) && presentationIds.away !== presentationIds.home;
+  if (idsUsable) {
+    const saveTeams = {
+      away: byPresentationId.get(presentationIds.away),
+      home: byPresentationId.get(presentationIds.home),
+    };
+    const flagsAgree = ['away', 'home'].every((side) => (
+      (saveTeams[side]?.isTeamBuilder === true) === liveTeamBuilder[side]
+    ));
+    const assets = flagsAgree ? {
+      away: resolveSaveTeam(saveTeams.away, resolver),
+      home: resolveSaveTeam(saveTeams.home, resolver),
+    } : { away: null, home: null };
+    const match = flagsAgree && assets.away && assets.home
+      ? findMatchupGame(context, saveTeams.away, saveTeams.home)
+      : null;
+    if (match) {
+      const hints = {};
+      for (const side of ['away', 'home']) {
+        // A deliberate operator team choice remains the top layer.
+        if (payload.meta.manualTeamOverrides?.[side]?.teamId) continue;
+        hints[side] = {
+          id: String(assets[side].id),
+          name: assets[side].name,
+          presentationId: presentationIds[side],
+          isTeamBuilder: liveTeamBuilder[side],
+          source: 'dynasty-presentation-id',
+        };
+        // This two-id/current-schedule proof is stronger than a readable but
+        // stale or same-name reader string. Keep identity, art and context on
+        // the same save team by making its canonical name authoritative.
+        const name = canonical(saveTeams[side]);
+        if (name) {
+          payload[side] ||= {};
+          payload[side].name = name;
+          payload[side].nameSource = 'dynasty-save';
+        }
+      }
+      if (Object.keys(hints).length) payload.meta.dynastyTeamAssets = hints;
+      payload.meta.dynastyNameFallback = {
+        method: 'presentation-id',
+        gameIndex: match.game.index,
+        flipped: match.flipped,
+        presentationIds,
+      };
+      return payload;
+    }
+  }
+
   let game = null;
   let flipped = false;
   const realSides = ['away', 'home'].filter(isReal);
@@ -265,8 +398,7 @@ function applyDynastyNameFallback(payload, dynasty, resolver) {
     payload[side].name = name;
     payload[side].nameSource = 'dynasty-save';
   }
-  payload.meta ||= {};
-  payload.meta.dynastyNameFallback = { gameIndex: game.index, flipped };
+  payload.meta.dynastyNameFallback = { method: 'name-or-user-game', gameIndex: game.index, flipped };
   return payload;
 }
 
@@ -350,6 +482,7 @@ module.exports = {
   confRecord,
   findMatchupGame,
   indexSaveTeams,
+  indexSaveTeamsByPresentationId,
   registerUnmatchedSaveTeams,
   leaderLine,
   pollRank,

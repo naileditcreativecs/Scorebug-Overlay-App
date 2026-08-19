@@ -36,8 +36,10 @@ test('a field that drops out for a tick keeps its last verified value', () => {
 
 test('identity fields hold until replaced; live fields expire', () => {
   const cache = createRamFieldHoldCache();
-  applyRamFieldHold(payloadWith({ away: { name: 'Air Force', rank: 8, record: '3-0', score: 7 } }), cache, 1000);
+  applyRamFieldHold(payloadWith({ away: { presentationId: 1234, isTeamBuilder: true, name: 'Air Force', rank: 8, record: '3-0', score: 7 } }), cache, 1000);
   const late = applyRamFieldHold(payloadWith({ away: {} }), cache, 1000 + 10 * 60 * 1000);
+  assert.strictEqual(late.state.away.presentationId, 1234);
+  assert.strictEqual(late.state.away.isTeamBuilder, true);
   assert.strictEqual(late.state.away.name, 'Air Force');
   assert.strictEqual(late.state.away.rank, 8);
   assert.strictEqual(late.state.away.record, '3-0');
@@ -48,6 +50,23 @@ test('identity fields hold until replaced; live fields expire', () => {
   // Explicit clear drops everything.
   clearRamFieldHold(cache);
   assert.ok(!('name' in applyRamFieldHold(payloadWith({ away: {} }), cache, 5).state.away));
+});
+
+test('a changed verified team-id pair starts a clean identity epoch', () => {
+  const cache = createRamFieldHoldCache();
+  applyRamFieldHold(payloadWith({
+    away: { presentationId: 1102, isTeamBuilder: false, name: 'Alabama', rank: 4, record: '8-1' },
+    home: { presentationId: 1109, isTeamBuilder: false, name: 'Auburn', rank: 12, record: '7-2' },
+  }), cache, 1000);
+  const next = applyRamFieldHold(payloadWith({
+    away: { presentationId: 1186, isTeamBuilder: false },
+    home: { presentationId: 1120, isTeamBuilder: false },
+  }), cache, 2000);
+  assert.equal(next.state.away.presentationId, 1186);
+  assert.equal(next.state.home.presentationId, 1120);
+  assert.ok(!('name' in next.state.away));
+  assert.ok(!('rank' in next.state.away));
+  assert.ok(!('record' in next.state.home));
 });
 
 test('a deliberate long withhold still goes blank after the hold window', () => {
@@ -102,8 +121,8 @@ test('holding falsy values works (0 timeouts, empty-string-free fields)', () => 
 test('the held field list matches what ramScoreboardPayload emits', () => {
   const labels = HELD_FIELDS.map(([section, key]) => `${section}.${key}`);
   for (const label of [
-    'away.name', 'away.rank', 'away.record', 'away.score', 'away.timeouts', 'away.possession',
-    'home.name', 'home.rank', 'home.record', 'home.score', 'home.timeouts', 'home.possession',
+    'away.presentationId', 'away.isTeamBuilder', 'away.name', 'away.rank', 'away.record', 'away.score', 'away.timeouts', 'away.possession',
+    'home.presentationId', 'home.isTeamBuilder', 'home.name', 'home.rank', 'home.record', 'home.score', 'home.timeouts', 'home.possession',
     'game.quarter', 'game.clock', 'game.playClock', 'game.down', 'game.distance',
     'game.downDistance', 'game.downDistanceKind',
   ]) {

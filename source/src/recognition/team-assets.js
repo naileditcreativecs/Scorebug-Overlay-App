@@ -102,6 +102,12 @@ function normalizeTeamName(value) {
     .toUpperCase();
 }
 
+function optionalInteger(value) {
+  if (value === null || value === undefined || String(value).trim() === '') return null;
+  const number = Number(value);
+  return Number.isInteger(number) ? number : null;
+}
+
 function compactTeamName(value) {
   return normalizeTeamName(value).replace(/\s+/g, '');
 }
@@ -330,6 +336,10 @@ class TeamAssetResolver {
     this.assetCache = new Map();
     this.customTeamIds = new Set();
     this.customAliasKeys = new Set();
+    this.dynastyTeamIds = new Set();
+    this.dynastyAliasKeys = new Set();
+    this.dynastyAmbiguousAliasKeys = new Set();
+    this.dynastyTeamBySaveKey = new Map();
   }
 
   // User-defined teams layered over the bundled roster. Only exact-name
@@ -342,7 +352,9 @@ class TeamAssetResolver {
       this.byId.delete(id);
       this.assetCache.delete(id);
     }
-    for (const key of this.customAliasKeys) this.aliasLookup.delete(key);
+    for (const key of this.customAliasKeys) {
+      if (this.customTeamIds.has(String(this.aliasLookup.get(key)))) this.aliasLookup.delete(key);
+    }
     this.customTeamIds = new Set();
     this.customAliasKeys = new Set();
     for (const team of Array.isArray(teams) ? teams : []) {
@@ -379,26 +391,59 @@ class TeamAssetResolver {
     return this.customTeamIds.has(String(id));
   }
 
+  // A manually-created team can intentionally have the same display name as
+  // a bundled school (for example, a TeamBuilder replacement). It cannot own
+  // the global name alias because that would make ordinary roster games drift
+  // to the custom art, so Dynasty matching needs this explicit exact-only
+  // lookup. Ambiguous custom names stay unresolved.
+  resolveCustomTeamExact(team = {}) {
+    const names = new Set([team.name, team.longName].map(normalizeTeamName).filter(Boolean));
+    const abbreviations = new Set([team.abbreviation].map(normalizeTeamName).filter(Boolean));
+    const nameMatches = [];
+    const abbreviationMatches = [];
+    for (const id of this.customTeamIds) {
+      const candidate = this.byId.get(id);
+      if (!candidate) continue;
+      if (names.has(normalizeTeamName(candidate.name))) nameMatches.push(id);
+      else if (abbreviations.has(normalizeTeamName(candidate.abbreviation))) abbreviationMatches.push(id);
+    }
+    const matches = new Set([...nameMatches, ...abbreviationMatches]);
+    return matches.size === 1 ? this.resolveTeamId([...matches][0]) : null;
+  }
+
   // Teams that exist in the loaded dynasty save but not in the bundled roster
   // or the user's custom teams (FCS placeholders, TeamBuilder / mod schools).
   // They resolve by name and abbreviation so every save team has an identity;
   // they carry the save's colours and no logo. Never overrides an existing
   // alias, so a real roster team always wins.
   setDynastyTeams(teams = []) {
-    for (const id of this.dynastyTeamIds || []) {
+    for (const id of this.dynastyTeamIds) {
       this.byId.delete(id);
       this.assetCache.delete(id);
     }
-    for (const key of this.dynastyAliasKeys || []) this.aliasLookup.delete(key);
+    for (const key of this.dynastyAliasKeys) {
+      if (this.dynastyTeamIds.has(String(this.aliasLookup.get(key)))) this.aliasLookup.delete(key);
+    }
     this.dynastyTeamIds = new Set();
     this.dynastyAliasKeys = new Set();
+    this.dynastyAmbiguousAliasKeys = new Set();
+    this.dynastyTeamBySaveKey = new Map();
     for (const team of Array.isArray(teams) ? teams : []) {
       const name = String(team?.name || '').trim();
       if (!name) continue;
-      const id = `dyn-${normalizeTeamName(name).replace(/\s+/g, '-') || String(team.index)}`;
+      const slug = normalizeTeamName(name).replace(/\s+/g, '-') || String(team.index);
+      const presentationId = optionalInteger(team.presentationId);
+      const hasPresentationId = presentationId !== null && presentationId >= 1 && presentationId <= 2047;
+      const nameOwned = this.aliasLookup.has(normalizeTeamName(name));
+      let id = `dyn-${slug}`;
+      // Preserve the v1.4.51 name-based id for ordinary unique save-only
+      // schools. A TeamBuilder that shares a roster name, or a duplicate save
+      // name, needs the game's stable presentation id so both identities can
+      // coexist without stealing the roster alias.
+      if (nameOwned || this.byId.has(id)) {
+        id = hasPresentationId ? `dyn-pid-${presentationId}` : `dyn-row-${Number(team.index) || 0}-${slug}`;
+      }
       if (this.byId.has(id)) continue;
-      // A name that already resolves belongs to a roster/custom team.
-      if (this.aliasLookup.has(normalizeTeamName(name))) continue;
       this.byId.set(id, {
         id,
         name,
@@ -411,16 +456,55 @@ class TeamAssetResolver {
         width: null,
         height: null,
         source: 'dynasty-save',
+        isTeamBuilder: team.isTeamBuilder === true,
+        presentationId: hasPresentationId ? presentationId : null,
+        originalId: optionalInteger(team.originalId),
       });
       this.dynastyTeamIds.add(id);
-      for (const alias of [name, team.longName, team.abbreviation]) {
-        const key = normalizeTeamName(alias);
-        if (!key || this.aliasLookup.has(key)) continue;
+      for (const key of this.dynastySaveKeys(team)) {
+        if (!this.dynastyTeamBySaveKey.has(key)) this.dynastyTeamBySaveKey.set(key, id);
+        else this.dynastyTeamBySaveKey.set(key, null);
+      }
+      const aliases = new Set([name, team.longName, team.abbreviation]
+        .map(normalizeTeamName).filter(Boolean));
+      for (const key of aliases) {
+        if (this.dynastyAmbiguousAliasKeys.has(key)) continue;
+        if (this.aliasLookup.has(key)) {
+          const owner = String(this.aliasLookup.get(key));
+          // Two save-only teams claiming one spelling make that spelling
+          // unusable for the legacy name-only path. Keep roster/custom aliases
+          // intact, but never let row order select one dynamic team.
+          if (this.dynastyTeamIds.has(owner)) {
+            this.aliasLookup.delete(key);
+            this.dynastyAliasKeys.delete(key);
+            this.dynastyAmbiguousAliasKeys.add(key);
+          }
+          continue;
+        }
         this.aliasLookup.set(key, id);
         this.dynastyAliasKeys.add(key);
       }
     }
     return this.dynastyTeamIds.size;
+  }
+
+  dynastySaveKeys(team = {}) {
+    const keys = [];
+    const presentationId = optionalInteger(team.presentationId);
+    if (presentationId !== null && presentationId >= 1 && presentationId <= 2047) keys.push(`pid:${presentationId}`);
+    const assetName = normalizeTeamName(team.assetName);
+    if (assetName) keys.push(`asset:${assetName}`);
+    const index = Number(team.index);
+    if (Number.isInteger(index) && index >= 0) keys.push(`row:${index}`);
+    return keys;
+  }
+
+  resolveDynastyTeam(team = {}) {
+    for (const key of this.dynastySaveKeys(team)) {
+      const id = this.dynastyTeamBySaveKey.get(key);
+      if (id) return this.resolveTeamId(id);
+    }
+    return null;
   }
 
   isDynastyTeam(id) {
@@ -470,6 +554,9 @@ class TeamAssetResolver {
       preCropped: team.preCropped === true,
       source: team.source || 'bundled',
       abbreviation: team.abbreviation || null,
+      isTeamBuilder: team.isTeamBuilder === true,
+      presentationId: optionalInteger(team.presentationId),
+      originalId: optionalInteger(team.originalId),
     });
     this.assetCache.set(teamId, asset);
     return asset;

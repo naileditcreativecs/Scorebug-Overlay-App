@@ -74,6 +74,11 @@ namespace CollegeFootballRamDiagnostic
         private string lastHomeRecord;
         private int orientedAwayScoreHudTeamId = -1;
         private int orientedHomeScoreHudTeamId = -1;
+        // The matchup epoch in which the ScoreHud orientation was established.
+        // BeginPendingMatchupTransition increments the epoch and resets this,
+        // so equality is positive proof that an orientation was derived after
+        // the current transition began rather than inherited from the old game.
+        private int orientedScoreHudMatchupGeneration = -1;
         private int pendingAwayScoreHudTeamId = -1;
         private int pendingHomeScoreHudTeamId = -1;
         private int pendingAwayScoreHudRank = -1;
@@ -636,6 +641,57 @@ namespace CollegeFootballRamDiagnostic
                 ? awayTeamName : RamTextResult.Missing(awayTeamName.ConfiguredCopies, awayTeamName.SuccessfulReads);
             RamTextResult publishedHomeRead = currentPairMatchesPublished
                 ? homeTeamName : RamTextResult.Missing(homeTeamName.ConfiguredCopies, homeTeamName.SuccessfulReads);
+
+            // Team identity comes from the same oriented ScoreHud objects that
+            // supply rank, record and HUD timeouts. Re-read both objects against
+            // this tick's core scores and publish the pair atomically. During a
+            // matchup transition, a freshly oriented pair from this generation
+            // may publish before the ordered names resolve; an old-generation
+            // orientation, one stale side, or a changed binding still withholds
+            // both identities rather than mixing two matchup epochs.
+            ScoreHudTeamCandidate awayTeamIdentity = null;
+            ScoreHudTeamCandidate homeTeamIdentity = null;
+            bool awayTeamIdentityRead = false;
+            bool homeTeamIdentityRead = false;
+            bool scoreHudOrientationIsCurrentEpoch =
+                orientedAwayScoreHudTeamId >= 0 && orientedHomeScoreHudTeamId >= 0
+                && orientedScoreHudMatchupGeneration == matchupGeneration;
+            bool teamBuffersPermitScoreHudIdentity = !teamBuffersChanged
+                || matchupTransitionPending;
+            if (scoreHudOrientationIsCurrentEpoch && teamBuffersPermitScoreHudIdentity
+                && awayScore.Available && homeScore.Available)
+            {
+                awayTeamIdentityRead = TryReadConfiguredTeamIdentity(
+                    "awayRank", awayScore.Value, orientedAwayScoreHudTeamId, out awayTeamIdentity);
+                homeTeamIdentityRead = TryReadConfiguredTeamIdentity(
+                    "homeRank", homeScore.Value, orientedHomeScoreHudTeamId, out homeTeamIdentity);
+            }
+            bool scoreHudTeamIdentityAvailable = awayTeamIdentityRead && homeTeamIdentityRead
+                && ScoreHudTeamIdentityPairIsSafe(scoreHudOrientationIsCurrentEpoch,
+                    awayScore, homeScore, orientedAwayScoreHudTeamId,
+                    orientedHomeScoreHudTeamId, awayTeamIdentity, homeTeamIdentity);
+            string scoreHudTeamIdentityDiagnostic;
+            if (!scoreHudOrientationIsCurrentEpoch)
+                scoreHudTeamIdentityDiagnostic = "withheld: ScoreHud sides not oriented for current matchup epoch"
+                    + (matchupTransitionPending ? " (team names pending)" : String.Empty);
+            else if (teamBuffersChanged && !matchupTransitionPending)
+                scoreHudTeamIdentityDiagnostic = "withheld: ordered team buffers changed";
+            else if (!awayScore.Available || !homeScore.Available)
+                scoreHudTeamIdentityDiagnostic = "withheld: live scores unavailable";
+            else if (!awayTeamIdentityRead || !homeTeamIdentityRead)
+                scoreHudTeamIdentityDiagnostic = "withheld: score-matching ScoreHud object unavailable"
+                    + " (away=" + (awayTeamIdentityRead ? "yes" : "no")
+                    + ", home=" + (homeTeamIdentityRead ? "yes" : "no") + ")";
+            else if (!scoreHudTeamIdentityAvailable)
+                scoreHudTeamIdentityDiagnostic = "withheld: ScoreHud identity pair failed validation";
+            else
+                scoreHudTeamIdentityDiagnostic = "bound: away " + awayTeamIdentity.TeamId
+                    + (awayTeamIdentity.IsTeambuilder == 1 ? " (TeamBuilder)" : String.Empty)
+                    + ", home " + homeTeamIdentity.TeamId
+                    + (homeTeamIdentity.IsTeambuilder == 1 ? " (TeamBuilder)" : String.Empty)
+                    + " (live-score guarded"
+                    + (matchupTransitionPending ? ", team names pending" : String.Empty)
+                    + ")";
             if (quarter.Available && gameClock.Available
                 && homeScore.Available && awayScore.Available
                 && !StateProgressIsLogical(quarter.Value, gameClock.Value, homeScore.Value, awayScore.Value))
@@ -725,6 +781,12 @@ namespace CollegeFootballRamDiagnostic
                 "awayTeamName", publishedAwayName, freshnessNowUtc);
             NotePublishedFieldValue(publishedFieldValues, publishedFieldChangedAt,
                 "homeTeamName", publishedHomeName, freshnessNowUtc);
+            NotePublishedFieldValue(publishedFieldValues, publishedFieldChangedAt,
+                "awayPresentationId", scoreHudTeamIdentityAvailable
+                    ? awayTeamIdentity.TeamId.ToString(CultureInfo.InvariantCulture) : null, freshnessNowUtc);
+            NotePublishedFieldValue(publishedFieldValues, publishedFieldChangedAt,
+                "homePresentationId", scoreHudTeamIdentityAvailable
+                    ? homeTeamIdentity.TeamId.ToString(CultureInfo.InvariantCulture) : null, freshnessNowUtc);
             ram["freshness"] = BuildFreshness(freshnessNowUtc);
             root["ram"] = ram;
 
@@ -753,6 +815,10 @@ namespace CollegeFootballRamDiagnostic
             {
                 { "name", exportedAwayName },
                 { "nameSource", awayNameSource },
+                { "presentationId", scoreHudTeamIdentityAvailable ? (object)awayTeamIdentity.TeamId : null },
+                { "presentationIdSource", scoreHudTeamIdentityAvailable ? "ram-scorehud" : "missing" },
+                { "isTeamBuilder", scoreHudTeamIdentityAvailable ? (object)(awayTeamIdentity.IsTeambuilder == 1) : null },
+                { "isTeamBuilderSource", scoreHudTeamIdentityAvailable ? "ram-scorehud" : "missing" },
                 { "rank", awayRank.Available && awayRank.Value > 0 ? (object)awayRank.Value : null },
                 { "rankSource", awayRank.Available ? "ram" : "missing" },
                 { "record", awayRecord },
@@ -768,6 +834,10 @@ namespace CollegeFootballRamDiagnostic
             {
                 { "name", exportedHomeName },
                 { "nameSource", homeNameSource },
+                { "presentationId", scoreHudTeamIdentityAvailable ? (object)homeTeamIdentity.TeamId : null },
+                { "presentationIdSource", scoreHudTeamIdentityAvailable ? "ram-scorehud" : "missing" },
+                { "isTeamBuilder", scoreHudTeamIdentityAvailable ? (object)(homeTeamIdentity.IsTeambuilder == 1) : null },
+                { "isTeamBuilderSource", scoreHudTeamIdentityAvailable ? "ram-scorehud" : "missing" },
                 { "rank", homeRank.Available && homeRank.Value > 0 ? (object)homeRank.Value : null },
                 { "rankSource", homeRank.Available ? "ram" : "missing" },
                 { "record", homeRecord },
@@ -882,7 +952,7 @@ namespace CollegeFootballRamDiagnostic
 
             root["discovery"] = new Dictionary<string, object>
             {
-                { "workingRamFields", new string[] { "awayTeamName", "homeTeamName", "awayRank", "homeRank", "awayRecord", "homeRecord", "awayScore", "homeScore", "quarter", "gameClock", "playClock", "possession", "down", "distance", "specialDownState", "homeTimeouts", "awayTimeouts" } },
+                { "workingRamFields", new string[] { "awayTeamName", "homeTeamName", "teamIdentity", "awayRank", "homeRank", "awayRecord", "homeRecord", "awayScore", "homeScore", "quarter", "gameClock", "playClock", "possession", "down", "distance", "specialDownState", "homeTimeouts", "awayTimeouts" } },
                 { "screenBackedFields", new string[0] },
                 { "remainingRamWork", new string[0] },
                 { "automaticLocator", autoDiscoverySummary },
@@ -903,6 +973,7 @@ namespace CollegeFootballRamDiagnostic
                 { "timeoutCatalog", catalogTimeoutDiagnostic },
                 { "rankBind", rankBindDiagnostic },
                 { "teamIdNames", teamIdNamesDiagnostic },
+                { "teamIdentityBind", scoreHudTeamIdentityDiagnostic },
                 { "teamRole", teamRoleDiagnostic },
                 { "matchupBind", matchupBindDiagnostic },
                 { "possessionBind", possessionBindDiagnostic },
@@ -3001,12 +3072,14 @@ namespace CollegeFootballRamDiagnostic
                 || resolvedProcessId != scanner.Process.Id) return;
             int processId = scanner.Process.Id;
             int generation;
+            int discoveryMatchupGeneration;
             lock (scoreHudDiscoverySync)
             {
                 scoreHudDiscoveryRequested = true;
                 if (scoreHudDiscoveryRunning || DateTime.UtcNow < nextScoreHudDiscoveryUtc) return;
                 scoreHudDiscoveryRunning = true;
                 generation = scoreHudDiscoveryGeneration;
+                discoveryMatchupGeneration = matchupGeneration;
                 nextScoreHudDiscoveryUtc = DateTime.UtcNow.Add(ScoreHudDiscoveryInterval());
             }
             ThreadPool.QueueUserWorkItem(delegate
@@ -3023,7 +3096,8 @@ namespace CollegeFootballRamDiagnostic
                         scanAcquired = true;
                         lock (scoreHudDiscoverySync)
                             if (generation != scoreHudDiscoveryGeneration) return;
-                        ScoreHudDiscoveryResult collected = new ScoreHudDiscoveryResult(processId);
+                        ScoreHudDiscoveryResult collected = new ScoreHudDiscoveryResult(
+                            processId, discoveryMatchupGeneration);
                         Process game = Process.GetProcessById(processId);
                         using (MemoryScanner backgroundScanner = new MemoryScanner())
                         {
@@ -3246,13 +3320,15 @@ namespace CollegeFootballRamDiagnostic
                     pendingScoreHudDiscovery = null;
                 }
             }
-            if (result == null || scanner.Process == null || scanner.Process.Id != result.ProcessId)
+            if (result == null || scanner.Process == null || scanner.Process.Id != result.ProcessId
+                || result.MatchupGeneration != matchupGeneration)
                 return null;
 
             RememberScoreHudMessages(result.Messages);
             scoreHudTeamCandidateCount = result.Teams.Count;
             scoreHudDownDistanceCandidateCount = result.DownDistance.Count;
-            ApplyScoreHudRankCandidates(result.Teams);
+            ApplyScoreHudRankCandidates(result.Teams,
+                result.MatchupGeneration == matchupGeneration);
             if (result.DownDistance.Count == 0) return null;
 
             ScoreHudDownDistanceCandidate selected = SelectCurrentScoreHudDownDistance(result.DownDistance);
@@ -4580,6 +4656,64 @@ namespace CollegeFootballRamDiagnostic
             return false;
         }
 
+        // Identity is stricter than the rank/record read. Every readable clone
+        // must still describe the oriented team at the live score, and all
+        // matching clones must agree on the TeamBuilder bit. A disagreeing clone
+        // makes the side unavailable for this tick instead of allowing address
+        // order to choose which identity wins.
+        private bool TryReadConfiguredTeamIdentity(string fieldName, int expectedScore,
+            int expectedTeamId, out ScoreHudTeamCandidate candidate)
+        {
+            candidate = null;
+            if (expectedScore < 0 || expectedScore > 255
+                || expectedTeamId < 1 || expectedTeamId > 2047) return false;
+            List<long> addresses;
+            if (profile == null || !profile.Fields.TryGetValue(fieldName, out addresses)
+                || addresses == null || addresses.Count == 0) return false;
+            for (int index = 0; index < addresses.Count; index++)
+            {
+                ScoreHudTeamCandidate current;
+                try
+                {
+                    if (!scanner.TryReadLiveScoreHudTeamCandidate(addresses[index] - 44, out current))
+                        continue;
+                }
+                catch { continue; }
+                if (current.Score != expectedScore || current.TeamId != expectedTeamId) continue;
+                if (candidate != null && candidate.IsTeambuilder != current.IsTeambuilder)
+                {
+                    candidate = null;
+                    return false;
+                }
+                if (candidate == null || current.Address > candidate.Address) candidate = current;
+            }
+            return candidate != null;
+        }
+
+        // Pure gate kept internal for the executable self-test. Publication is
+        // all-or-nothing because a correct ID on one side is not enough to prove
+        // that the other side belongs to the same live matchup epoch.
+        internal static bool ScoreHudTeamIdentityPairIsSafe(bool orientationMatchesCurrentEpoch,
+            RamReadResult awayScore, RamReadResult homeScore,
+            int orientedAwayTeamId, int orientedHomeTeamId,
+            ScoreHudTeamCandidate away, ScoreHudTeamCandidate home)
+        {
+            if (!orientationMatchesCurrentEpoch || awayScore == null || homeScore == null
+                || !awayScore.Available || !homeScore.Available
+                || awayScore.Value < 0 || awayScore.Value > 255
+                || homeScore.Value < 0 || homeScore.Value > 255) return false;
+            if (orientedAwayTeamId < 1 || orientedAwayTeamId > 2047
+                || orientedHomeTeamId < 1 || orientedHomeTeamId > 2047
+                || orientedAwayTeamId == orientedHomeTeamId) return false;
+            if (away == null || home == null || away.Address <= 0 || home.Address <= 0
+                || away.Address == home.Address) return false;
+            if (away.TeamId != orientedAwayTeamId || home.TeamId != orientedHomeTeamId
+                || away.TeamId == home.TeamId
+                || away.Score != awayScore.Value || home.Score != homeScore.Value) return false;
+            return (away.IsTeambuilder == 0 || away.IsTeambuilder == 1)
+                && (home.IsTeambuilder == 0 || home.IsTeambuilder == 1);
+        }
+
         private RamReadResult ReadLiveRank(string fieldName, ref int lastValue,
             ref int lastValueGeneration, ref string lastRecord)
         {
@@ -4740,7 +4874,20 @@ namespace CollegeFootballRamDiagnostic
                 : " [" + String.Join(" ", hits.ToArray()) + "]";
         }
 
-        private void ApplyScoreHudRankCandidates(List<ScoreHudTeamCandidate> teams)
+        // Every discovery must belong to the active matchup. While names are
+        // pending, the generation-stamped result produced after the epoch reset
+        // may establish a ScoreHud identity without waiting on those names.
+        internal static bool ScoreHudIdentityBindingAllowed(
+            bool matchupTransitionPending, bool discoveryMatchesCurrentEpoch)
+        {
+            // Transition state changes whether names are ready, not whether an
+            // old discovery is trustworthy. Every binding must carry the active
+            // epoch; pending names are allowed only when that proof is present.
+            return discoveryMatchesCurrentEpoch;
+        }
+
+        private void ApplyScoreHudRankCandidates(List<ScoreHudTeamCandidate> teams,
+            bool discoveryMatchesCurrentEpoch)
         {
             scoreHudTeamCandidateCount = teams.Count;
             // Reported before any early return: the name deadlock means the
@@ -4761,14 +4908,18 @@ namespace CollegeFootballRamDiagnostic
             // was reporting "timeoutBind: bound (home=3 away=3)" at the same
             // moment.
             //
-            // The protections that actually matter are kept: a pending matchup
-            // transition still blocks, orientation is still keyed to TeamId so a
-            // different matchup cannot inherit it, and a fresh orientation still
-            // needs distinct scores or a confirmed possession plus repeated
-            // agreement before it binds.
-            if (matchupTransitionPending)
+            // A transition no longer blocks this path by itself. Unknown and
+            // TeamBuilder names can remain pending indefinitely, while these
+            // live objects are the only source of their stable identity. The
+            // discovery must instead belong to the current matchup generation:
+            // BeginPendingMatchupTransition increments that generation, cancels
+            // every older ScoreHud worker and resets the orientation. This lets
+            // a fresh score-guarded pair bind without allowing an old game's pair
+            // to cross the epoch boundary.
+            if (!ScoreHudIdentityBindingAllowed(
+                    matchupTransitionPending, discoveryMatchesCurrentEpoch))
             {
-                rankBindDiagnostic = "waiting: matchup transition pending";
+                rankBindDiagnostic = "waiting: ScoreHud discovery belongs to an older matchup epoch";
                 return;
             }
             if (teams.Count < 2)
@@ -4823,6 +4974,7 @@ namespace CollegeFootballRamDiagnostic
                 bool orientedByName = false;
                 if (!TrySelectFreshScoreHudSides(teams, awayScore, homeScore, possession,
                         out away, out home, out distinctScoreEvidence)
+                    && !matchupTransitionPending
                     && TrySelectScoreHudSidesByName(teams, lastAwayTeamName, lastHomeTeamName,
                         CatalogNameForTeamId, awayScore, homeScore, out away, out home))
                 {
@@ -4875,11 +5027,16 @@ namespace CollegeFootballRamDiagnostic
                 ResetPendingScoreHudOrientation();
             }
 
+            // Both a new orientation and a successfully re-read bound pair came
+            // from the generation-stamped discovery accepted above.
+            orientedScoreHudMatchupGeneration = matchupGeneration;
+
             // Record which side ended up at the higher address, every time the
             // orientation was established by evidence we trust. This is the
             // ground truth needed to decide whether allocation order can ever
             // be used to orient a 0-0 kickoff, and it costs nothing to collect.
-            rankBindDiagnostic = "bound (away rank " + away.Rank + " record "
+            rankBindDiagnostic = (matchupTransitionPending ? "bound while team names pending" : "bound")
+                + " (away rank " + away.Rank + " record "
                 + (FormatTeamRecord(away.Wins, away.Losses, away.Ties) ?? "?")
                 + ", home rank " + home.Rank + " record "
                 + (FormatTeamRecord(home.Wins, home.Losses, home.Ties) ?? "?")
@@ -5935,6 +6092,7 @@ namespace CollegeFootballRamDiagnostic
         {
             orientedAwayScoreHudTeamId = -1;
             orientedHomeScoreHudTeamId = -1;
+            orientedScoreHudMatchupGeneration = -1;
             pendingAwayScoreHudTeamId = -1;
             pendingHomeScoreHudTeamId = -1;
             pendingAwayScoreHudRank = -1;
@@ -6685,13 +6843,15 @@ namespace CollegeFootballRamDiagnostic
         private sealed class ScoreHudDiscoveryResult
         {
             public readonly int ProcessId;
+            public readonly int MatchupGeneration;
             public List<ScoreHudTeamCandidate> Teams;
             public List<ScoreHudDownDistanceCandidate> DownDistance;
             public List<ScoreHudMessageCandidate> Messages;
 
-            public ScoreHudDiscoveryResult(int processId)
+            public ScoreHudDiscoveryResult(int processId, int matchupGeneration)
             {
                 ProcessId = processId;
+                MatchupGeneration = matchupGeneration;
                 Teams = new List<ScoreHudTeamCandidate>();
                 DownDistance = new List<ScoreHudDownDistanceCandidate>();
                 Messages = new List<ScoreHudMessageCandidate>();
