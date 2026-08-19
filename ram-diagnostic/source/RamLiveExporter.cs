@@ -364,7 +364,7 @@ namespace CollegeFootballRamDiagnostic
             // snapshot influence discovery, validation, or published fields.
             screen = null;
             if (scanner.Process == null || scanner.Process.HasExited)
-                return "RAM export: waiting for CollegeFB27.exe";
+                return "RAM export: waiting for " + GameProfile.ProcessName + ".exe";
 
             LoadProfileIfNeeded();
             if (profile == null) profile = new RamLiveProfile();

@@ -1313,12 +1313,16 @@ function startRamReaderService() {
     ? path.join(dataExportRootPath(), 'live-screen-scoreboard.json')
     : path.join(dataExportRootPath(), 'ram-reader-no-screen-seed.json');
   lastRamReaderStartAtMs = Date.now();
-  const child = spawn(executable, [
+  const readerArgs = [
     '--service',
     seedPath,
     ramReaderStatusPath(),
     String(process.pid),
-  ], {
+  ];
+  // Madden mode is opt-in and experimental; without it the reader's CFB27
+  // behaviour is bit-for-bit unchanged.
+  if (gameTitle() === 'madden27') readerArgs.push('--game', 'madden27');
+  const child = spawn(executable, readerArgs, {
     windowsHide: true,
     stdio: 'ignore',
   });
@@ -4013,9 +4017,16 @@ function dynastySavesFolders() {
   const folders = [];
   if (configured) folders.push(configured);
   const home = app.getPath('home');
-  folders.push(path.join(home, 'OneDrive', 'Documents', 'EA Sports College Football 27', 'saves'));
-  folders.push(path.join(app.getPath('documents'), 'EA Sports College Football 27', 'saves'));
+  const gameFolder = gameTitle() === 'madden27' ? 'Madden NFL 27' : 'EA Sports College Football 27';
+  folders.push(path.join(home, 'OneDrive', 'Documents', gameFolder, 'saves'));
+  folders.push(path.join(app.getPath('documents'), gameFolder, 'saves'));
   return [...new Set(folders)];
+}
+
+// Franchise files in Madden are CAREER/FRANCHISE; dynasty files in CFB27 are
+// DYNASTY. Each game only ever looks for its own prefix.
+function dynastySaveNamePattern() {
+  return gameTitle() === 'madden27' ? /^(CAREER|FRANCHISE)/i : /^DYNASTY/i;
 }
 
 function listDynastySaves() {
@@ -4024,7 +4035,7 @@ function listDynastySaves() {
     try {
       if (!fs.existsSync(folder)) continue;
       for (const name of fs.readdirSync(folder)) {
-        if (!/^DYNASTY/i.test(name) || /\.(bak|tmp)$/i.test(name)) continue;
+        if (!dynastySaveNamePattern().test(name) || /\.(bak|tmp)$/i.test(name)) continue;
         const full = path.join(folder, name);
         const stat = fs.statSync(full);
         if (stat.isFile()) all.push({ name, full, mtimeMs: stat.mtimeMs, size: stat.size, modified: stat.mtime.toISOString() });
@@ -4149,6 +4160,7 @@ function dynastyWorkerScript() {
 function runDynastyWorker(savePath, { teams = null } = {}) {
   return new Promise((resolve, reject) => {
     const args = [savePath];
+    if (gameTitle() === 'madden27') args.push('--madden', '27');
     if (Array.isArray(teams) && teams.length) args.push('--teams', teams.join(','));
     let child;
     try {
@@ -4581,13 +4593,33 @@ function customTeamsRoot() {
   return path.join(app.getPath('userData'), 'custom-teams');
 }
 
+// Which game the app reads. 'cfb27' is the default and the only fully
+// supported game; 'madden27' is EXPERIMENTAL groundwork (reader attaches to
+// Madden27.exe and runs its automatic locator, NFL identities load, franchise
+// saves are tried). Nothing below changes behaviour unless the user picks
+// Madden in Settings.
+function gameTitle() {
+  return String(settings.gameTitle || '').toLowerCase() === 'madden27' ? 'madden27' : 'cfb27';
+}
+
+let nflCatalogCache = null;
+function nflCatalogTeams() {
+  if (nflCatalogCache) return nflCatalogCache;
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), 'assets', 'nfl-teams.json'), 'utf8'));
+    nflCatalogCache = Array.isArray(raw?.teams) ? raw.teams : [];
+  } catch { nflCatalogCache = []; }
+  return nflCatalogCache;
+}
+
 function syncCustomTeamsToResolver() {
   if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
   // Dynamic save aliases can temporarily own a name that a newly imported
   // custom team needs. Clear that layer first, install custom teams, then
   // rebuild the save layer in deterministic precedence order.
   teamAssetResolver?.setDynastyTeams([]);
-  teamAssetResolver?.setCustomTeams(settings.customTeams, customTeamsRoot());
+  const extraTeams = gameTitle() === 'madden27' ? nflCatalogTeams() : [];
+  teamAssetResolver?.setCustomTeams([...(Array.isArray(settings.customTeams) ? settings.customTeams : []), ...extraTeams], customTeamsRoot());
   // A new custom team may now cover a save team; rebuild the save index.
   reindexDynastyTeams();
 }
@@ -5432,7 +5464,8 @@ function applyWindowProbeSnapshot(snapshot) {
   if (!snapshot?.ok) return;
   const window = selectGameWindow(snapshot.windows, {
     selfPid: process.pid,
-    exactProcessNames: settings.game?.exactProcessNames || ['CollegeFB27.exe', 'CollegeFB27_Trial.exe'],
+    exactProcessNames: settings.game?.exactProcessNames
+      || (gameTitle() === 'madden27' ? ['Madden27.exe', 'Madden27_Trial.exe'] : ['CollegeFB27.exe', 'CollegeFB27_Trial.exe']),
     processNameIncludes: settings.game?.processNameIncludes || [],
     windowNameIncludes: settings.game?.windowNameIncludes || [],
     excludedProcessNameIncludes: ['CFB27 Scoreboard Overlay'],
@@ -6250,7 +6283,10 @@ function resolveBundledTeamIdentity(name, rank) {
     teamAssetResolverAttempted = true;
     try {
       teamAssetResolver = TeamAssetResolver.fromAppRoot(app.getAppPath());
-      teamAssetResolver.setCustomTeams(settings.customTeams, customTeamsRoot());
+      teamAssetResolver.setCustomTeams([
+        ...(Array.isArray(settings.customTeams) ? settings.customTeams : []),
+        ...(gameTitle() === 'madden27' ? nflCatalogTeams() : []),
+      ], customTeamsRoot());
       teamLogoVariantResolver = TeamLogoVariantResolver.fromAppRoot(app.getAppPath());
       customTeamLogoStore = new CustomTeamLogoStore(path.join(app.getPath('userData'), 'team-logos'));
       teamLogoVariantResolver.setAdditionalChoiceSource({

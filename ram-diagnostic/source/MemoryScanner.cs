@@ -10,6 +10,50 @@ using System.Threading.Tasks;
 
 namespace CollegeFootballRamDiagnostic
 {
+    // Which game this reader is attached to. CFB27 is the default and is the
+    // only game with proven memory signatures; Madden 27 support is
+    // EXPERIMENTAL groundwork - the reader attaches and runs its automatic
+    // pattern locator, but the ScoreHud object offsets are unknown (zero =
+    // skip that subsystem) until probe games map them. Selected with the
+    // "--game madden27" argument; anything else leaves CFB27 untouched.
+    internal static class GameProfile
+    {
+        public static string Key = "cfb27";
+        public static string ProcessName = "CollegeFB27";
+        // ScoreHud vtable offsets from the module base. Zero disables the
+        // ScoreHud sweep for that object type (fail closed, no guessing).
+        public static long ScoreHudTeamVtableOffset = 0xB0F3168L;
+        public static long ScoreHudDownDistanceVtableOffset = 0xB0F3128L;
+        public static long ScoreHudMessageVtableOffset = 0xB0F3368L;
+        public static long ScoreHudStatLineVtableOffset = 0xB0F3148L;
+        public static long ScoreHudStatSummaryVtableOffset = 0xB0F3388L;
+        public static long ScoreHudDownDistanceTypeInfoOffset = 0xE158810L;
+
+        // Reads "--game <key>" from anywhere in the argument list. Unknown
+        // keys are ignored so a typo can never change how CFB27 reads.
+        public static void ApplyArguments(string[] args)
+        {
+            if (args == null) return;
+            for (int index = 0; index < args.Length - 1; index++)
+            {
+                if (!String.Equals(args[index], "--game", StringComparison.OrdinalIgnoreCase)) continue;
+                string key = (args[index + 1] ?? "").Trim().ToLowerInvariant();
+                if (key == "madden27")
+                {
+                    Key = "madden27";
+                    ProcessName = "Madden27";
+                    ScoreHudTeamVtableOffset = 0;
+                    ScoreHudDownDistanceVtableOffset = 0;
+                    ScoreHudMessageVtableOffset = 0;
+                    ScoreHudStatLineVtableOffset = 0;
+                    ScoreHudStatSummaryVtableOffset = 0;
+                    ScoreHudDownDistanceTypeInfoOffset = 0;
+                }
+                return;
+            }
+        }
+    }
+
     internal enum ScanComparison
     {
         Exact,
@@ -276,7 +320,7 @@ namespace CollegeFootballRamDiagnostic
             processHandle = NativeMethods.OpenProcess(ProcessVmRead | ProcessQueryInformation, false, target.Id);
             if (processHandle == IntPtr.Zero)
             {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows would not grant read-only access to CollegeFB27.exe.");
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Windows would not grant read-only access to " + GameProfile.ProcessName + ".exe.");
             }
             process = target;
             candidates.Clear();
@@ -1527,6 +1571,11 @@ namespace CollegeFootballRamDiagnostic
             return TimeoutContextSimilarity(buffer, 0, pattern);
         }
 
+        private static long OffsetOrZero(long moduleBase, long offset)
+        {
+            return offset == 0 ? 0 : moduleBase + offset;
+        }
+
         public void FindLiveScoreHudSnapshot(CancellationToken token,
             out List<ScoreHudTeamCandidate> teams,
             out List<ScoreHudDownDistanceCandidate> downDistance,
@@ -1534,16 +1583,29 @@ namespace CollegeFootballRamDiagnostic
         {
             EnsureAttached();
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
-            long expectedTeamVtable = moduleBase + 0xB0F3168L;
-            long expectedDownDistanceVtable = moduleBase + 0xB0F3128L;
-            long expectedMessageVtable = moduleBase + 0xB0F3368L;
+            long expectedTeamVtable = OffsetOrZero(moduleBase, GameProfile.ScoreHudTeamVtableOffset);
+            long expectedDownDistanceVtable = OffsetOrZero(moduleBase, GameProfile.ScoreHudDownDistanceVtableOffset);
+            long expectedMessageVtable = OffsetOrZero(moduleBase, GameProfile.ScoreHudMessageVtableOffset);
             // Two more ScoreHud object types ride along in the same sweep: the
             // player stat line and the stat summary banners (probe 2026-08-18).
-            long expectedStatLineVtable = moduleBase + 0xB0F3148L;
-            long expectedStatSummaryVtable = moduleBase + 0xB0F3388L;
-            long[] scoreHudTargets = new long[]
+            long expectedStatLineVtable = OffsetOrZero(moduleBase, GameProfile.ScoreHudStatLineVtableOffset);
+            long expectedStatSummaryVtable = OffsetOrZero(moduleBase, GameProfile.ScoreHudStatSummaryVtableOffset);
+            List<long> scoreHudTargetList = new List<long>();
+            foreach (long target in new long[]
                 { expectedTeamVtable, expectedDownDistanceVtable, expectedMessageVtable,
-                  expectedStatLineVtable, expectedStatSummaryVtable };
+                  expectedStatLineVtable, expectedStatSummaryVtable })
+                if (target != 0) scoreHudTargetList.Add(target);
+            long[] scoreHudTargets = scoreHudTargetList.ToArray();
+            // A game whose ScoreHud offsets are not mapped yet (Madden
+            // groundwork) skips the sweep entirely - nothing is guessed.
+            if (scoreHudTargets.Length == 0)
+            {
+                teams = new List<ScoreHudTeamCandidate>();
+                downDistance = new List<ScoreHudDownDistanceCandidate>();
+                messages = new List<ScoreHudMessageCandidate>();
+                LastScoreHudTexts = new List<ScoreHudTextCandidate>();
+                return;
+            }
 
             // ScoreHud allocates a fresh object for every special presentation,
             // so a Kickoff or PAT is always at an address never seen before and
@@ -1646,9 +1708,10 @@ namespace CollegeFootballRamDiagnostic
         {
             EnsureAttached();
             candidate = null;
-            const long scoreHudTeamVtableOffset = 0xB0F3168L;
+            long scoreHudTeamVtableOffset = GameProfile.ScoreHudTeamVtableOffset;
             const long scoreHudTeamTypeInfoOffset = 0xE158930L;
             const long defaultObjectFlag = 0x0000800000000000L;
+            if (scoreHudTeamVtableOffset == 0) return false;
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
             long expectedVtable = moduleBase + scoreHudTeamVtableOffset;
             long expectedTypeInfo = moduleBase + scoreHudTeamTypeInfoOffset;
@@ -1754,8 +1817,9 @@ namespace CollegeFootballRamDiagnostic
         {
             EnsureAttached();
             List<ScoreHudDownDistanceCandidate> found = new List<ScoreHudDownDistanceCandidate>();
+            if (GameProfile.ScoreHudDownDistanceVtableOffset == 0) return found;
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
-            long expectedVtable = moduleBase + 0xB0F3128L;
+            long expectedVtable = moduleBase + GameProfile.ScoreHudDownDistanceVtableOffset;
             const long windowSize = 0x100000;
             HashSet<long> seen = new HashSet<long>();
             foreach (long windowBase in AnchorScanWindows(anchorAddresses, maximumWindows))
@@ -1786,9 +1850,10 @@ namespace CollegeFootballRamDiagnostic
             EnsureAttached();
             candidate = null;
             const long defaultObjectFlag = 0x0000800000000000L;
+            if (GameProfile.ScoreHudDownDistanceVtableOffset == 0) return false;
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
-            long expectedVtable = moduleBase + 0xB0F3128L;
-            long expectedTypeInfo = moduleBase + 0xE158810L;
+            long expectedVtable = moduleBase + GameProfile.ScoreHudDownDistanceVtableOffset;
+            long expectedTypeInfo = moduleBase + GameProfile.ScoreHudDownDistanceTypeInfoOffset;
             byte[] bytes;
             try { bytes = ReadBytes(address, 56); }
             catch { return false; }
@@ -1829,8 +1894,9 @@ namespace CollegeFootballRamDiagnostic
             EnsureAttached();
             candidate = null;
             const long defaultObjectFlag = 0x0000800000000000L;
+            if (GameProfile.ScoreHudMessageVtableOffset == 0) return false;
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
-            long expectedVtable = moduleBase + 0xB0F3368L;
+            long expectedVtable = moduleBase + GameProfile.ScoreHudMessageVtableOffset;
             long expectedTypeInfo = moduleBase + 0xE159488L;
             byte[] bytes;
             try { bytes = ReadBytes(address, 64); }
@@ -4780,7 +4846,7 @@ namespace CollegeFootballRamDiagnostic
         {
             if (processHandle == IntPtr.Zero || process == null || process.HasExited)
             {
-                throw new InvalidOperationException("Attach to CollegeFB27.exe first.");
+                throw new InvalidOperationException("Attach to " + GameProfile.ProcessName + ".exe first.");
             }
         }
 

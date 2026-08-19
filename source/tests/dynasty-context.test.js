@@ -456,3 +456,24 @@ test('dynasty context: save names never drift to a look-alike roster team', () =
   assert.equal(name('Weber State', 'Wildcats'), null);
   assert.equal(name('Idaho', 'Vandals'), null);
 });
+
+test('madden groundwork: NFL catalog teams load as identities without touching the college roster', () => {
+  const fs = require('node:fs');
+  const catalog = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'assets', 'nfl-teams.json'), 'utf8'));
+  assert.equal(catalog.teams.length, 32);
+  const fresh = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
+  const collegeCount = fresh.byId.size;
+  fresh.setCustomTeams(catalog.teams, null);
+  assert.equal(fresh.byId.size, collegeCount + 32);
+  const eagles = fresh.resolve('Philadelphia Eagles');
+  assert.ok(eagles, 'Eagles resolve by name');
+  assert.equal(eagles.primary, '#004c54');
+  assert.equal(fresh.resolve('PHI')?.nickname, 'Eagles', 'abbreviation resolves');
+  assert.equal(eagles.logo, null, 'no logo is invented');
+  // College identities are untouched.
+  assert.equal(fresh.resolve('Ohio State')?.id, '76');
+  // And clearing restores the exact college-only roster.
+  fresh.setCustomTeams([], null);
+  assert.equal(fresh.byId.size, collegeCount);
+  assert.equal(fresh.resolve('Philadelphia Eagles'), null);
+});

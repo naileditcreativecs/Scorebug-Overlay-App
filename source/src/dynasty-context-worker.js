@@ -115,7 +115,13 @@ function rgbHex(r, g, b) {
 async function main() {
   if (!savePath || !fs.existsSync(savePath)) throw new Error('save path missing');
   const started = Date.now();
-  const franchise = await muted(() => Franchise.create(savePath, { gameTypeOverride: 'college', gameYearOverride: 27, saveOnChange: false, autoUnempty: false }));
+  // EXPERIMENTAL: "--madden <year>" reads a Madden franchise file instead.
+  // Without the flag this worker is exactly the CFB27 dynasty reader.
+  const maddenIndex = process.argv.indexOf('--madden');
+  const maddenYear = maddenIndex >= 0 ? Number(process.argv[maddenIndex + 1]) || 27 : null;
+  const franchise = await muted(() => Franchise.create(savePath, maddenYear
+    ? { gameYearOverride: maddenYear, saveOnChange: false, autoUnempty: false }
+    : { gameTypeOverride: 'college', gameYearOverride: 27, saveOnChange: false, autoUnempty: false }));
   await new Promise((resolve, reject) => { if (franchise.isLoaded) resolve(); else { franchise.on('ready', resolve); franchise.on('error', reject); } });
 
   const out = { save: savePath, savedAt: fs.statSync(savePath).mtime.toISOString(), readAt: new Date().toISOString(), season: null, teams: [], gamesThisWeek: [], leaders: {} };

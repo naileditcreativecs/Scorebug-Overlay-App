@@ -15,6 +15,9 @@ namespace CollegeFootballRamDiagnostic
         [STAThread]
         private static int Main(string[] args)
         {
+            // "--game madden27" may appear anywhere in the arguments;
+            // without it (or with an unknown key) nothing changes for CFB27.
+            GameProfile.ApplyArguments(args);
             if (args.Length > 0 && String.Equals(args[0], "--self-test", StringComparison.OrdinalIgnoreCase))
             {
                 return SelfTest.Run(args.Length > 1 ? args[1] : null);
@@ -329,7 +332,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -379,7 +382,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int awayScore = Int32.Parse(awayScoreText ?? "0", CultureInfo.InvariantCulture);
                 int homeScore = Int32.Parse(homeScoreText ?? "0", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -438,7 +441,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int first = Int32.Parse(firstText ?? "3", CultureInfo.InvariantCulture);
                 int second = Int32.Parse(secondText ?? "3", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -491,7 +494,7 @@ namespace CollegeFootballRamDiagnostic
                 Dictionary<string, object> root = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(inputPath));
                 IEnumerable source = root.ContainsKey("candidates") ? root["candidates"] as IEnumerable : null;
                 if (source == null) throw new InvalidOperationException("The input report has no candidates.");
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 List<object> kept = new List<object>();
                 using (MemoryScanner scanner = new MemoryScanner())
@@ -558,7 +561,7 @@ namespace CollegeFootballRamDiagnostic
                 Dictionary<string, object> root = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(inputPath));
                 IEnumerable source = root.ContainsKey("candidates") ? root["candidates"] as IEnumerable : null;
                 if (source == null) throw new InvalidOperationException("The input report has no candidates.");
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 List<Dictionary<string, object>> ranked = new List<Dictionary<string, object>>();
                 using (MemoryScanner scanner = new MemoryScanner())
@@ -623,7 +626,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int away = Int32.Parse(awayText ?? "0", CultureInfo.InvariantCulture);
                 int home = Int32.Parse(homeText ?? "0", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 long[][] ranges = new long[][]
                 {
@@ -694,7 +697,7 @@ namespace CollegeFootballRamDiagnostic
                 Dictionary<string, object> root = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(inputPath));
                 object[] awayInput = root["awayCandidates"] as object[];
                 object[] homeInput = root["homeCandidates"] as object[];
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 List<long> keptAway = new List<long>();
                 List<long> keptHome = new List<long>();
@@ -758,7 +761,7 @@ namespace CollegeFootballRamDiagnostic
                 int homeRank = Int32.Parse(homeRankText ?? "0", CultureInfo.InvariantCulture);
                 if (awayRank < 0 || awayRank > 255 || homeRank < 0 || homeRank > 255)
                     throw new ArgumentOutOfRangeException("Rank values must fit in one byte.");
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 List<LayoutResult> layouts = new List<LayoutResult>();
                 using (MemoryScanner scanner = new MemoryScanner())
@@ -897,7 +900,7 @@ namespace CollegeFootballRamDiagnostic
                 int homeRank = Int32.Parse(homeRankText ?? "0", CultureInfo.InvariantCulture);
                 if (awayRank < 0 || awayRank > 255 || homeRank < 0 || homeRank > 255)
                     throw new ArgumentOutOfRangeException("Rank values must fit in one byte.");
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1078,7 +1081,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int awayRank = Int32.Parse(awayRankText ?? "0", CultureInfo.InvariantCulture);
                 int homeRank = Int32.Parse(homeRankText ?? "0", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1162,7 +1165,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1208,7 +1211,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1286,7 +1289,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 double away = Double.Parse(awayText ?? "0", CultureInfo.InvariantCulture);
                 double home = Double.Parse(homeText ?? "0", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1346,7 +1349,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int awayRank = Int32.Parse(awayRankText ?? "0", CultureInfo.InvariantCulture);
                 int homeRank = Int32.Parse(homeRankText ?? "0", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1465,7 +1468,7 @@ namespace CollegeFootballRamDiagnostic
                 int homeRank = Int32.Parse(homeRankText ?? "0", CultureInfo.InvariantCulture);
                 List<long> allTargets = new List<long>(awayTargets);
                 foreach (long value in homeTargets) if (!allTargets.Contains(value)) allTargets.Add(value);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1566,7 +1569,7 @@ namespace CollegeFootballRamDiagnostic
                 int homeRank = Int32.Parse(homeText ?? "0", CultureInfo.InvariantCulture);
                 int awayHash = unchecked((int)0x009EFD37U);
                 int homeHash = unchecked((int)0x009F39B7U);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1640,7 +1643,7 @@ namespace CollegeFootballRamDiagnostic
                 string normalized = (targetText ?? String.Empty).Trim();
                 if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                 int target = unchecked((int)UInt32.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1686,7 +1689,7 @@ namespace CollegeFootballRamDiagnostic
                 string normalized = (targetText ?? String.Empty).Trim();
                 if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                 long target = Int64.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -1757,7 +1760,7 @@ namespace CollegeFootballRamDiagnostic
                 string normalized = (recordText ?? String.Empty).Trim();
                 if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                 long selectedAddress = Int64.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 long moduleStart = games[0].MainModule.BaseAddress.ToInt64();
                 long moduleEnd = moduleStart + games[0].MainModule.ModuleMemorySize;
@@ -1870,7 +1873,7 @@ namespace CollegeFootballRamDiagnostic
                 string normalized = (targetText ?? String.Empty).Trim();
                 if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                 long target = Int64.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 long moduleStart = games[0].MainModule.BaseAddress.ToInt64();
                 long moduleEnd = moduleStart + games[0].MainModule.ModuleMemorySize;
@@ -1952,7 +1955,7 @@ namespace CollegeFootballRamDiagnostic
                 string normalized = (targetText ?? String.Empty).Trim();
                 if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                 long target = Int64.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2010,7 +2013,7 @@ namespace CollegeFootballRamDiagnostic
                 string normalized = (targetText ?? String.Empty).Trim();
                 if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                 long target = Int64.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2070,7 +2073,7 @@ namespace CollegeFootballRamDiagnostic
                     if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                     targets[index] = Int64.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                 }
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2120,7 +2123,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2169,7 +2172,7 @@ namespace CollegeFootballRamDiagnostic
                 string normalized = (moduleOffsetText ?? String.Empty).Trim();
                 if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                 long moduleOffset = Int64.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 long moduleBase = games[0].MainModule.BaseAddress.ToInt64();
                 long targetPointer = moduleBase + moduleOffset;
@@ -2233,7 +2236,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int away = Int32.Parse(awayText ?? "0", CultureInfo.InvariantCulture);
                 int home = Int32.Parse(homeText ?? "0", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2295,7 +2298,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2378,7 +2381,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int awayRank = Int32.Parse(awayRankText ?? "0", CultureInfo.InvariantCulture);
                 int homeRank = Int32.Parse(homeRankText ?? "0", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2451,7 +2454,7 @@ namespace CollegeFootballRamDiagnostic
             try
             {
                 int expected = Int32.Parse(expectedText ?? "0", NumberStyles.Integer, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2499,7 +2502,7 @@ namespace CollegeFootballRamDiagnostic
             try
             {
                 int expected = Int32.Parse(expectedText ?? "0", NumberStyles.Integer, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2551,7 +2554,7 @@ namespace CollegeFootballRamDiagnostic
                 Dictionary<string, object> root = serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(inputPath));
                 IEnumerable candidates = root.ContainsKey("candidates") ? root["candidates"] as IEnumerable : null;
                 if (candidates == null) throw new InvalidOperationException("The input report has no candidates.");
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 List<object> kept = new List<object>();
                 using (MemoryScanner scanner = new MemoryScanner())
@@ -2631,7 +2634,7 @@ namespace CollegeFootballRamDiagnostic
                 }
 
                 List<object> kept = new List<object>();
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -2733,7 +2736,7 @@ namespace CollegeFootballRamDiagnostic
                     }
                 }
 
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 List<object> kept = new List<object>();
                 using (MemoryScanner scanner = new MemoryScanner())
@@ -2876,7 +2879,7 @@ namespace CollegeFootballRamDiagnostic
                     }
                 }
 
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 List<object> kept = new List<object>();
                 using (MemoryScanner scanner = new MemoryScanner())
@@ -2942,7 +2945,7 @@ namespace CollegeFootballRamDiagnostic
             try
             {
                 int from = Int32.Parse(fromText ?? "2", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -3000,7 +3003,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int from = Int32.Parse(fromText ?? "3", CultureInfo.InvariantCulture);
                 int to = Int32.Parse(toText ?? "2", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -3062,7 +3065,7 @@ namespace CollegeFootballRamDiagnostic
                 if (normalized.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) normalized = normalized.Substring(2);
                 long address = Int64.Parse(normalized, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
                 int length = Int32.Parse(lengthText ?? "4096", NumberStyles.Integer, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -3104,7 +3107,7 @@ namespace CollegeFootballRamDiagnostic
                 int[] values = new int[pieces.Length];
                 for (int i = 0; i < pieces.Length; i++)
                     values[i] = Int32.Parse(pieces[i], NumberStyles.Integer, CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -3171,7 +3174,7 @@ namespace CollegeFootballRamDiagnostic
                         mappings[rank] = teamId;
                 }
                 if (mappings.Count < 3) throw new ArgumentException("At least three rank:team mappings are required.");
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -3223,7 +3226,7 @@ namespace CollegeFootballRamDiagnostic
             {
                 int away = Int32.Parse(awayText ?? "0", CultureInfo.InvariantCulture);
                 int home = Int32.Parse(homeText ?? "0", CultureInfo.InvariantCulture);
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -3276,7 +3279,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 long address = ParseAddress(addressText);
                 using (MemoryScanner scanner = new MemoryScanner())
@@ -3377,7 +3380,7 @@ namespace CollegeFootballRamDiagnostic
                             if (DateTime.UtcNow >= nextAttachUtc)
                             {
                                 nextAttachUtc = DateTime.UtcNow.AddSeconds(2);
-                                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                                 if (games.Length > 0)
                                 {
                                     scanner.Attach(games[0]);
@@ -3488,7 +3491,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 LiveScoreboard screen = null;
                 if (!String.IsNullOrWhiteSpace(screenJsonPath) && File.Exists(screenJsonPath))
@@ -3618,7 +3621,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 LiveScoreboard screen = null;
                 if (!String.IsNullOrWhiteSpace(screenJsonPath) && File.Exists(screenJsonPath))
@@ -3728,7 +3731,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] games = Process.GetProcessesByName("CollegeFB27");
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (games.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 using (MemoryScanner scanner = new MemoryScanner())
                 {
@@ -3941,6 +3944,27 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.HudDistanceAgreesWithCore(3, 1)
                     || RamLiveExporter.HudDistanceAgreesWithCore(10, 12))
                     throw new Exception("HUD distance tolerance is wrong.");
+                // Game profile (2026-08-19): defaults are CFB27 and only an
+                // exact "--game madden27" changes anything; unknown keys are
+                // ignored so a typo can never affect how CFB27 reads.
+                if (GameProfile.Key != "cfb27" || GameProfile.ProcessName != "CollegeFB27"
+                    || GameProfile.ScoreHudTeamVtableOffset != 0xB0F3168L)
+                    throw new Exception("Game profile default is not CFB27.");
+                GameProfile.ApplyArguments(new string[] { "--game", "madden99" });
+                if (GameProfile.Key != "cfb27")
+                    throw new Exception("Unknown game key changed the profile.");
+                GameProfile.ApplyArguments(new string[] { "--service", "x", "--game", "madden27" });
+                if (GameProfile.Key != "madden27" || GameProfile.ProcessName != "Madden27"
+                    || GameProfile.ScoreHudTeamVtableOffset != 0)
+                    throw new Exception("Madden 27 profile did not apply.");
+                // Restore for the rest of the self-test.
+                GameProfile.Key = "cfb27"; GameProfile.ProcessName = "CollegeFB27";
+                GameProfile.ScoreHudTeamVtableOffset = 0xB0F3168L;
+                GameProfile.ScoreHudDownDistanceVtableOffset = 0xB0F3128L;
+                GameProfile.ScoreHudMessageVtableOffset = 0xB0F3368L;
+                GameProfile.ScoreHudStatLineVtableOffset = 0xB0F3148L;
+                GameProfile.ScoreHudStatSummaryVtableOffset = 0xB0F3388L;
+                GameProfile.ScoreHudDownDistanceTypeInfoOffset = 0xE158810L;
                 // Only a complementary HUD pair may move the arrow: both-off is
                 // a real dead-ball state, both-on is a mid-update read.
                 if (RamLiveExporter.HudPossessionCandidate(1, 0) != 1

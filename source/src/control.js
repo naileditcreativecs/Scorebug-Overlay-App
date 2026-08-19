@@ -743,6 +743,10 @@
     $('margin-x').value = settings.overlay.marginX ?? 0;
     $('margin-y').value = settings.overlay.marginY ?? 32;
     $('reader-mode').value = settings.recognition.mode || 'local-ocr';
+    if ($('game-title')) {
+      $('game-title').value = String(settings.gameTitle || '').toLowerCase() === 'madden27' ? 'madden27' : 'cfb27';
+      if ($('game-title-help')) $('game-title-help').hidden = $('game-title').value !== 'madden27';
+    }
     $('donor-profile').value = settings.recognition.donorProfile || 'auto';
     renderScoreboardDataSource(settings.dataExtraction.scoreboardSource);
     $('minimum-confidence').value = settings.recognition.minimumConfidence ?? 20;
@@ -2308,6 +2312,15 @@
       settings.capture.enabled = event.target.value === 'local-ocr';
       await saveSettings(event.target.value === 'local-ocr' ? 'Automatic reader enabled' : 'Screen capture disabled');
     });
+    if ($('game-title')) {
+      $('game-title').addEventListener('change', async (event) => {
+        settings.gameTitle = event.target.value === 'madden27' ? 'madden27' : 'cfb27';
+        if ($('game-title-help')) $('game-title-help').hidden = settings.gameTitle !== 'madden27';
+        await saveSettings(settings.gameTitle === 'madden27'
+          ? 'Game set to Madden NFL 27 (experimental) - restart the reader from Diagnostics or restart the app'
+          : 'Game set to College Football 27');
+      });
+    }
     $('scoreboard-data-source').addEventListener('change', async (event) => {
       const previous = normalizeScoreboardDataSource(settings.dataExtraction?.scoreboardSource);
       const next = normalizeScoreboardDataSource(event.target.value);

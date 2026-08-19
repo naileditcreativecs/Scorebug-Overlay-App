@@ -257,7 +257,7 @@ namespace CollegeFootballRamDiagnostic
         {
             try
             {
-                Process[] processes = Process.GetProcessesByName("CollegeFB27");
+                Process[] processes = Process.GetProcessesByName(GameProfile.ProcessName);
                 if (processes.Length == 0) throw new InvalidOperationException("CollegeFB27.exe is not running.");
                 scanner.Attach(processes[0]);
                 ramExporter.Reset();
@@ -303,7 +303,7 @@ namespace CollegeFootballRamDiagnostic
             if (scanner.Process != null && !scanner.Process.HasExited) return;
             if (DateTime.UtcNow < nextAutoAttachUtc) return;
             nextAutoAttachUtc = DateTime.UtcNow.AddSeconds(2);
-            Process[] processes = Process.GetProcessesByName("CollegeFB27");
+            Process[] processes = Process.GetProcessesByName(GameProfile.ProcessName);
             if (processes.Length == 0)
             {
                 processLabel.Text = "Waiting for CollegeFB27.exe to start...";
