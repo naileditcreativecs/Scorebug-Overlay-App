@@ -3932,6 +3932,15 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.SelectVerifiedTimeouts(null, null).Available
                     || RamLiveExporter.SelectVerifiedTimeouts(RamReadResult.Missing(0), RamReadResult.Missing(2)).ConfiguredCopies != 2)
                     throw new Exception("Timeout selection priority is wrong.");
+                // Down/distance (2026-08-19): a live HUD text within a yard of
+                // the truncated core is the same state (the HUD's number wins);
+                // two yards apart is a stale pooled object.
+                if (!RamLiveExporter.HudDistanceAgreesWithCore(10, 9)
+                    || !RamLiveExporter.HudDistanceAgreesWithCore(9, 10)
+                    || !RamLiveExporter.HudDistanceAgreesWithCore(3, 3)
+                    || RamLiveExporter.HudDistanceAgreesWithCore(3, 1)
+                    || RamLiveExporter.HudDistanceAgreesWithCore(10, 12))
+                    throw new Exception("HUD distance tolerance is wrong.");
                 // Only a complementary HUD pair may move the arrow: both-off is
                 // a real dead-ball state, both-on is a mid-update read.
                 if (RamLiveExporter.HudPossessionCandidate(1, 0) != 1

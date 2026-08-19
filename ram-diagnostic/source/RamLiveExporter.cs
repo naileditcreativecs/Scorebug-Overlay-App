@@ -921,10 +921,13 @@ namespace CollegeFootballRamDiagnostic
                 {
                     int displayedDown;
                     int displayedDistance;
+                    // The HUD text is what the game draws. The core int is the
+                    // yardage truncated ("1st & 9" while the bug says 10), so a
+                    // live same-down HUD text within a yard wins over the int.
                     if (TryParseNumericScoreHudDisplay(scoreHudDisplay, out displayedDown, out displayedDistance)
                         && stableDownRead.Available && stableDistanceRead.Available
                         && displayedDown == stableDownRead.Value
-                        && displayedDistance == stableDistanceRead.Value)
+                        && HudDistanceAgreesWithCore(displayedDistance, stableDistanceRead.Value))
                     {
                         exportedDown = displayedDown;
                         exportedDistance = displayedDistance;
@@ -1763,7 +1766,26 @@ namespace CollegeFootballRamDiagnostic
                 }
             }
             catch { return; }
-            if (wideWindow.Count == 0) return;
+            // ROUND 4 (2026-08-19): testers see "1st & 9" where the game shows
+            // 10 - the int core is probably a truncated float. Dump every
+            // float in the block that looks like a yardage (0.25..110) so the
+            // true yards-to-go / ball spot can be identified offline.
+            Dictionary<string, object> wideFloats = new Dictionary<string, object>();
+            try
+            {
+                long block = quarterAddresses[0] - 0xC8;
+                byte[] bytes = scanner.ReadBytes(block, 0x300);
+                for (int offset = 0; offset + 4 <= bytes.Length; offset += 4)
+                {
+                    float value = BitConverter.ToSingle(bytes, offset);
+                    if (float.IsNaN(value) || float.IsInfinity(value)) continue;
+                    if (value < 0.25f || value > 110f) continue;
+                    if (value == (float)Math.Floor(value) && KnownWideBlockOffsets.Contains(offset)) continue;
+                    wideFloats["0x" + offset.ToString("X", CultureInfo.InvariantCulture)] = Math.Round(value, 3);
+                }
+            }
+            catch { }
+            if (wideWindow.Count == 0 && wideFloats.Count == 0) return;
 
             Dictionary<string, object> entry = new Dictionary<string, object>
             {
@@ -1772,6 +1794,7 @@ namespace CollegeFootballRamDiagnostic
                 { "clock", gameClock.Available ? (object)gameClock.Value : null },
                 { "down", down.Value },
                 { "distance", distance.Value },
+                { "wideFloats", wideFloats },
                 // The filtered current candidate was null at every down change
                 // of the probe game; the last-seen object (any age) is the
                 // ground truth this log actually needs.
@@ -4392,7 +4415,8 @@ namespace CollegeFootballRamDiagnostic
                 if (TryParseNumericScoreHudDisplay(candidate.Display, out displayedDown, out displayedDistance))
                     return age <= TimeSpan.FromSeconds(1)
                         && displayedDown == numericDown.Value
-                        && (!numericDistance.Available || displayedDistance == numericDistance.Value);
+                        && (!numericDistance.Available
+                            || HudDistanceAgreesWithCore(displayedDistance, numericDistance.Value));
                 return age <= TimeSpan.FromSeconds(1);
             }
             // PAT, 2PT, and kickoff replace the ordinary numeric down. Once a
@@ -5826,6 +5850,15 @@ namespace CollegeFootballRamDiagnostic
                 && DateTime.UtcNow - hudTimeoutsLastConfirmedUtc[side] <= HudTimeoutsHoldWindow)
                 return new RamReadResult(true, hudTimeoutsPublished[side], 1, 1, 1);
             return RamReadResult.Missing(0);
+        }
+
+        // The numeric core stores yards-to-go truncated; the HUD rounds. A live
+        // HUD text for the same down that is within one yard of the core is
+        // the same state and the HUD's number is the one to show. Anything
+        // further apart is a stale pooled object and is ignored.
+        internal static bool HudDistanceAgreesWithCore(int hudDistance, int coreDistance)
+        {
+            return Math.Abs(hudDistance - coreDistance) <= 1;
         }
 
         internal static RamReadResult SelectVerifiedTimeouts(RamReadResult hud, RamReadResult clone)
