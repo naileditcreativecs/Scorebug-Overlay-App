@@ -121,6 +121,7 @@ contextBridge.exposeInMainWorld('scoreboard', Object.freeze({
   deleteLibraryTheme: (id) => scoreboardMethod('deleteLibraryTheme', id),
   cycleLibraryTheme: (direction) => scoreboardMethod('cycleLibraryTheme', direction),
   saveThemeProfile: (id) => scoreboardMethod('saveThemeProfile', id),
+  importNflLogos: () => scoreboardMethod('importNflLogos'),
   clearThemeProfile: (id) => scoreboardMethod('clearThemeProfile', id),
   snapshotActiveTheme: () => scoreboardMethod('snapshotActiveTheme'),
   getTeamCatalog: () => scoreboardMethod('getTeamCatalog'),

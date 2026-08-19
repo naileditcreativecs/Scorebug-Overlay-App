@@ -4630,12 +4630,83 @@ function noteDetectedGame(windows) {
 
 let nflCatalogCache = null;
 function nflCatalogTeams() {
-  if (nflCatalogCache) return nflCatalogCache;
-  try {
-    const raw = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), 'assets', 'nfl-teams.json'), 'utf8'));
-    nflCatalogCache = Array.isArray(raw?.teams) ? raw.teams : [];
-  } catch { nflCatalogCache = []; }
-  return nflCatalogCache;
+  if (!nflCatalogCache) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(path.join(app.getAppPath(), 'assets', 'nfl-teams.json'), 'utf8'));
+      nflCatalogCache = Array.isArray(raw?.teams) ? raw.teams : [];
+    } catch { nflCatalogCache = []; }
+  }
+  // Logos are the user's own (imported via "Import NFL logo folder"); the
+  // app bundles identities only. A logo file named <id>.png in the custom
+  // teams folder lights the team up everywhere custom-team logos work.
+  return nflCatalogCache.map((team) => {
+    const logoFile = `${team.id}.png`;
+    if (!fs.existsSync(path.join(customTeamsRoot(), logoFile))) return team;
+    return { ...team, logoFile };
+  });
+}
+
+// One-click NFL logo pack import: point at a folder of images and each file
+// is matched to a team by the words in its name (abbreviation, nickname,
+// city, or full name - "phi.png", "eagles.png", "Philadelphia Eagles.png"
+// all work). Files land in the custom-teams folder as nfl-<abbr>.png.
+async function importNflLogoFolder() {
+  const result = await dialog.showOpenDialog(controlWindow || undefined, {
+    title: 'Choose the folder with your NFL logo images',
+    properties: ['openDirectory'],
+  });
+  if (result.canceled || !result.filePaths?.[0]) return { imported: 0, canceled: true };
+  const folder = path.resolve(result.filePaths[0]);
+  const files = fs.readdirSync(folder).filter((name) => /\.(png|jpg|jpeg|webp|gif|bmp)$/i.test(name));
+  const normalize = (value) => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const teams = nflCatalogTeams();
+  const matchTeam = (fileName) => {
+    const base = normalize(fileName.replace(/\.[^.]+$/, ''));
+    const words = new Set(base.split(' '));
+    let best = null;
+    for (const team of teams) {
+      const abbr = normalize(team.abbreviation);
+      const nickname = normalize(team.nickname);
+      const full = normalize(team.name);
+      if (base === full || base === nickname || base === abbr || base === team.id) return team;
+      if (words.has(nickname) || (abbr.length >= 2 && words.has(abbr))) best = best || team;
+      // City-only file names ("philadelphia.png"); first match wins for
+      // shared cities, so name shared-city files by nickname instead.
+      if (base.length >= 4 && full.includes(base)) best = best || team;
+    }
+    return best;
+  };
+  const root = customTeamsRoot();
+  fs.mkdirSync(root, { recursive: true });
+  const imported = [];
+  const skipped = [];
+  const taken = new Set();
+  for (const name of files) {
+    const team = matchTeam(name);
+    if (!team || taken.has(team.id)) { skipped.push(name); continue; }
+    try {
+      let image = nativeImage.createFromPath(path.join(folder, name));
+      if (image.isEmpty()) { skipped.push(name); continue; }
+      let size = image.getSize();
+      if (size.width > 1024 || size.height > 1024) {
+        const ratio = Math.min(1024 / size.width, 1024 / size.height);
+        image = image.resize({
+          width: Math.max(1, Math.round(size.width * ratio)),
+          height: Math.max(1, Math.round(size.height * ratio)),
+          quality: 'best',
+        });
+      }
+      const temporary = path.join(root, `${team.id}.png.tmp`);
+      fs.writeFileSync(temporary, image.toPNG());
+      fs.renameSync(temporary, path.join(root, `${team.id}.png`));
+      taken.add(team.id);
+      imported.push(team.name);
+    } catch { skipped.push(name); }
+  }
+  syncCustomTeamsToResolver();
+  pushInGameEditorState();
+  logMessage(`NFL logo import: ${imported.length} of 32 teams matched from ${files.length} files${skipped.length ? ` (unmatched: ${skipped.slice(0, 6).join(', ')}${skipped.length > 6 ? '…' : ''})` : ''}.`);
+  return { imported: imported.length, teams: imported, skippedFiles: skipped, totalFiles: files.length };
 }
 
 function syncCustomTeamsToResolver() {
@@ -7392,6 +7463,7 @@ async function scoreboardMethod(method, payload) {
     case 'deleteLibraryTheme': return deleteLibraryTheme(payload);
     case 'cycleLibraryTheme': return cycleLibraryTheme(payload === -1 ? -1 : 1);
     case 'saveThemeProfile': return saveThemeProfile(payload);
+    case 'importNflLogos': return importNflLogoFolder();
     case 'clearThemeProfile': return clearThemeProfile(payload);
     case 'snapshotActiveTheme': return snapshotActiveTheme();
     case 'getTeamCatalog': return teamCatalogForPicker();

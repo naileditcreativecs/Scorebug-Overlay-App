@@ -747,6 +747,9 @@
       const configuredGame = String(settings.gameTitle || 'auto').toLowerCase();
       $('game-title').value = configuredGame === 'madden27' || configuredGame === 'cfb27' ? configuredGame : 'auto';
       if ($('game-title-help')) $('game-title-help').hidden = $('game-title').value === 'cfb27';
+      const showNfl = $('game-title').value !== 'cfb27';
+      if ($('import-nfl-logos')) $('import-nfl-logos').hidden = !showNfl;
+      if ($('import-nfl-logos-help')) $('import-nfl-logos-help').hidden = !showNfl;
     }
     $('donor-profile').value = settings.recognition.donorProfile || 'auto';
     renderScoreboardDataSource(settings.dataExtraction.scoreboardSource);
@@ -2313,10 +2316,23 @@
       settings.capture.enabled = event.target.value === 'local-ocr';
       await saveSettings(event.target.value === 'local-ocr' ? 'Automatic reader enabled' : 'Screen capture disabled');
     });
+    if ($('import-nfl-logos')) {
+      $('import-nfl-logos').addEventListener('click', async () => {
+        try {
+          const result = await api.importNflLogos();
+          if (result?.canceled) return;
+          toast(result?.imported
+            ? `NFL logos imported for ${result.imported} of 32 teams${result.skippedFiles?.length ? ` (${result.skippedFiles.length} files not matched)` : ''}`
+            : 'No files in that folder matched an NFL team');
+        } catch (error) { toast(error.message || 'NFL logo import failed'); }
+      });
+    }
     if ($('game-title')) {
       $('game-title').addEventListener('change', async (event) => {
         settings.gameTitle = ['madden27', 'cfb27'].includes(event.target.value) ? event.target.value : 'auto';
         if ($('game-title-help')) $('game-title-help').hidden = settings.gameTitle === 'cfb27';
+        if ($('import-nfl-logos')) $('import-nfl-logos').hidden = settings.gameTitle === 'cfb27';
+        if ($('import-nfl-logos-help')) $('import-nfl-logos-help').hidden = settings.gameTitle === 'cfb27';
         await saveSettings(settings.gameTitle === 'madden27'
           ? 'Game set to Madden NFL 27 (experimental) - restart the reader from Diagnostics or restart the app'
           : (settings.gameTitle === 'cfb27'
