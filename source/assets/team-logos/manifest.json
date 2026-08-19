@@ -1637,7 +1637,10 @@
       "height": 378,
       "source": "storyline-500-tight-crop",
       "aliases": [
-        "TEXAS A AND M"
+        "TEXAS A AND M",
+        "TEXAS A M",
+        "TEXAS AM",
+        "TAMU"
       ],
       "preCropped": true,
       "cropProfile": "tight-visible-alpha-v1"
@@ -2363,7 +2366,10 @@
     "TEMPLE": "97",
     "TENNESSEE": "98",
     "TEXAS": "99",
+    "TAMU": "100",
     "TEXAS A AND M": "100",
+    "TEXAS A M": "100",
+    "TEXAS AM": "100",
     "TEXAS STATE": "101",
     "TEXAS TECH": "102",
     "TOLEDO": "103",
