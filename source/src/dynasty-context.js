@@ -27,7 +27,17 @@ const SAVE_NAME_ALIASES = new Map([
   ['app state', 'Appalachian State'],
   ['app st', 'Appalachian State'],
   ['ga southern', 'Georgia Southern'],
-  ['fla atlantic', 'Florida Atlantic'],
+  ['fla atlantic', 'FAU'],
+  ['florida atlantic', 'FAU'],
+  ['c carolina', 'Coastal Carolina'],
+  ['hawai i', 'Hawaii'],
+  ['jax state', 'Jacksonville State'],
+  ['jax st', 'Jacksonville State'],
+  ['sac state', 'Sacramento State'],
+  ['ndsu', 'North Dakota State'],
+  ['uconn', 'Connecticut'],
+  ['louisiana', 'UL Lafayette'],
+  ['nc state', 'N.C. State'],
 ]);
 
 function resolveSaveTeam(team, resolver) {
@@ -42,26 +52,63 @@ function resolveSaveTeam(team, resolver) {
     // Fuzzy identity matching is for full names only; "E. Michigan" must
     // not drift to Michigan State.
     if (candidate.includes('.') || candidate.length < 5) continue;
-    let asset = null;
-    try { asset = resolver.resolveIdentity?.(candidate)?.asset || null; } catch { asset = null; }
-    if (asset) return asset;
+    let identity = null;
+    try { identity = resolver.resolveIdentity?.(candidate) || null; } catch { identity = null; }
+    const asset = identity?.asset || null;
+    if (!asset) continue;
+    // A save name is the game's own spelling, so a fuzzy hit must agree on
+    // the nickname, and a "closest" guess must also contain every real word
+    // of the save name: "Eastern Washington Eagles" is not Eastern Michigan
+    // and "South Dakota" is not South Carolina - those are save-only teams.
+    const sameNickname = !team.nickname || !asset.nickname
+      || normalizeName(team.nickname) === normalizeName(asset.nickname);
+    if (!sameNickname) continue;
+    if (/closest|fuzzy/i.test(String(identity.match || ''))) {
+      const assetWords = new Set(normalizeName(asset.name).split(' '));
+      const words = normalizeName(team.name).split(' ').filter((w) => w.length >= 4);
+      if (!words.length || !words.every((w) => assetWords.has(w))) continue;
+    }
+    return asset;
   }
   // Nickname disambiguation: the roster team with this nickname that shares
   // a word (or the abbreviation's initials) with the save name.
   if (team.nickname && resolver.byId) {
     const nick = String(team.nickname).toLowerCase();
     const candidates = [...resolver.byId.values()].filter((t) => String(t.nickname || '').toLowerCase() === nick);
-    if (candidates.length === 1) return resolver.resolveTeamId(candidates[0].id);
     const words = normalizeName(team.name).split(' ').filter((w) => w.length > 2);
+    const realWords = words.filter((w) => w.length >= 4);
     const initials = normalizeName(team.name).replace(/ /g, '');
     for (const t of candidates) {
       const tw = normalizeName(t.name).split(' ');
-      if (words.some((w) => tw.includes(w))) return resolver.resolveTeamId(t.id);
+      // Every real word of the save name must be in the roster name: a
+      // shared nickname alone ("Delaware State Hornets" vs Sacramento State)
+      // is not a match - that is a save-only team.
+      if (realWords.length && realWords.every((w) => tw.includes(w))) return resolver.resolveTeamId(t.id);
       const ini = tw.map((w) => w[0]).join('');
       if (initials.length >= 2 && (ini === initials || `${ini}u` === initials)) return resolver.resolveTeamId(t.id);
     }
   }
   return null;
+}
+
+// Give every save team an identity: teams the resolver cannot place after
+// exact/alias/nickname matching are registered on the resolver as dynasty
+// teams (name, nickname, abbreviation, colours from the save). Returns the
+// list that had to be synthesized.
+function registerUnmatchedSaveTeams(context, resolver) {
+  if (!context?.teams || !resolver || typeof resolver.setDynastyTeams !== 'function') return [];
+  resolver.setDynastyTeams([]);
+  const unmatched = [];
+  const taken = new Set();
+  for (const team of context.teams) {
+    const asset = resolveSaveTeam(team, resolver);
+    // Two save teams landing on one roster team means the second is really a
+    // different school (mod/TeamBuilder) - keep the save's own name for it.
+    if (asset && !taken.has(String(asset.id))) { taken.add(String(asset.id)); continue; }
+    unmatched.push(team);
+  }
+  resolver.setDynastyTeams(unmatched);
+  return unmatched;
 }
 
 function indexSaveTeams(context, resolver) {
@@ -138,9 +185,11 @@ function seasonSummary(team) {
 function leaderLine(kind, line) {
   if (!line) return null;
   const who = line.shortName || line.name;
-  if (kind === 'qb') return `${who} ${line.passComp ?? 0}/${line.passAtt ?? 0}, ${line.passYards ?? 0} YDS, ${line.passTds ?? 0} TD${line.passInts ? `, ${line.passInts} INT` : ''}`;
-  if (kind === 'rb') return `${who} ${line.rushAtt ?? 0} CAR, ${line.rushYards ?? 0} YDS, ${line.rushTds ?? 0} TD`;
-  return `${who} ${line.receptions ?? 0} REC, ${line.recYards ?? 0} YDS, ${line.recTds ?? 0} TD`;
+  // Before the first game of a season the only line is last season's: say so.
+  const suffix = line.isCurrentSeason === false ? ' (last season)' : '';
+  if (kind === 'qb') return `${who} ${line.passComp ?? 0}/${line.passAtt ?? 0}, ${line.passYards ?? 0} YDS, ${line.passTds ?? 0} TD${line.passInts ? `, ${line.passInts} INT` : ''}${suffix}`;
+  if (kind === 'rb') return `${who} ${line.rushAtt ?? 0} CAR, ${line.rushYards ?? 0} YDS, ${line.rushTds ?? 0} TD${suffix}`;
+  return `${who} ${line.receptions ?? 0} REC, ${line.recYards ?? 0} YDS, ${line.recTds ?? 0} TD${suffix}`;
 }
 
 function pollRank(team) {
@@ -169,9 +218,16 @@ function userGame(context) {
 function applyDynastyNameFallback(payload, dynasty, resolver) {
   if (!payload || !dynasty?.context || !resolver) return payload;
   const context = dynasty.context;
+  const resolvable = (name) => {
+    try { return Boolean(resolver.resolve(name) || resolver.resolveIdentity?.(name)?.asset); } catch { return false; }
+  };
+  // A side is "real" when the reader produced a name that names a known team
+  // (roster, custom, or a team of this save). Anything else - pending,
+  // placeholder, or a string no team owns - is filled from the save.
   const isReal = (side) => {
+    const name = payload[side]?.name;
     const source = String(payload[side]?.nameSource || '');
-    return Boolean(payload[side]?.name) && !/pending|placeholder|dynasty/i.test(source);
+    return Boolean(name) && !/pending|placeholder|dynasty/i.test(source) && resolvable(name);
   };
   const byIndex = new Map((context.teams || []).map((t) => [t.index, t]));
   const canonical = (team) => {
@@ -294,6 +350,7 @@ module.exports = {
   confRecord,
   findMatchupGame,
   indexSaveTeams,
+  registerUnmatchedSaveTeams,
   leaderLine,
   pollRank,
   record,

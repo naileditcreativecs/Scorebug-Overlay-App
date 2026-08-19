@@ -1,4 +1,4 @@
-CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.47)
+CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.49)
 =========================================================
 
 Every bug gets one state object on every change: in `update(obj)` /
@@ -39,6 +39,11 @@ GAME  (game.*)
                   possession) or null, text "ENCROACHMENT - DEFENSE"
   penaltyType, penaltySide, penaltyTeam, penaltyText   (flat copies)
   playCallOpen    true while the play-call menu is open (experimental)
+  hudTexts        [ { kind, texts[], teamSide, playerId, displayTime } ]
+                  the game's own stat lower-thirds while they are on screen,
+                  e.g. texts ["T.Dixon 4 Rec, 60 Yds, 1 TD"]; teamSide
+                  'away'|'home'|null. Experimental: raw text, layout not
+                  decoded yet. Empty array when nothing is up.
   context         { source, seasonYear, week, weekType, weekLabel,
                     matched, bowlName, isPlayoff, isBowl, isRematch,
                     gameOfWeek, network, weather, temperature,
@@ -59,3 +64,14 @@ Where it comes from
   save  the newest DYNASTY save file          - records/ranks from kickoff,
         week/bowl/playoff, network/weather, season stats, leaders
   Only Dynasty games have a save; Play Now / RTG get the RAM fields alone.
+
+Team names in Dynasty
+  Every team in the loaded save gets an identity: roster teams by name
+  (game spellings like "NIU", "App St.", "Miami (OH)" are mapped exactly,
+  never by look-alike), and any school the roster does not have (FCS East /
+  Midwest / Northwest / Southeast / West, TeamBuilder or mod schools) is
+  created from the save itself - name, nickname, abbreviation and the
+  save's colours (no logo is invented). If the reader's name for a side is
+  missing or is not a real team, the side is filled from this week's
+  schedule (nameSource "dynasty-save"). Diagnostics > Dynasty shows
+  "N/N teams identified".

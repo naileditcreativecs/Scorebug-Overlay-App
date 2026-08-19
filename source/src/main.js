@@ -85,6 +85,7 @@ const {
   applyDynastyContext,
   applyDynastyNameFallback,
   indexSaveTeams,
+  registerUnmatchedSaveTeams,
 } = require('./dynasty-context');
 const {
   DEFAULT_LOGO_TRANSFORM,
@@ -973,6 +974,15 @@ function ramScoreboardPayload(document) {
     apply(state.game, 'penaltySide', penalty.side || null, Boolean(penalty.side), 'game.penaltySide');
     apply(state.game, 'penaltyTeam', team, Boolean(team), 'game.penaltyTeam');
     apply(state.game, 'penaltyText', sideWord ? `${String(penalty.type).toUpperCase()} - ${sideWord}` : String(penalty.type).toUpperCase(), true, 'game.penaltyText');
+  }
+  // Stat lower-thirds and other ScoreHud text objects (raw pass-through).
+  if (Array.isArray(document.ram?.hudTexts) && document.ram.hudTexts.length) {
+    apply(state.game, 'hudTexts', document.ram.hudTexts.map((item) => ({
+      kind: String(item?.kind || ''),
+      texts: Array.isArray(item?.texts) ? item.texts.map(String).slice(0, 8) : [],
+      teamSide: item?.teamSide === 'away' || item?.teamSide === 'home' ? item.teamSide : null,
+      playerId: Number.isInteger(item?.playerId) ? item.playerId : null,
+    })).filter((item) => item.texts.length), true, 'game.hudTexts');
   }
   // Play-call menu state (experimental byte published by the reader).
   if (typeof document.ram?.playCallOpen === 'boolean') {
@@ -3990,15 +4000,17 @@ async function refreshDynastyContext({ force = false } = {}) {
     if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
     runtime.dynasty = {
       context,
-      byAsset: indexSaveTeams(context, teamAssetResolver),
+      byAsset: new Map(),
+      synthesizedTeams: [],
       leaders: {},
       savePath: newest.full,
       pinned: Boolean(newest.pinned),
       loadedAt: new Date().toISOString(),
     };
+    const synthesized = reindexDynastyTeams();
     dynastyLastKey = key;
     dynastyLeaderKey = '';
-    logMessage(`Dynasty save read: ${path.basename(newest.full)} - ${context.season?.seasonYear ?? '?'} ${context.season?.currentWeekType || ''} week ${context.season?.currentWeek ?? '?'}, ${context.teams?.length || 0} teams, ${context.gamesThisWeek?.length || 0} games this week (${runtime.dynasty.byAsset.size} matched to the roster).`);
+    logMessage(`Dynasty save read: ${path.basename(newest.full)} - ${context.season?.seasonYear ?? '?'} ${context.season?.currentWeekType || ''} week ${context.season?.currentWeek ?? '?'}, ${context.teams?.length || 0} teams, ${context.gamesThisWeek?.length || 0} games this week (${runtime.dynasty.byAsset.size} of ${context.teams?.length || 0} identified; ${synthesized} from the save only${synthesized ? `: ${runtime.dynasty.synthesizedTeams.join(', ')}` : ''}).`);
     loaded = true;
   } catch (error) {
     logMessage(`Dynasty save could not be read: ${error.message}`);
@@ -4111,10 +4123,12 @@ function dynastyStatusSummary() {
     week: season.currentWeek ?? null,
     weekType: season.currentWeekType || null,
     teams: dynasty.context.teams?.length || 0,
+    identified: dynasty.byAsset?.size || 0,
+    saveOnlyTeams: dynasty.synthesizedTeams || [],
     matched: Boolean(matched),
     userTeam: dynasty.context.teams?.find((t) => t.isUser)?.name || null,
     userGame: (() => { const g = (dynasty.context.gamesThisWeek || []).find((x) => x.index === dynasty.context.userGameIndex); return g ? `${g.awayName || '?'} at ${g.homeName || '?'}` : null; })(),
-    text: `${path.basename(dynasty.savePath)}${dynasty.pinned ? ' (chosen)' : ' (newest)'} · ${season.seasonYear ?? '?'} ${label || `week ${season.currentWeek ?? '?'}`} · ${dynasty.context.teams?.length || 0} teams${dynasty.context.teams?.find((t) => t.isUser) ? ` · you: ${dynasty.context.teams.find((t) => t.isUser).name}` : ''}${(() => { const g = (dynasty.context.gamesThisWeek || []).find((x) => x.index === dynasty.context.userGameIndex); return g ? ` · your game: ${g.awayName || '?'} at ${g.homeName || '?'}` : ''; })()}${matched ? ' · live matchup found' : ''}`,
+    text: `${path.basename(dynasty.savePath)}${dynasty.pinned ? ' (chosen)' : ' (newest)'} · ${season.seasonYear ?? '?'} ${label || `week ${season.currentWeek ?? '?'}`} · ${dynasty.byAsset?.size || 0}/${dynasty.context.teams?.length || 0} teams identified${dynasty.synthesizedTeams?.length ? ` (${dynasty.synthesizedTeams.length} by save name only)` : ''}${dynasty.context.teams?.find((t) => t.isUser) ? ` · you: ${dynasty.context.teams.find((t) => t.isUser).name}` : ''}${(() => { const g = (dynasty.context.gamesThisWeek || []).find((x) => x.index === dynasty.context.userGameIndex); return g ? ` · your game: ${g.awayName || '?'} at ${g.homeName || '?'}` : ''; })()}${matched ? ' · live matchup found' : ''}`,
   };
 }
 
@@ -4290,6 +4304,20 @@ function customTeamsRoot() {
 function syncCustomTeamsToResolver() {
   if (!teamAssetResolverAttempted) resolveBundledTeamIdentity('', null);
   teamAssetResolver?.setCustomTeams(settings.customTeams, customTeamsRoot());
+  // A new custom team may now cover a save team; rebuild the save index.
+  reindexDynastyTeams();
+}
+
+// Every team in the loaded save gets an identity: roster/custom teams by
+// name, the rest synthesized on the resolver from the save (name, nickname,
+// abbreviation, colours). Returns how many had to be synthesized.
+function reindexDynastyTeams() {
+  const context = runtime.dynasty?.context;
+  if (!context || !teamAssetResolver) return 0;
+  const synthesized = registerUnmatchedSaveTeams(context, teamAssetResolver);
+  runtime.dynasty.byAsset = indexSaveTeams(context, teamAssetResolver);
+  runtime.dynasty.synthesizedTeams = synthesized.map((t) => t.name);
+  return synthesized.length;
 }
 
 function customTeamsForEditor() {

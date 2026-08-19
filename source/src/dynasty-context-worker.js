@@ -88,6 +88,12 @@ function teamName(rec) {
 
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
 
+function rgbHex(r, g, b) {
+  const parts = [r, g, b].map((v) => Number(v));
+  if (parts.some((v) => !Number.isInteger(v) || v < 0 || v > 255)) return null;
+  return `#${parts.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
 async function main() {
   if (!savePath || !fs.existsSync(savePath)) throw new Error('save path missing');
   const started = Date.now();
@@ -121,6 +127,13 @@ async function main() {
         mediaRankLastWeek: num(s.MediaPoll_LastWeeksRank), playoffStatus: s.PlayoffStatus || null,
         offensiveRank: num(s.OffensiveRank), defensiveRank: num(s.DefensiveRank), streak: num(s.SeasonWinLossStreak),
         prevWins: num(s.TEAM_PREVSEASWINS), prevLosses: num(s.TEAM_PREVSEASLOSSES),
+        // Identity extras so teams the bundled roster does not know (FCS
+        // placeholders, TeamBuilder / mod schools) can still be shown by name.
+        abbreviation: String(s.ShortName || '').trim() || null,
+        assetName: String(s.AssetName || '').trim() || null,
+        longName: String(s.LongName || '').trim() || null,
+        primary: rgbHex(s.TEAM_BACKGROUNDCOLORR, s.TEAM_BACKGROUNDCOLORG, s.TEAM_BACKGROUNDCOLORB),
+        secondary: s.TEAM_HAS_SECONDARY_COLOR === false ? null : rgbHex(s.TEAM_BACKGROUNDCOLORR2, s.TEAM_BACKGROUNDCOLORG2, s.TEAM_BACKGROUNDCOLORB2),
         conferenceIndex: decodeRef(r.Conference)?.recordIndex ?? null,
         // The user's team is the one with a UserCharacter reference.
         isUser: Boolean(decodeRef(r.UserCharacter)),
@@ -196,11 +209,14 @@ async function main() {
         if (!['QB', 'HB', 'WR', 'TE', 'FB'].includes(pos)) continue;
         let seasons = [];
         try { seasons = await followArray(franchise, r.SeasonStats, 8); } catch { seasons = []; }
-        const offense = seasons.filter((x) => /Offensive/.test(x.table) && (num(x.values.GAMESPLAYED) || 0) > 0);
+        const allOffense = seasons.filter((x) => /Offensive/.test(x.table));
+        const offense = allOffense.filter((x) => (num(x.values.GAMESPLAYED) || 0) > 0);
         if (!offense.length) continue;
+        const newestSeasonYear = Math.max(...allOffense.map((x) => num(x.values.SEAS_YEAR) || 0));
         offense.sort((a, b) => ((num(b.values.SEAS_YEAR) || 0) - (num(a.values.SEAS_YEAR) || 0)) || ((num(b.values.GAMESPLAYED) || 0) - (num(a.values.GAMESPLAYED) || 0)));
         const v = offense[0].values;
         const line = {
+          seasonIndex: num(v.SEAS_YEAR), isCurrentSeason: (num(v.SEAS_YEAR) || 0) >= newestSeasonYear,
           name: `${s.FirstName || ''} ${s.LastName || ''}`.trim(), shortName: `${String(s.FirstName || '').slice(0, 1)}. ${s.LastName || ''}`.trim(),
           jersey: num(s.JerseyNum), position: pos, overall: num(s.OverallRating), games: num(v.GAMESPLAYED),
           passComp: num(v.PASSCOMPLETED), passAtt: num(v.PASSATTEMPTS), passYards: num(v.PASSYARDS), passTds: num(v.PASSTDS), passInts: num(v.PASSINTS),

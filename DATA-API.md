@@ -100,6 +100,10 @@ Top-level keys:
                 Read from the game's commentary/referee strings.
   ram.playCallOpen  true/false while all mirrored copies of the play-call
                 state byte agree; null otherwise. Experimental.
+  ram.hudTexts  Array of the game's ScoreHud text objects currently alive
+                (stat lower-thirds): { kind (vtable offset), texts[],
+                playerId, teamId, teamSide, displayTime }. Raw pass-through,
+                layout not decoded; empty when nothing is up. Experimental.
 
   ram.freshness
                 Per-field staleness data, so you never have to guess

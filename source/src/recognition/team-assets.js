@@ -379,6 +379,54 @@ class TeamAssetResolver {
     return this.customTeamIds.has(String(id));
   }
 
+  // Teams that exist in the loaded dynasty save but not in the bundled roster
+  // or the user's custom teams (FCS placeholders, TeamBuilder / mod schools).
+  // They resolve by name and abbreviation so every save team has an identity;
+  // they carry the save's colours and no logo. Never overrides an existing
+  // alias, so a real roster team always wins.
+  setDynastyTeams(teams = []) {
+    for (const id of this.dynastyTeamIds || []) {
+      this.byId.delete(id);
+      this.assetCache.delete(id);
+    }
+    for (const key of this.dynastyAliasKeys || []) this.aliasLookup.delete(key);
+    this.dynastyTeamIds = new Set();
+    this.dynastyAliasKeys = new Set();
+    for (const team of Array.isArray(teams) ? teams : []) {
+      const name = String(team?.name || '').trim();
+      if (!name) continue;
+      const id = `dyn-${normalizeTeamName(name).replace(/\s+/g, '-') || String(team.index)}`;
+      if (this.byId.has(id)) continue;
+      // A name that already resolves belongs to a roster/custom team.
+      if (this.aliasLookup.has(normalizeTeamName(name))) continue;
+      this.byId.set(id, {
+        id,
+        name,
+        nickname: String(team.nickname || '').trim() || null,
+        abbreviation: String(team.abbreviation || '').trim() || null,
+        primary: isHexColor(team.primary) ? String(team.primary).toLowerCase() : null,
+        secondary: isHexColor(team.secondary) ? String(team.secondary).toLowerCase() : null,
+        file: null,
+        customLogoPath: null,
+        width: null,
+        height: null,
+        source: 'dynasty-save',
+      });
+      this.dynastyTeamIds.add(id);
+      for (const alias of [name, team.longName, team.abbreviation]) {
+        const key = normalizeTeamName(alias);
+        if (!key || this.aliasLookup.has(key)) continue;
+        this.aliasLookup.set(key, id);
+        this.dynastyAliasKeys.add(key);
+      }
+    }
+    return this.dynastyTeamIds.size;
+  }
+
+  isDynastyTeam(id) {
+    return Boolean(this.dynastyTeamIds?.has(String(id)));
+  }
+
   static fromAppRoot(appRoot) {
     const assetRoot = path.join(appRoot, 'assets', 'team-logos');
     const manifestPath = path.join(assetRoot, 'manifest.json');

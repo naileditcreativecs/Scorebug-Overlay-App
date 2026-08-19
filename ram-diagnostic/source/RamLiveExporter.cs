@@ -689,6 +689,9 @@ namespace CollegeFootballRamDiagnostic
             // strings the game builds for commentary/referee presentation
             // ~10 s after the FLAG banner. Held for 45 s, then cleared.
             ram["penalty"] = CurrentPenaltyDictionary();
+            // Stat lower-thirds and other ScoreHud text objects, passed through
+            // raw (newest scan). Experimental: layout not decoded yet.
+            ram["hudTexts"] = HudTextsDictionary();
             string publishedAwayName = matchupTransitionPending ? null : lastAwayTeamName;
             string publishedHomeName = matchupTransitionPending ? null : lastHomeTeamName;
             ram["awayTeamName"] = TeamNameDictionary(publishedAwayName, publishedAwayRead);
@@ -1391,6 +1394,28 @@ namespace CollegeFootballRamDiagnostic
                 catch { }
                 finally { Interlocked.Exchange(ref penaltyReadRunning, 0); }
             });
+        }
+
+        private List<Dictionary<string, object>> HudTextsDictionary()
+        {
+            List<Dictionary<string, object>> list = new List<Dictionary<string, object>>();
+            List<ScoreHudTextCandidate> texts = scanner.LastScoreHudTexts;
+            if (texts == null) return list;
+            foreach (ScoreHudTextCandidate item in texts)
+            {
+                if (item == null || item.Texts == null || item.Texts.Count == 0) continue;
+                list.Add(new Dictionary<string, object>
+                {
+                    { "kind", item.Kind },
+                    { "texts", new List<string>(item.Texts) },
+                    { "playerId", item.PlayerId },
+                    { "teamId", item.TeamId },
+                    { "teamSide", MessageTeamSide(item.TeamId, orientedAwayScoreHudTeamId, orientedHomeScoreHudTeamId) },
+                    { "displayTime", item.DisplayTime }
+                });
+                if (list.Count >= 12) break;
+            }
+            return list;
         }
 
         private Dictionary<string, object> CurrentPenaltyDictionary()

@@ -81,3 +81,56 @@ test('dynasty context: names fall back to the save game, never over a real reade
   assert.equal(both.away.name, 'Ohio State');
   assert.equal(both.meta.dynastyNameFallback, undefined);
 });
+
+test('dynasty context: every save team gets an identity - unknown schools are synthesized from the save', () => {
+  const { registerUnmatchedSaveTeams, applyDynastyNameFallback } = require('../src/dynasty-context');
+  const ctx = JSON.parse(JSON.stringify(context));
+  ctx.teams.push(
+    { index: 30, teamIndex: 30, name: 'FCS East', nickname: 'Sentinels', abbreviation: 'FCSE', longName: 'FCS East', primary: '#000a26', secondary: '#af975a', wins: 0, losses: 0 },
+    { index: 124, teamIndex: 111, name: 'Idaho', nickname: 'Vandals', abbreviation: 'IDHO', longName: 'Idaho', primary: '#8a2432', secondary: '#ffffff', wins: 1, losses: 0 },
+    // A roster team present in the save keeps its bundled identity.
+    { index: 140, teamIndex: 140, name: 'Ohio State', nickname: 'Buckeyes', abbreviation: 'OSU', primary: '#bb0000', secondary: '#666666' },
+  );
+  ctx.gamesThisWeek.push({ index: 2, week: 12, weekType: 'RegularSeason', status: 'Unplayed', homeIndex: 124, awayIndex: 30, bowl: null });
+  const synthesized = registerUnmatchedSaveTeams(ctx, resolver);
+  assert.deepEqual(synthesized.map((t) => t.name), ['FCS East', 'Idaho']);
+  const byAsset = indexSaveTeams(ctx, resolver);
+  assert.equal(byAsset.size, ctx.teams.length, 'every save team is indexed');
+  const idaho = resolver.resolve('Idaho');
+  assert.ok(idaho, 'Idaho now resolves');
+  assert.equal(idaho.source, 'dynasty-save');
+  assert.equal(idaho.primary, '#8a2432');
+  assert.equal(idaho.abbreviation, 'IDHO');
+  assert.equal(idaho.logo, null, 'no logo is invented');
+  assert.equal(resolver.resolve('IDHO')?.name, 'Idaho', 'abbreviation resolves too');
+  assert.equal(resolver.resolve('FCS East')?.nickname, 'Sentinels');
+  assert.equal(resolver.resolve('Ohio State')?.id, '76', 'roster team untouched');
+  // A reader name no team owns is filled from the save game of the known side.
+  const dynasty = { context: ctx, byAsset };
+  const out = applyDynastyNameFallback({ away: { name: 'FCS East' }, home: { name: '###@@' }, game: {}, meta: {} }, dynasty, resolver);
+  assert.equal(out.home.name, 'Idaho');
+  assert.equal(out.home.nameSource, 'dynasty-save');
+  assert.equal(out.away.nameSource, undefined);
+  // Re-registering clears the old synthesized set.
+  registerUnmatchedSaveTeams({ teams: [] }, resolver);
+  assert.equal(resolver.resolve('Idaho'), null);
+});
+
+test('dynasty context: save names never drift to a look-alike roster team', () => {
+  const { resolveSaveTeam } = require('../src/dynasty-context');
+  const name = (n, k) => resolveSaveTeam({ name: n, nickname: k }, resolver)?.name ?? null;
+  // Game spellings of roster teams resolve.
+  assert.equal(name('NIU', 'Huskies'), 'Northern Illinois');
+  assert.equal(name('App St.', 'Mountaineers'), 'Appalachian State');
+  assert.equal(name('Miami (OH)', 'RedHawks'), 'Miami of Ohio');
+  assert.equal(name('C. Carolina', 'Chanticleers'), 'Coastal Carolina');
+  assert.equal(name('FLA Atlantic', 'Owls'), 'FAU');
+  assert.equal(name('Louisiana', "Ragin' Cajuns"), 'UL Lafayette');
+  assert.equal(name('UConn', 'Huskies'), 'Connecticut');
+  // Schools the roster does not have stay unmatched (they become save-only teams).
+  assert.equal(name('Eastern Washington', 'Eagles'), null);
+  assert.equal(name('South Dakota', 'Gamecocks'), null);
+  assert.equal(name('Delaware State', 'Hornets'), null);
+  assert.equal(name('Weber State', 'Wildcats'), null);
+  assert.equal(name('Idaho', 'Vandals'), null);
+});

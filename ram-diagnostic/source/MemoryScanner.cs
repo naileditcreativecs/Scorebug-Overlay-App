@@ -212,6 +212,20 @@ namespace CollegeFootballRamDiagnostic
         public string Text;
     }
 
+    // A ScoreHud presentation object of a type the reader does not decode
+    // field-by-field yet - the stat lower-thirds ("T.Dixon 4 Rec, 60 Yds, 1
+    // TD", "29 YDS, 0 TDs, 0 INTs") seen in the 2026-08-18 probe game. Passed
+    // through as text so bugs can show them and so the layout can be learned.
+    internal sealed class ScoreHudTextCandidate
+    {
+        public long Address;
+        public string Kind;          // vtable offset, e.g. "0xB0F3148"
+        public List<string> Texts = new List<string>();
+        public int PlayerId;         // int at +48 (same slot as messages) - unverified
+        public int TeamId;           // int at +52 (same slot as messages) - unverified
+        public int DisplayTime;      // int at +56
+    }
+
     internal sealed class ScoreHudMessageCandidate
     {
         public long Address;
@@ -1523,8 +1537,13 @@ namespace CollegeFootballRamDiagnostic
             long expectedTeamVtable = moduleBase + 0xB0F3168L;
             long expectedDownDistanceVtable = moduleBase + 0xB0F3128L;
             long expectedMessageVtable = moduleBase + 0xB0F3368L;
+            // Two more ScoreHud object types ride along in the same sweep: the
+            // player stat line and the stat summary banners (probe 2026-08-18).
+            long expectedStatLineVtable = moduleBase + 0xB0F3148L;
+            long expectedStatSummaryVtable = moduleBase + 0xB0F3388L;
             long[] scoreHudTargets = new long[]
-                { expectedTeamVtable, expectedDownDistanceVtable, expectedMessageVtable };
+                { expectedTeamVtable, expectedDownDistanceVtable, expectedMessageVtable,
+                  expectedStatLineVtable, expectedStatSummaryVtable };
 
             // ScoreHud allocates a fresh object for every special presentation,
             // so a Kickoff or PAT is always at an address never seen before and
@@ -1575,6 +1594,52 @@ namespace CollegeFootballRamDiagnostic
                 ScoreHudMessageCandidate candidate;
                 if (TryReadLiveScoreHudMessageCandidate(address, out candidate)) messages.Add(candidate);
             }
+            List<ScoreHudTextCandidate> texts = new List<ScoreHudTextCandidate>();
+            foreach (long vtable in new long[] { expectedStatLineVtable, expectedStatSummaryVtable })
+            {
+                foreach (long address in references[vtable])
+                {
+                    ScoreHudTextCandidate candidate;
+                    if (TryReadScoreHudTextCandidate(address, vtable, moduleBase, out candidate)) texts.Add(candidate);
+                    if (texts.Count >= 12) break;
+                }
+            }
+            LastScoreHudTexts = texts;
+        }
+
+        public List<ScoreHudTextCandidate> LastScoreHudTexts = new List<ScoreHudTextCandidate>();
+
+        // Reads every ASCII string an object points at (8-byte slots from +24)
+        // plus the message-shaped ints, without assuming a full layout.
+        public bool TryReadScoreHudTextCandidate(long address, long expectedVtable, long moduleBase, out ScoreHudTextCandidate candidate)
+        {
+            candidate = null;
+            const long defaultObjectFlag = 0x0000800000000000L;
+            byte[] bytes;
+            try { bytes = ReadBytes(address, 0x100); }
+            catch { return false; }
+            if (BitConverter.ToInt64(bytes, 0) != expectedVtable) return false;
+            long header = BitConverter.ToInt64(bytes, 16);
+            if ((header & defaultObjectFlag) != 0) return false;
+            ScoreHudTextCandidate result = new ScoreHudTextCandidate();
+            result.Address = address;
+            result.Kind = "0x" + (expectedVtable - moduleBase).ToString("X", CultureInfo.InvariantCulture);
+            result.PlayerId = BitConverter.ToInt32(bytes, 48);
+            result.TeamId = BitConverter.ToInt32(bytes, 52);
+            result.DisplayTime = BitConverter.ToInt32(bytes, 56);
+            for (int offset = 24; offset + 8 <= bytes.Length && result.Texts.Count < 8; offset += 8)
+            {
+                long pointer = BitConverter.ToInt64(bytes, offset);
+                if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
+                string text;
+                try { text = ReadAsciiString(pointer, 96); } catch { continue; }
+                if (String.IsNullOrWhiteSpace(text) || text.Trim().Length < 3) continue;
+                text = text.Trim();
+                if (!result.Texts.Contains(text)) result.Texts.Add(text);
+            }
+            if (result.Texts.Count == 0) return false;
+            candidate = result;
+            return true;
         }
 
         public bool TryReadLiveScoreHudTeamCandidate(long address, out ScoreHudTeamCandidate candidate)
