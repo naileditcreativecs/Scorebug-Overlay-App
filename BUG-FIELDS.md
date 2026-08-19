@@ -1,4 +1,4 @@
-CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.52)
+CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.53)
 =========================================================
 
 Every bug gets one state object on every change: in `update(obj)` /
@@ -88,6 +88,11 @@ Team names in Dynasty
   conflicting readable name) and uses nameSource "dynasty-save". Older readers
   retain the legacy fallback, which fills only missing/not-real names from a
   known team or the user's scheduled game.
+
+  Manual team overrides are side-scoped. A manually selected team is never
+  used as matchup evidence for filling the opposite side, so overriding away
+  cannot replace home with that selected team's scheduled opponent (and vice
+  versa). The untouched side continues to follow the live/current matchup.
 
   TeamBuilder logo URL metadata is retained from the save but is not fetched
   yet; a real TeamBuilder save sample is needed to verify URL lifetime,

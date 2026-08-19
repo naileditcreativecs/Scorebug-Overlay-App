@@ -91,6 +91,43 @@ test('dynasty context: names fall back to the save game, never over a real reade
   assert.equal(both.meta.dynastyNameFallback, undefined);
 });
 
+test('dynasty context: a manual team choice never changes the untouched side', () => {
+  const ctx = JSON.parse(JSON.stringify(context));
+  ctx.userGameIndex = 1;
+  ctx.gamesThisWeek.push({ index: 2, awayIndex: 76, homeIndex: 52, week: 12, weekType: 'RegularSeason' });
+  ctx.teams.push(
+    { index: 76, presentationId: 1450, isTeamBuilder: false, name: 'Ohio State', nickname: 'Buckeyes' },
+    { index: 52, presentationId: 1263, isTeamBuilder: false, name: 'Michigan', nickname: 'Wolverines' },
+  );
+  const dynasty = { context: ctx, byAsset: indexSaveTeams(ctx, resolver) };
+
+  // The reader has not identified either side yet. Before the override, the
+  // save correctly fills the user's Pitt-at-Cincinnati matchup.
+  const automatic = applyDynastyNameFallback({ away: {}, home: {}, game: {}, meta: {} }, dynasty, resolver);
+  assert.match(automatic.away.name, /Pitt/);
+  assert.equal(automatic.home.name, 'Cincinnati');
+
+  // Choosing Ohio State on the away side is display-only. It must not infer
+  // Ohio State's scheduled opponent (Michigan) onto the untouched home side.
+  const manualAway = applyDynastyNameFallback({
+    away: { name: 'Ohio State' }, home: {}, game: {},
+    meta: { manualTeamOverrides: { away: { teamId: resolver.resolve('Ohio State').id } } },
+  }, dynasty, resolver);
+  assert.equal(manualAway.away.name, 'Ohio State');
+  assert.equal(manualAway.home.name, 'Cincinnati');
+  assert.notEqual(manualAway.home.name, 'Michigan');
+  assert.equal(manualAway.meta.dynastyNameFallback.gameIndex, 1);
+
+  // The same side isolation applies in the other direction.
+  const manualHome = applyDynastyNameFallback({
+    away: {}, home: { name: 'Michigan' }, game: {},
+    meta: { manualTeamOverrides: { home: { teamId: resolver.resolve('Michigan').id } } },
+  }, dynasty, resolver);
+  assert.match(manualHome.away.name, /Pitt/);
+  assert.equal(manualHome.home.name, 'Michigan');
+  assert.equal(manualHome.meta.dynastyNameFallback.gameIndex, 1);
+});
+
 test('dynasty context: live presentation ids choose the exact scheduled save teams', () => {
   const local = TeamAssetResolver.fromAppRoot(path.join(__dirname, '..'));
   const ctx = JSON.parse(JSON.stringify(context));

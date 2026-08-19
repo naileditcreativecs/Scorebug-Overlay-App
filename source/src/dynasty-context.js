@@ -271,7 +271,10 @@ function userGame(context) {
 // gets its logo and colours like a read one. Orientation comes from the
 // save's home/away. If the reader has ONE real name, the other side comes
 // from the same game; if the reader has neither, both come from the user's
-// game this week. Never overrides a real reader name.
+// game this week. Never overrides a real reader name. A manual team choice is
+// protected, but is never evidence for changing the opposite side: selecting
+// an unrelated school must not pull that school's scheduled opponent onto the
+// scorebug.
 function applyDynastyNameFallback(payload, dynasty, resolver) {
   if (!payload || !dynasty?.context || !resolver) return payload;
   const context = dynasty.context;
@@ -290,6 +293,7 @@ function applyDynastyNameFallback(payload, dynasty, resolver) {
     const source = String(payload[side]?.nameSource || '');
     return Boolean(name) && !/pending|placeholder|dynasty/i.test(source) && resolvable(name);
   };
+  const isManualTeam = (side) => Boolean(payload.meta.manualTeamOverrides?.[side]?.teamId);
   const byIndex = new Map((context.teams || []).map((t) => [t.index, t]));
   const canonical = (team) => {
     if (!team) return null;
@@ -370,8 +374,11 @@ function applyDynastyNameFallback(payload, dynasty, resolver) {
 
   let game = null;
   let flipped = false;
-  const realSides = ['away', 'home'].filter(isReal);
-  if (realSides.length === 2) return payload;
+  const fillableSides = ['away', 'home'].filter((side) => !isManualTeam(side) && !isReal(side));
+  if (fillableSides.length === 0) return payload;
+  // Only a reader/save-derived name may identify the game used to fill the
+  // other side. A manual selection is a display override, not matchup proof.
+  const realSides = ['away', 'home'].filter((side) => !isManualTeam(side) && isReal(side));
   if (realSides.length === 1) {
     // Find this week's game containing the known team.
     const known = realSides[0];
@@ -391,7 +398,7 @@ function applyDynastyNameFallback(payload, dynasty, resolver) {
   const saveHome = byIndex.get(game.homeIndex);
   const forSide = { away: flipped ? saveHome : saveAway, home: flipped ? saveAway : saveHome };
   for (const side of ['away', 'home']) {
-    if (isReal(side)) continue;
+    if (isManualTeam(side) || isReal(side)) continue;
     const name = canonical(forSide[side]);
     if (!name) continue;
     payload[side] ||= {};
