@@ -1160,8 +1160,8 @@
       profileRow.className = 'theme-profile';
       const profile = theme.profile || { saved: false };
       const profileBadge = document.createElement('span');
-      profileBadge.className = `badge ${profile.saved ? 'ok' : 'neutral'}`;
-      profileBadge.textContent = profile.saved ? 'Profile saved' : 'No profile yet';
+      profileBadge.className = `badge ${profile.pinned ? 'ok' : 'neutral'}`;
+      profileBadge.textContent = profile.pinned ? 'Profile saved' : (profile.saved ? 'Last used (not saved)' : 'No profile yet');
       const profileText = document.createElement('span');
       if (profile.saved) {
         const bits = [];
@@ -1178,8 +1178,8 @@
       profileRow.append(profileBadge, profileText);
       if (theme.active) {
         const saveProfile = document.createElement('button');
-        saveProfile.textContent = profile.saved ? 'Save current' : 'Save profile';
-        saveProfile.title = 'Save the current position, size and settings to this bug';
+        saveProfile.textContent = profile.pinned ? 'Save current' : 'Save profile';
+        saveProfile.title = 'Pin the current position, size, crop and settings to this bug - they come back exactly like this every time it is used';
         saveProfile.addEventListener('click', async () => {
           try {
             const result = await api.saveThemeProfile(theme.id);

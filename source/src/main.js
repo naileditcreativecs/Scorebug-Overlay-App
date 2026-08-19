@@ -1628,10 +1628,16 @@ function currentThemeSizingSnapshot() {
   };
 }
 
-function rememberThemeSizing(themePath, sizing = currentThemeSizingSnapshot()) {
+// Automatic remembering (on switch, on lock, on settings save) never
+// overwrites a profile the user saved on purpose ("Save profile" in the
+// library pins it): the saved position, size and crop are what come back
+// every time that bug is used, no matter what was done to it in between.
+function rememberThemeSizing(themePath, sizing = currentThemeSizingSnapshot(), { force = false } = {}) {
   const key = themeSizingKey(themePath);
   if (!key) return false;
-  themeSizingMap()[key] = { ...sizing };
+  const existing = themeSizingMap()[key];
+  if (!force && isPlainObject(existing) && existing.pinned) return false;
+  themeSizingMap()[key] = { ...sizing, pinned: force ? true : Boolean(existing?.pinned) };
   return true;
 }
 
@@ -1691,6 +1697,7 @@ function themeProfileSummary(theme) {
   if (!isPlainObject(sizing) && !logoPicks && !themeSettings) return { saved: false };
   return {
     saved: true,
+    pinned: Boolean(sizing?.pinned),
     updatedAt: sizing?.updatedAt || null,
     width: sizing?.placement?.width ?? null,
     height: sizing?.placement?.height ?? null,
@@ -1857,10 +1864,10 @@ function saveThemeProfile(id) {
   const theme = themeLibraryStore().get(String(id || ''));
   const active = runtime.themePath && (samePath(theme.path, runtime.themePath) || theme.sha256 === currentThemeHash());
   if (!active) throw new Error('Use this bug first, place it, then save its profile.');
-  rememberThemeSizing(runtime.themePath);
+  rememberThemeSizing(runtime.themePath, { ...currentThemeSizingSnapshot(), updatedAt: new Date().toISOString() }, { force: true });
   persistSettings();
   captureThemeSnapshot({ force: true }).catch(() => {});
-  logMessage(`Profile saved for ${theme.name}: current position, size, and settings.`);
+  logMessage(`Profile saved for ${theme.name}: position, size, crop and settings are pinned to this bug.`);
   return { themes: listLibraryThemes(), status: publicStatus() };
 }
 
@@ -3259,6 +3266,11 @@ function setTheme(themePath, preferredCanvas = {}, { rememberPrevious = true } =
   applyPlacementSettings({ restoreLocked: changingTheme });
   rememberThemeSizing(resolved);
   persistSettings();
+  try {
+    const b = overlayWindow && !overlayWindow.isDestroyed() ? overlayWindow.getBounds() : null;
+    const l = runtime.layout || {};
+    logMessage(`Theme layout: ${path.basename(resolved)} canvas ${l.canvasWidth}x${l.canvasHeight} crop ${JSON.stringify(l.crop || {})} layout ${l.width}x${l.height} scale ${Number(l.scale).toFixed(3)} window ${b ? `${b.width}x${b.height}@${b.x},${b.y}` : 'none'} anchor ${l.anchor} locked ${runtime.positionLocked}`);
+  } catch { /* diagnostics only */ }
   sendToOverlay('overlay:theme', {
     themePath: runtime.themePath,
     themeUrl: themeUrl(),
