@@ -1,0 +1,24 @@
+﻿{
+    "game":  {
+                 "clock":  "0:56",
+                 "down":  1,
+                 "playClock":  24,
+                 "quarter":  "1",
+                 "distance":  10
+             },
+    "away":  {
+                 "timeouts":  3,
+                 "score":  0,
+                 "name":  "Away",
+                 "possession":  false
+             },
+    "meta":  {
+                 "updatedAt":  "2026-08-19T21:43:34.8683993Z"
+             },
+    "home":  {
+                 "timeouts":  3,
+                 "score":  0,
+                 "name":  "Home",
+                 "possession":  false
+             }
+}
