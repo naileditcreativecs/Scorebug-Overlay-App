@@ -4001,6 +4001,54 @@ function dynastySaveKey(save) {
   return save ? `${save.full}|${Math.round(save.mtimeMs)}|${save.size}` : '';
 }
 
+function copyThemeProfileToRepairedHash(oldSha256, newSha256) {
+  const oldKey = `sha256:${String(oldSha256 || '').toLowerCase()}`;
+  const newKey = `sha256:${String(newSha256 || '').toLowerCase()}`;
+  if (oldKey === newKey || oldKey === 'sha256:' || newKey === 'sha256:') return false;
+  let changed = false;
+  const copyEntry = (map) => {
+    if (!isPlainObject(map?.[oldKey]) || map[newKey] !== undefined) return;
+    map[newKey] = cloneJson(map[oldKey]);
+    changed = true;
+  };
+  settings.theme ||= {};
+  settings.teamLogos ||= {};
+  copyEntry(settings.theme.sizingByHtml);
+  copyEntry(settings.theme.settingsByHtml);
+  copyEntry(settings.teamLogos.preferencesByTheme);
+
+  const layouts = normalizedLogoLayouts(settings.teamLogos.layouts);
+  for (const [key, value] of Object.entries(layouts)) {
+    if (!key.startsWith(`${oldKey}::`)) continue;
+    const moved = `${newKey}${key.slice(oldKey.length)}`;
+    if (!layouts[moved]) {
+      layouts[moved] = value;
+      changed = true;
+    }
+  }
+  settings.teamLogos.layouts = layouts;
+  try {
+    const oldSnapshot = themeSnapshotPath(oldSha256);
+    const newSnapshot = themeSnapshotPath(newSha256);
+    if (oldSnapshot && newSnapshot && fs.existsSync(oldSnapshot) && !fs.existsSync(newSnapshot)) {
+      fs.copyFileSync(oldSnapshot, newSnapshot);
+      changed = true;
+    }
+  } catch { /* preview only */ }
+  return changed;
+}
+
+function repairKnownThemeLibraryBugs() {
+  const repaired = themeLibraryStore().repairKnownThemes();
+  if (!repaired.length) return repaired;
+  for (const item of repaired) {
+    copyThemeProfileToRepairedHash(item.oldSha256, item.newSha256);
+    logMessage(`Repaired ${item.name}: team names containing & now display correctly.`);
+  }
+  persistSettings();
+  return repaired;
+}
+
 function queueDynastyRefresh(force = false) {
   dynastyRefreshQueued = true;
   dynastyRefreshQueuedForce ||= force;
@@ -7810,6 +7858,7 @@ if (!hasSingleInstanceLock) {
       applyScoreboardDataSourcePreference({ publish: false });
     }
     ensureBundledOriginalThemeInLibrary();
+    repairKnownThemeLibraryBugs();
     try { startDynastyWatch(); } catch (error) { logMessage(`Dynasty watch could not start: ${error.message}`); }
     runtime.positionLocked = settings.overlay?.positionLocked === true;
     const initialThemePath = configuredThemePath();

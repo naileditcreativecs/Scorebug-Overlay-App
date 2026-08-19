@@ -1,4 +1,4 @@
-CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.56)
+CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.57)
 =========================================================
 
 Every bug gets one state object on every change: in `update(obj)` /
@@ -95,7 +95,9 @@ Team names in Dynasty
 
   Texas A&M is canonicalized from Texas A&M, Texas A and M, Texas A M,
   Texas AM, TAMU and A&M. These exact aliases prevent TAMU from falling
-  through to a different short-name match such as FAU.
+  through to a different short-name match such as FAU. Existing ESPN 2020
+  library copies are repaired on startup so their old ampersand filter no
+  longer rejects the valid Texas A&M name.
 
   If both unique live ids match this week's game but arrive home/away reversed
   (seen at playoff/neutral-site kickoffs), the save schedule corrects the full

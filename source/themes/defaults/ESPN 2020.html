@@ -796,8 +796,8 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     quarter: /^(\d|1ST|2ND|3RD|4TH|OT\d*)$/i
   };
 
-  // A team name never contains "&", a clock, or an ordinal down — those are stray writes.
-  var NAME_REJECT = /&|\d{1,2}:\d{2}|\b(1ST|2ND|3RD|4TH|GOAL|INCHES)\b/i;
+  // Ampersands are valid in school names such as Texas A&M; reject only clock/down text.
+  var NAME_REJECT = /\d{1,2}:\d{2}|\b(1ST|2ND|3RD|4TH|GOAL|INCHES)\b/i;
 
   var KEEP_IF_BLANK = { awayName: 1, homeName: 1, awayRecord: 1, homeRecord: 1 };
 

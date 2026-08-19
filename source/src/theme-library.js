@@ -22,6 +22,31 @@ function sha256(bytes) {
   return crypto.createHash('sha256').update(bytes).digest('hex').toUpperCase();
 }
 
+// An early ESPN 2020 compatibility guard treated every ampersand as a stray
+// down-and-distance write. That also rejects the legitimate school name
+// "Texas A&M" and leaves the previous team painted. Repair only this exact
+// known rule; arbitrary imported theme code is otherwise left untouched.
+const BAD_AMPERSAND_NAME_RULE = 'var NAME_REJECT = /&|\\d{1,2}:\\d{2}|\\b(1ST|2ND|3RD|4TH|GOAL|INCHES)\\b/i;';
+const FIXED_AMPERSAND_NAME_RULE = 'var NAME_REJECT = /\\d{1,2}:\\d{2}|\\b(1ST|2ND|3RD|4TH|GOAL|INCHES)\\b/i;';
+
+function repairKnownThemeHtml(bytes) {
+  const source = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : String(bytes || '');
+  if (!source.includes(BAD_AMPERSAND_NAME_RULE)) {
+    return { bytes: Buffer.from(source, 'utf8'), changed: false, repairs: [] };
+  }
+  const html = source
+    .replace(
+      '// A team name never contains "&", a clock, or an ordinal down — those are stray writes.',
+      '// Ampersands are valid in school names such as Texas A&M; reject only clock/down text.',
+    )
+    .replaceAll(BAD_AMPERSAND_NAME_RULE, FIXED_AMPERSAND_NAME_RULE);
+  return {
+    bytes: Buffer.from(html, 'utf8'),
+    changed: html !== source,
+    repairs: ['allow-team-name-ampersand'],
+  };
+}
+
 function decodeTitle(value) {
   return String(value || '')
     .replace(/<[^>]*>/g, ' ')
@@ -552,6 +577,42 @@ class ThemeLibrary {
     this.writeManifest(manifest);
     return this.resolveEntry(entry);
   }
+
+  repairKnownThemes() {
+    const manifest = this.readManifest();
+    const repaired = [];
+    for (const entry of manifest.themes) {
+      try {
+        const theme = this.resolveEntry(entry);
+        const before = fs.readFileSync(theme.path);
+        const result = repairKnownThemeHtml(before);
+        if (!result.changed) continue;
+        const oldSha256 = sha256(before);
+        const newSha256 = sha256(result.bytes);
+        const temporary = `${theme.path}.${process.pid}.${Date.now()}.tmp`;
+        try {
+          fs.writeFileSync(temporary, result.bytes);
+          fs.renameSync(temporary, theme.path);
+        } finally {
+          if (fs.existsSync(temporary)) fs.rmSync(temporary, { force: true });
+        }
+        entry.sha256 = newSha256;
+        entry.bytes = result.bytes.length;
+        repaired.push({
+          id: entry.id,
+          name: theme.name,
+          path: theme.path,
+          oldSha256,
+          newSha256,
+          repairs: result.repairs,
+        });
+      } catch {
+        // A missing, unsafe, or already-corrupt user theme remains untouched.
+      }
+    }
+    if (repaired.length) this.writeManifest(manifest);
+    return repaired;
+  }
 }
 
 module.exports = {
@@ -565,6 +626,7 @@ module.exports = {
   displayName,
   isInside,
   previewSize,
+  repairKnownThemeHtml,
   requestedLogoLibrary,
   safePreviewDocument,
   sha256,
