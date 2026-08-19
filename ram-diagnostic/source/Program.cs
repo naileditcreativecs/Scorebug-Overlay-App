@@ -3920,6 +3920,18 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.SelectVerifiedPossession(
                         RamReadResult.Missing(0), RamReadResult.Missing(0), true).Available)
                     throw new Exception("Possession selection priority is wrong.");
+                // Timeouts (2026-08-18): the HUD team object wins when bound,
+                // the clone slots are the fallback, an out-of-range HUD value
+                // never publishes, and nothing else publishes anything.
+                RamReadResult hudTimeouts = new RamReadResult(true, 2, 1, 1, 1);
+                RamReadResult cloneTimeouts = new RamReadResult(true, 3, 2, 2, 2);
+                if (!Object.ReferenceEquals(RamLiveExporter.SelectVerifiedTimeouts(hudTimeouts, cloneTimeouts), hudTimeouts)
+                    || !Object.ReferenceEquals(RamLiveExporter.SelectVerifiedTimeouts(RamReadResult.Missing(0), cloneTimeouts), cloneTimeouts)
+                    || !Object.ReferenceEquals(RamLiveExporter.SelectVerifiedTimeouts(new RamReadResult(true, 7, 1, 1, 1), cloneTimeouts), cloneTimeouts)
+                    || RamLiveExporter.SelectVerifiedTimeouts(RamReadResult.Missing(0), RamReadResult.Missing(2)).Available
+                    || RamLiveExporter.SelectVerifiedTimeouts(null, null).Available
+                    || RamLiveExporter.SelectVerifiedTimeouts(RamReadResult.Missing(0), RamReadResult.Missing(2)).ConfiguredCopies != 2)
+                    throw new Exception("Timeout selection priority is wrong.");
                 // Only a complementary HUD pair may move the arrow: both-off is
                 // a real dead-ball state, both-on is a mid-update read.
                 if (RamLiveExporter.HudPossessionCandidate(1, 0) != 1

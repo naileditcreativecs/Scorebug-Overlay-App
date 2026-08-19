@@ -4051,10 +4051,33 @@ function maybeRequestDynastyLeaders() {
     .finally(() => { dynastyWorkerBusy = false; });
 }
 
+const dynastyFolderWatchers = new Map();
+let dynastyWatchDebounce = null;
+
+// React to a save being written (advance week, autosave) within seconds
+// instead of waiting for the next poll, so records/ranks/names come from
+// the current week the moment the game is loaded. The 20 s poll stays as
+// the safety net (fs.watch is best-effort on OneDrive folders).
+function watchDynastyFolders() {
+  for (const folder of dynastySavesFolders()) {
+    if (dynastyFolderWatchers.has(folder) || !fs.existsSync(folder)) continue;
+    try {
+      const watcher = fs.watch(folder, { persistent: false }, () => {
+        clearTimeout(dynastyWatchDebounce);
+        // The save grows while it is written; refresh once it has settled.
+        dynastyWatchDebounce = setTimeout(() => { refreshDynastyContext().catch(() => {}); }, 6000);
+      });
+      watcher.on('error', () => { try { watcher.close(); } catch { } dynastyFolderWatchers.delete(folder); });
+      dynastyFolderWatchers.set(folder, watcher);
+    } catch { /* polling covers it */ }
+  }
+}
+
 function startDynastyWatch() {
   if (dynastyPollTimer) return;
   refreshDynastyContext().catch(() => {});
-  dynastyPollTimer = setInterval(() => { refreshDynastyContext().catch(() => {}); }, 20000);
+  watchDynastyFolders();
+  dynastyPollTimer = setInterval(() => { watchDynastyFolders(); refreshDynastyContext().catch(() => {}); }, 20000);
   dynastyPollTimer.unref?.();
 }
 

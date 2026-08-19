@@ -105,6 +105,13 @@ Top-level keys:
                 playerId, teamId, teamSide, displayTime }. Raw pass-through,
                 layout not decoded; empty when nothing is up. Experimental.
 
+  ram.awayTimeouts / ram.homeTimeouts
+                0-3. Source order: the ScoreHud team object (what the in-game
+                bug draws; guarded by the live score, needs two agreeing
+                reads, held through brief object churn), then the clone-slot
+                read as fallback; nothing rather than a guess.
+                discovery.timeoutHud says what the HUD objects show.
+
   ram.freshness
                 Per-field staleness data, so you never have to guess
                 with your own freeze heuristics. For each field

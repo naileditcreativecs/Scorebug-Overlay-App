@@ -573,8 +573,16 @@ namespace CollegeFootballRamDiagnostic
             RamReadResult stableDistanceRead;
             StabilizeDownDistance(down, distance, out stableDownRead, out stableDistanceRead);
             ApplyOrientedTimeoutFields();
-            RamReadResult homeTimeouts = Read("homeTimeouts", 0, 3);
-            RamReadResult awayTimeouts = Read("awayTimeouts", 0, 3);
+            // Timeouts: the oriented ScoreHud team objects (the same objects
+            // that supply rank, record and possession) carry the count the
+            // in-game bug draws. Guarded by the live score, debounced, held
+            // through brief object churn. The clone-slot read stays as the
+            // fallback for a game where the HUD objects never bind.
+            ObserveHudTimeouts(awayScore, homeScore);
+            RamReadResult homeTimeouts = SelectVerifiedTimeouts(
+                ReadHudTimeouts(false), Read("homeTimeouts", 0, 3));
+            RamReadResult awayTimeouts = SelectVerifiedTimeouts(
+                ReadHudTimeouts(true), Read("awayTimeouts", 0, 3));
             RamReadResult awayRank = ReadLiveRank("awayRank", ref lastAwayRank,
                 ref lastAwayRankGeneration, ref lastAwayRecord);
             RamReadResult homeRank = ReadLiveRank("homeRank", ref lastHomeRank,
@@ -890,6 +898,7 @@ namespace CollegeFootballRamDiagnostic
                         + "x, disagreed " + coreCrossCheckDisagreements.ToString(CultureInfo.InvariantCulture)
                         + "x, last " + ((int)(DateTime.UtcNow - lastCoreCrossCheckUtc).TotalSeconds).ToString(CultureInfo.InvariantCulture) + "s ago" },
                 { "timeoutBind", timeoutBindDiagnostic },
+                { "timeoutHud", hudTimeoutsDiagnostic },
                 { "timeoutInstall", timeoutInstallDiagnostic },
                 { "timeoutCatalog", catalogTimeoutDiagnostic },
                 { "rankBind", rankBindDiagnostic },
@@ -3163,6 +3172,18 @@ namespace CollegeFootballRamDiagnostic
         private DateTime hudPossessionLastConfirmedUtc;
         private const int HudPossessionRequiredConfirmations = 2;
         private static readonly TimeSpan HudPossessionHoldWindow = TimeSpan.FromSeconds(120);
+
+        // HUD timeouts, same discipline as HUD possession: per side, a value
+        // needs two consecutive score-guarded reads to publish, the last
+        // published value holds through brief churn, and it all resets with
+        // the orientation. Diagnostic names why nothing publishes.
+        private readonly int[] hudTimeoutsPublished = new int[] { -1, -1 };
+        private readonly int[] hudTimeoutsPending = new int[] { -1, -1 };
+        private readonly int[] hudTimeoutsPendingCount = new int[] { 0, 0 };
+        private readonly DateTime[] hudTimeoutsLastConfirmedUtc = new DateTime[] { DateTime.MinValue, DateTime.MinValue };
+        private const int HudTimeoutsRequiredConfirmations = 2;
+        private static readonly TimeSpan HudTimeoutsHoldWindow = TimeSpan.FromSeconds(120);
+        private string hudTimeoutsDiagnostic = "not attempted";
 
         // PROBES. Two append-only logs that cost nothing on screen and decide
         // two open questions with one game of ordinary play:
@@ -5596,6 +5617,71 @@ namespace CollegeFootballRamDiagnostic
             }
         }
 
+        // side 0 = home, 1 = away (matches the clone-slot naming).
+        private void ObserveHudTimeouts(RamReadResult awayScore, RamReadResult homeScore)
+        {
+            if (!HasConfiguredField("awayRank") && !HasConfiguredField("homeRank"))
+            {
+                hudTimeoutsDiagnostic = "HUD team objects not bound";
+                return;
+            }
+            string[] notes = new string[2];
+            for (int side = 0; side < 2; side++)
+            {
+                bool away = side == 1;
+                RamReadResult score = away ? awayScore : homeScore;
+                ScoreHudTeamCandidate team;
+                if (!TryReadConfiguredRankObject(away ? "awayRank" : "homeRank",
+                        score != null && score.Available ? score.Value : -1, out team))
+                {
+                    notes[side] = "no live object";
+                    continue;
+                }
+                int candidate = team.Timeouts;
+                if (candidate < 0 || candidate > 3) { notes[side] = "object value " + candidate + " out of range"; continue; }
+                notes[side] = candidate.ToString(CultureInfo.InvariantCulture);
+                if (candidate == hudTimeoutsPublished[side])
+                {
+                    hudTimeoutsLastConfirmedUtc[side] = DateTime.UtcNow;
+                    hudTimeoutsPending[side] = -1;
+                    hudTimeoutsPendingCount[side] = 0;
+                    continue;
+                }
+                if (candidate == hudTimeoutsPending[side]) hudTimeoutsPendingCount[side]++;
+                else { hudTimeoutsPending[side] = candidate; hudTimeoutsPendingCount[side] = 1; }
+                if (hudTimeoutsPendingCount[side] >= HudTimeoutsRequiredConfirmations)
+                {
+                    hudTimeoutsPublished[side] = candidate;
+                    hudTimeoutsLastConfirmedUtc[side] = DateTime.UtcNow;
+                    hudTimeoutsPending[side] = -1;
+                    hudTimeoutsPendingCount[side] = 0;
+                }
+                else notes[side] += " (pending)";
+            }
+            hudTimeoutsDiagnostic = "home " + notes[0] + ", away " + notes[1]
+                + " | published home " + hudTimeoutsPublished[0] + " away " + hudTimeoutsPublished[1];
+        }
+
+        private RamReadResult ReadHudTimeouts(bool away)
+        {
+            int side = away ? 1 : 0;
+            if (hudTimeoutsPublished[side] >= 0
+                && DateTime.UtcNow - hudTimeoutsLastConfirmedUtc[side] <= HudTimeoutsHoldWindow)
+                return new RamReadResult(true, hudTimeoutsPublished[side], 1, 1, 1);
+            return RamReadResult.Missing(0);
+        }
+
+        internal static RamReadResult SelectVerifiedTimeouts(RamReadResult hud, RamReadResult clone)
+        {
+            // The HUD object is what the in-game bug draws; the clone slots
+            // are the fallback. Nothing rather than a guess.
+            if (hud != null && hud.Available && hud.Value >= 0 && hud.Value <= 3) return hud;
+            if (clone != null && clone.Available && clone.Value >= 0 && clone.Value <= 3) return clone;
+            int successful = clone == null ? 0 : clone.SuccessfulReads;
+            int configured = clone == null ? 0 : clone.ConfiguredCopies;
+            return new RamReadResult(false, 0, successful, 0, configured);
+        }
+
         private RamReadResult ReadHudPossession()
         {
             ObserveHudPossession();
@@ -5862,6 +5948,18 @@ namespace CollegeFootballRamDiagnostic
             hudPossessionPending = -1;
             hudPossessionPendingCount = 0;
             hudPossessionLastConfirmedUtc = DateTime.MinValue;
+            ResetHudTimeouts();
+        }
+
+        private void ResetHudTimeouts()
+        {
+            for (int side = 0; side < 2; side++)
+            {
+                hudTimeoutsPublished[side] = -1;
+                hudTimeoutsPending[side] = -1;
+                hudTimeoutsPendingCount[side] = 0;
+                hudTimeoutsLastConfirmedUtc[side] = DateTime.MinValue;
+            }
         }
 
         private void ClearMatchupCandidate()
