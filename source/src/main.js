@@ -4598,8 +4598,34 @@ function customTeamsRoot() {
 // Madden27.exe and runs its automatic locator, NFL identities load, franchise
 // saves are tried). Nothing below changes behaviour unless the user picks
 // Madden in Settings.
+// 'auto' (the default) follows whichever supported game is actually
+// running: CFB27 always wins when both are up, and with neither running the
+// app behaves exactly as CFB27 - so for a college-only user nothing ever
+// changes. An explicit choice in Settings overrides detection entirely.
+let detectedGameTitle = null;
+
 function gameTitle() {
-  return String(settings.gameTitle || '').toLowerCase() === 'madden27' ? 'madden27' : 'cfb27';
+  const explicit = String(settings.gameTitle || 'auto').toLowerCase();
+  if (explicit === 'madden27' || explicit === 'cfb27') return explicit;
+  return detectedGameTitle || 'cfb27';
+}
+
+function noteDetectedGame(windows) {
+  if (String(settings.gameTitle || 'auto').toLowerCase() !== 'auto') return;
+  const names = new Set((Array.isArray(windows) ? windows : [])
+    .map((w) => String(w?.processName || '').toLowerCase().split(/[\/]/).pop()));
+  const cfb = names.has('collegefb27.exe') || names.has('collegefb27_trial.exe');
+  const madden = names.has('madden27.exe') || names.has('madden27_trial.exe');
+  const next = cfb ? 'cfb27' : (madden ? 'madden27' : null);
+  if (!next || next === (detectedGameTitle || 'cfb27')) { if (next) detectedGameTitle = next; return; }
+  const previous = gameTitle();
+  detectedGameTitle = next;
+  if (gameTitle() === previous) return;
+  logMessage(`Game detected: ${next === 'madden27' ? 'Madden NFL 27 (experimental)' : 'College Football 27'} - switching the reader and team catalog.`);
+  try { syncCustomTeamsToResolver(); } catch { /* teams refresh best-effort */ }
+  try { stopRamReaderService(); startRamReaderService(); } catch { /* reader restart best-effort */ }
+  try { dynastyLastKey = ''; refreshDynastyContext({ force: true }).catch(() => {}); watchDynastyFolders(); } catch { }
+  broadcastControlStatus();
 }
 
 let nflCatalogCache = null;
@@ -5462,6 +5488,7 @@ function unpackedResource(relativePath) {
 
 function applyWindowProbeSnapshot(snapshot) {
   if (!snapshot?.ok) return;
+  noteDetectedGame(snapshot.windows);
   const window = selectGameWindow(snapshot.windows, {
     selfPid: process.pid,
     exactProcessNames: settings.game?.exactProcessNames

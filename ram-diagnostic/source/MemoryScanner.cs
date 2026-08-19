@@ -709,6 +709,83 @@ namespace CollegeFootballRamDiagnostic
         // Multi-pattern ASCII search restricted to the private heap below 4 GB -
         // where every ScoreHud object has been found so far. Cheap enough to
         // run at flag time (~0.5 GB), unlike the whole-process FindAsciiTextsAll.
+        // MADDEN ROUND-2 PROBE. Hunts for ScoreHud-style team objects when
+        // the vtable offsets are unknown: an object headed by a pointer into
+        // the game module whose ints match the live scoreboard the tester
+        // typed in - score at some offset X, timeouts at X-8, a plausible
+        // win count at X+8 (the exact relation the CFB27 team object has at
+        // X=60). Reports a histogram of (vtable offset, X) pairs; the real
+        // team object class dominates it because the game keeps many clones.
+        internal static bool HuntPatternMatches(byte[] bytes, int offset, int score, int timeouts)
+        {
+            if (offset < 8 || offset + 12 > bytes.Length) return false;
+            if (BitConverter.ToInt32(bytes, offset) != score) return false;
+            if (BitConverter.ToInt32(bytes, offset - 8) != timeouts) return false;
+            int wins = BitConverter.ToInt32(bytes, offset + 8);
+            return wins >= 0 && wins <= 40;
+        }
+
+        public Dictionary<string, int> HuntScoreHudTeamObjects(int awayScore, int homeScore,
+            int awayTimeouts, int homeTimeouts, int maximumSamples, List<string> samples)
+        {
+            EnsureAttached();
+            long moduleBase = process.MainModule.BaseAddress.ToInt64();
+            long moduleEnd = moduleBase + process.MainModule.ModuleMemorySize;
+            Dictionary<string, int> histogram = new Dictionary<string, int>(StringComparer.Ordinal);
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[1 << 20];
+            foreach (MemoryRegion region in regions)
+            {
+                if (region.BaseAddress >= 0x100000000L) break;
+                for (long chunk = region.BaseAddress; chunk < region.BaseAddress + region.Size; chunk += buffer.Length)
+                {
+                    int size = (int)Math.Min(buffer.Length, region.BaseAddress + region.Size - chunk);
+                    int read = ReadIntoBuffer(chunk, buffer, size);
+                    if (read < 0x90) continue;
+                    for (int start = 0; start + 0x90 <= read; start += 8)
+                    {
+                        long vtable = BitConverter.ToInt64(buffer, start);
+                        if (vtable < moduleBase || vtable >= moduleEnd) continue;
+                        for (int x = 32; x <= 120; x += 4)
+                        {
+                            if (start + x + 12 > read) break;
+                            bool away = HuntPatternMatches(buffer, start + x, awayScore, awayTimeouts);
+                            bool home = !away && HuntPatternMatches(buffer, start + x, homeScore, homeTimeouts);
+                            if (!away && !home) continue;
+                            string key = "0x" + (vtable - moduleBase).ToString("X", CultureInfo.InvariantCulture)
+                                + "@+" + x.ToString(CultureInfo.InvariantCulture)
+                                + (away ? " away" : " home");
+                            int count;
+                            histogram[key] = histogram.TryGetValue(key, out count) ? count + 1 : 1;
+                            if (samples != null && samples.Count < maximumSamples)
+                            {
+                                StringBuilder ints = new StringBuilder();
+                                for (int i = 24; i <= 120 && start + i + 4 <= read; i += 4)
+                                {
+                                    if (i > 24) ints.Append(",");
+                                    ints.Append(BitConverter.ToInt32(buffer, start + i));
+                                }
+                                samples.Add("0x" + (chunk + start).ToString("X", CultureInfo.InvariantCulture)
+                                    + " " + key + " ints[24..120]=" + ints);
+                            }
+                        }
+                    }
+                }
+            }
+            return histogram;
+        }
+
+        private int ReadIntoBuffer(long address, byte[] buffer, int size)
+        {
+            try
+            {
+                byte[] chunk = ReadBytes(address, size);
+                Array.Copy(chunk, buffer, chunk.Length);
+                return chunk.Length;
+            }
+            catch { return -1; }
+        }
+
         public Dictionary<string, List<long>> FindAsciiTextsPrivateBelow4G(string[] values, int maximumPerValue)
         {
             EnsureAttached();

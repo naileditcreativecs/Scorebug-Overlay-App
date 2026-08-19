@@ -744,8 +744,9 @@
     $('margin-y').value = settings.overlay.marginY ?? 32;
     $('reader-mode').value = settings.recognition.mode || 'local-ocr';
     if ($('game-title')) {
-      $('game-title').value = String(settings.gameTitle || '').toLowerCase() === 'madden27' ? 'madden27' : 'cfb27';
-      if ($('game-title-help')) $('game-title-help').hidden = $('game-title').value !== 'madden27';
+      const configuredGame = String(settings.gameTitle || 'auto').toLowerCase();
+      $('game-title').value = configuredGame === 'madden27' || configuredGame === 'cfb27' ? configuredGame : 'auto';
+      if ($('game-title-help')) $('game-title-help').hidden = $('game-title').value === 'cfb27';
     }
     $('donor-profile').value = settings.recognition.donorProfile || 'auto';
     renderScoreboardDataSource(settings.dataExtraction.scoreboardSource);
@@ -2314,11 +2315,13 @@
     });
     if ($('game-title')) {
       $('game-title').addEventListener('change', async (event) => {
-        settings.gameTitle = event.target.value === 'madden27' ? 'madden27' : 'cfb27';
-        if ($('game-title-help')) $('game-title-help').hidden = settings.gameTitle !== 'madden27';
+        settings.gameTitle = ['madden27', 'cfb27'].includes(event.target.value) ? event.target.value : 'auto';
+        if ($('game-title-help')) $('game-title-help').hidden = settings.gameTitle === 'cfb27';
         await saveSettings(settings.gameTitle === 'madden27'
           ? 'Game set to Madden NFL 27 (experimental) - restart the reader from Diagnostics or restart the app'
-          : 'Game set to College Football 27');
+          : (settings.gameTitle === 'cfb27'
+            ? 'Game set to College Football 27'
+            : 'Game set to Auto - the app follows whichever game is running (CFB27 wins if both are)'));
       });
     }
     $('scoreboard-data-source').addEventListener('change', async (event) => {

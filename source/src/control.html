@@ -14,7 +14,7 @@
       <h1>Scorebug Center</h1>
       <p class="header-subtitle">Every overlay tool has its own tab. In game, Ctrl+Alt+O opens the scorebug editor.</p>
     </div>
-    <span id="app-version" class="version">v1.4.63</span>
+    <span id="app-version" class="version">v1.4.64</span>
   </header>
 
   <section class="status-strip" aria-label="Runtime status">
@@ -148,11 +148,12 @@
           <p id="scoreboard-data-source-help" class="hint">Live values are read directly from the game.</p>
           <label>Game
             <select id="game-title">
+              <option value="auto">Auto (whichever game is running)</option>
               <option value="cfb27">College Football 27</option>
               <option value="madden27">Madden NFL 27 (experimental)</option>
             </select>
           </label>
-          <p id="game-title-help" class="hint" hidden>Madden support is experimental groundwork: the reader attaches to Madden27.exe, NFL team identities load, and franchise saves are tried. Live scoreboard reading for Madden is not mapped yet.</p>
+          <p id="game-title-help" class="hint" hidden>Auto follows whichever game is running (College Football wins if both are). Madden support is experimental: scores, clock and downs read live; team names and timeouts are still being mapped.</p>
           <label>Mode
             <select id="reader-mode">
               <option value="local-ocr">Automatic</option>

@@ -26,6 +26,10 @@ namespace CollegeFootballRamDiagnostic
             {
                 return Probe.Run(args.Length > 1 ? args[1] : null);
             }
+            if (args.Length > 0 && String.Equals(args[0], "--scorehud-hunt", StringComparison.OrdinalIgnoreCase))
+            {
+                return ScoreHudHuntProbe.Run(args.Length > 1 ? args[1] : null, args.Length > 2 ? args[2] : null);
+            }
             if (args.Length > 0 && String.Equals(args[0], "--locate", StringComparison.OrdinalIgnoreCase))
             {
                 return LocatorProbe.Run(args.Length > 1 ? args[1] : null, args.Length > 2 ? args[2] : null);
@@ -3485,6 +3489,75 @@ namespace CollegeFootballRamDiagnostic
         }
     }
 
+    // MADDEN ROUND-2 PROBE: hunts the team objects (names/timeouts source)
+    // when their vtable offsets are unknown. Seed json supplies the live
+    // scores/timeouts and the team names the tester sees.
+    internal static class ScoreHudHuntProbe
+    {
+        public static int Run(string outputPath, string seedJsonPath)
+        {
+            try
+            {
+                Process[] games = Process.GetProcessesByName(GameProfile.ProcessName);
+                if (games.Length == 0) throw new InvalidOperationException(GameProfile.ProcessName + ".exe is not running.");
+                if (String.IsNullOrWhiteSpace(seedJsonPath) || !File.Exists(seedJsonPath))
+                    throw new InvalidOperationException("Seed json with the live scoreboard values is required.");
+                LiveScoreboard seed = LiveScoreboard.Parse(File.ReadAllText(seedJsonPath));
+                using (MemoryScanner scanner = new MemoryScanner())
+                {
+                    scanner.Attach(games[0]);
+                    List<string> samples = new List<string>();
+                    Dictionary<string, int> histogram = scanner.HuntScoreHudTeamObjects(
+                        seed.AwayScore, seed.HomeScore, seed.AwayTimeouts, seed.HomeTimeouts, 40, samples);
+                    List<string> nameTargets = new List<string>();
+                    foreach (string value in new string[] { seed.AwayName, seed.HomeName })
+                    {
+                        if (String.IsNullOrWhiteSpace(value) || value == "Away" || value == "Home") continue;
+                        nameTargets.Add(value);
+                        if (value.ToUpperInvariant() != value) nameTargets.Add(value.ToUpperInvariant());
+                    }
+                    Dictionary<string, List<long>> nameHits = nameTargets.Count > 0
+                        ? scanner.FindAsciiTextsPrivateBelow4G(nameTargets.ToArray(), 24)
+                        : new Dictionary<string, List<long>>();
+                    Dictionary<string, object> nameReport = new Dictionary<string, object>();
+                    foreach (KeyValuePair<string, List<long>> pair in nameHits)
+                    {
+                        List<string> addresses = new List<string>();
+                        foreach (long address in pair.Value)
+                            addresses.Add("0x" + address.ToString("X", CultureInfo.InvariantCulture));
+                        nameReport[pair.Key] = addresses;
+                    }
+                    Dictionary<string, object> result = new Dictionary<string, object>
+                    {
+                        { "passed", histogram.Count > 0 || nameReport.Count > 0 },
+                        { "game", GameProfile.Key },
+                        { "processId", games[0].Id },
+                        { "seed", new Dictionary<string, object> {
+                            { "awayScore", seed.AwayScore }, { "homeScore", seed.HomeScore },
+                            { "awayTimeouts", seed.AwayTimeouts }, { "homeTimeouts", seed.HomeTimeouts },
+                            { "awayName", seed.AwayName }, { "homeName", seed.HomeName } } },
+                        { "teamObjectCandidates", histogram },
+                        { "samples", samples },
+                        { "nameHits", nameReport }
+                    };
+                    File.WriteAllText(outputPath ?? "scorehud-hunt.json",
+                        new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = 64 * 1024 * 1024 }.Serialize(result));
+                    return 0;
+                }
+            }
+            catch (Exception error)
+            {
+                try
+                {
+                    File.WriteAllText(outputPath ?? "scorehud-hunt.json",
+                        "{\"passed\":false,\"error\":\"" + error.Message.Replace('\'', ' ').Replace('"', ' ') + "\"}");
+                }
+                catch { }
+                return 1;
+            }
+        }
+    }
+
     internal static class LocatorProbe
     {
         public static int Run(string outputPath, string screenJsonPath)
@@ -3957,6 +4030,19 @@ namespace CollegeFootballRamDiagnostic
                 if (GameProfile.Key != "madden27" || GameProfile.ProcessName != "Madden27"
                     || GameProfile.ScoreHudTeamVtableOffset != 0)
                     throw new Exception("Madden 27 profile did not apply.");
+                // Hunt pattern (Madden round 2): score at X, timeouts at X-8,
+                // plausible wins at X+8 - the CFB27 team-object relation.
+                byte[] hunt = new byte[128];
+                Array.Copy(BitConverter.GetBytes(3), 0, hunt, 52, 4);
+                Array.Copy(BitConverter.GetBytes(17), 0, hunt, 60, 4);
+                Array.Copy(BitConverter.GetBytes(8), 0, hunt, 68, 4);
+                if (!MemoryScanner.HuntPatternMatches(hunt, 60, 17, 3)
+                    || MemoryScanner.HuntPatternMatches(hunt, 60, 18, 3)
+                    || MemoryScanner.HuntPatternMatches(hunt, 60, 17, 2))
+                    throw new Exception("ScoreHud hunt pattern is wrong.");
+                Array.Copy(BitConverter.GetBytes(99), 0, hunt, 68, 4);
+                if (MemoryScanner.HuntPatternMatches(hunt, 60, 17, 3))
+                    throw new Exception("ScoreHud hunt accepts an impossible win count.");
                 // Restore for the rest of the self-test.
                 GameProfile.Key = "cfb27"; GameProfile.ProcessName = "CollegeFB27";
                 GameProfile.ScoreHudTeamVtableOffset = 0xB0F3168L;
