@@ -3520,12 +3520,42 @@ namespace CollegeFootballRamDiagnostic
                         ? scanner.FindAsciiTextsPrivateBelow4G(nameTargets.ToArray(), 24)
                         : new Dictionary<string, List<long>>();
                     Dictionary<string, object> nameReport = new Dictionary<string, object>();
+                    List<string> nameContexts = new List<string>();
                     foreach (KeyValuePair<string, List<long>> pair in nameHits)
                     {
                         List<string> addresses = new List<string>();
                         foreach (long address in pair.Value)
+                        {
                             addresses.Add("0x" + address.ToString("X", CultureInfo.InvariantCulture));
+                            // Context dump: the record layout around each name is
+                            // what identifies Madden's team catalog (stride, key
+                            // fields) - addresses change every session, so the
+                            // dump must happen in the same one as the scan.
+                            if (nameContexts.Count >= 48) continue;
+                            try
+                            {
+                                byte[] context = scanner.ReadBytes(address - 0x80, 0x180);
+                                System.Text.StringBuilder line = new System.Text.StringBuilder();
+                                line.Append("0x").Append((address - 0x80).ToString("X", CultureInfo.InvariantCulture)).Append(" ");
+                                foreach (byte b in context)
+                                    line.Append(b >= 32 && b < 127 ? (char)b : '.');
+                                line.Append(" | hex ");
+                                foreach (byte b in context) line.Append(b.ToString("x2", CultureInfo.InvariantCulture));
+                                nameContexts.Add(line.ToString());
+                            }
+                            catch { }
+                        }
                         nameReport[pair.Key] = addresses;
+                    }
+                    // The histogram can hold tens of thousands of zero-score
+                    // coincidences; only the strongest candidates matter.
+                    if (histogram.Count > 300)
+                    {
+                        List<KeyValuePair<string, int>> ranked = new List<KeyValuePair<string, int>>(histogram);
+                        ranked.Sort(delegate(KeyValuePair<string, int> left, KeyValuePair<string, int> right) { return right.Value.CompareTo(left.Value); });
+                        Dictionary<string, int> trimmed = new Dictionary<string, int>(StringComparer.Ordinal);
+                        for (int index = 0; index < 300; index++) trimmed[ranked[index].Key] = ranked[index].Value;
+                        histogram = trimmed;
                     }
                     Dictionary<string, object> result = new Dictionary<string, object>
                     {
@@ -3538,7 +3568,8 @@ namespace CollegeFootballRamDiagnostic
                             { "awayName", seed.AwayName }, { "homeName", seed.HomeName } } },
                         { "teamObjectCandidates", histogram },
                         { "samples", samples },
-                        { "nameHits", nameReport }
+                        { "nameHits", nameReport },
+                        { "nameContexts", nameContexts }
                     };
                     File.WriteAllText(outputPath ?? "scorehud-hunt.json",
                         new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = 64 * 1024 * 1024 }.Serialize(result));

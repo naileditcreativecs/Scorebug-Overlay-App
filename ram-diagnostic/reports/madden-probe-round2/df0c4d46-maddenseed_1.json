@@ -1,0 +1,24 @@
+﻿{
+    "game":  {
+                 "clock":  "5:56",
+                 "down":  1,
+                 "playClock":  25,
+                 "quarter":  "1",
+                 "distance":  10
+             },
+    "away":  {
+                 "timeouts":  3,
+                 "score":  0,
+                 "name":  "Browns",
+                 "possession":  false
+             },
+    "meta":  {
+                 "updatedAt":  "2026-08-19T21:49:49.4061817Z"
+             },
+    "home":  {
+                 "timeouts":  3,
+                 "score":  0,
+                 "name":  "Saints",
+                 "possession":  false
+             }
+}
