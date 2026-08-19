@@ -995,7 +995,7 @@ namespace CollegeFootballRamDiagnostic
             lastPublishedProcessId = scanner.Process.Id;
 
             return String.Format(CultureInfo.InvariantCulture,
-                "RAM export LIVE: {0} {1} | play {2} | {3} | possession {4} | timeouts away {5}, home {6} | {7}",
+                MaddenNoteLiveValues(awayScore, homeScore, screenJsonPath),
                 FormatQuarter(quarterValue), FormatClock(clockValue), playClockValue, downDistanceText,
                 possession.Available ? (awayPossession ? "away" : "home") : "unknown",
                 awayTimeouts.Available ? awayTimeouts.Value.ToString(CultureInfo.InvariantCulture) : "?",
@@ -6808,6 +6808,129 @@ namespace CollegeFootballRamDiagnostic
                 { "awayPossession", screen.AwayPossession },
                 { "homePossession", screen.HomePossession }
             };
+        }
+
+        // MADDEN RESEARCH (never runs for CFB27). While a Madden game is
+        // live, hunt for the team objects and the team catalog in the
+        // background, self-seeded with the reader's OWN live score - no
+        // tester input, no pausing, non-zero values guaranteed mid-game.
+        // Results append to madden-hunt.jsonl next to the live export, which
+        // the app's Export Test Package picks up. Read-only, its own scanner
+        // handle, and hard-capped so a session logs a few rounds at most.
+        private System.Threading.Thread maddenResearchThread;
+        private volatile int maddenLiveAwayScore = -1;
+        private volatile int maddenLiveHomeScore = -1;
+        private volatile bool maddenNicknameScanDone;
+        private int maddenResearchRounds;
+        private static readonly string[] NflNicknames = new string[] {
+            "Cardinals", "Falcons", "Ravens", "Bills", "Panthers", "Bears",
+            "Bengals", "Browns", "Cowboys", "Broncos", "Lions", "Packers",
+            "Texans", "Colts", "Jaguars", "Chiefs", "Raiders", "Chargers",
+            "Rams", "Dolphins", "Vikings", "Patriots", "Saints", "Giants",
+            "Jets", "Eagles", "Steelers", "49ers", "Seahawks", "Buccaneers",
+            "Titans", "Commanders" };
+
+        private void MaybeStartMaddenResearch(string screenJsonPath)
+        {
+            if (GameProfile.Key != "madden27") return;
+            if (maddenResearchThread != null && maddenResearchThread.IsAlive) return;
+            int processId = scanner.Process != null ? scanner.Process.Id : 0;
+            if (processId == 0) return;
+            string outputFolder = Path.GetDirectoryName(OutputPath(screenJsonPath));
+            maddenResearchThread = new System.Threading.Thread(delegate ()
+            {
+                RunMaddenResearchLoop(processId, outputFolder);
+            });
+            maddenResearchThread.IsBackground = true;
+            maddenResearchThread.Start();
+        }
+
+        private void RunMaddenResearchLoop(int processId, string outputFolder)
+        {
+            string outputPath = Path.Combine(outputFolder, "madden-hunt.jsonl");
+            System.Web.Script.Serialization.JavaScriptSerializer serializer =
+                new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = 64 * 1024 * 1024 };
+            while (maddenResearchRounds < 6)
+            {
+                System.Threading.Thread.Sleep(90000);
+                try
+                {
+                    if (scanner.Process == null || scanner.Process.HasExited
+                        || scanner.Process.Id != processId) return;
+                    int awayScore = maddenLiveAwayScore;
+                    int homeScore = maddenLiveHomeScore;
+                    // Zero-zero swamps the hunt with coincidences; wait for points.
+                    if (awayScore < 0 || homeScore < 0 || awayScore + homeScore == 0) continue;
+                    maddenResearchRounds++;
+                    Dictionary<string, object> entry = new Dictionary<string, object>
+                    {
+                        { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                        { "round", maddenResearchRounds },
+                        { "awayScore", awayScore },
+                        { "homeScore", homeScore }
+                    };
+                    using (MemoryScanner research = new MemoryScanner())
+                    {
+                        research.Attach(Process.GetProcessById(processId));
+                        List<string> samples = new List<string>();
+                        Dictionary<string, int> histogram = research.HuntScoreHudTeamObjects(
+                            awayScore, homeScore, -1, -1, 24, samples);
+                        List<KeyValuePair<string, int>> ranked = new List<KeyValuePair<string, int>>(histogram);
+                        ranked.Sort(delegate (KeyValuePair<string, int> left, KeyValuePair<string, int> right) { return right.Value.CompareTo(left.Value); });
+                        Dictionary<string, int> top = new Dictionary<string, int>(StringComparer.Ordinal);
+                        for (int index = 0; index < ranked.Count && index < 120; index++) top[ranked[index].Key] = ranked[index].Value;
+                        entry["teamObjectCandidates"] = top;
+                        entry["samples"] = samples;
+                        if (!maddenNicknameScanDone)
+                        {
+                            maddenNicknameScanDone = true;
+                            List<string> targets = new List<string>();
+                            foreach (string nickname in NflNicknames)
+                            {
+                                targets.Add(nickname);
+                                targets.Add(nickname.ToUpperInvariant());
+                            }
+                            Dictionary<string, List<long>> hits = research.FindAsciiTextsPrivateBelow4G(targets.ToArray(), 8);
+                            Dictionary<string, object> nameReport = new Dictionary<string, object>();
+                            List<string> contexts = new List<string>();
+                            foreach (KeyValuePair<string, List<long>> pair in hits)
+                            {
+                                List<string> addresses = new List<string>();
+                                foreach (long address in pair.Value)
+                                {
+                                    addresses.Add("0x" + address.ToString("X", CultureInfo.InvariantCulture));
+                                    if (contexts.Count >= 64) continue;
+                                    try
+                                    {
+                                        byte[] context = research.ReadBytes(address - 0x80, 0x180);
+                                        System.Text.StringBuilder line = new System.Text.StringBuilder();
+                                        line.Append("0x").Append((address - 0x80).ToString("X", CultureInfo.InvariantCulture)).Append(" ");
+                                        foreach (byte b in context) line.Append(b >= 32 && b < 127 ? (char)b : '.');
+                                        contexts.Add(line.ToString());
+                                    }
+                                    catch { }
+                                }
+                                nameReport[pair.Key] = addresses;
+                            }
+                            entry["nicknameHits"] = nameReport;
+                            entry["nicknameContexts"] = contexts;
+                        }
+                    }
+                    File.AppendAllText(outputPath, serializer.Serialize(entry) + Environment.NewLine);
+                }
+                catch { /* research only; the live export must never notice */ }
+            }
+        }
+
+        private string MaddenNoteLiveValues(RamReadResult awayScore, RamReadResult homeScore, string screenJsonPath)
+        {
+            if (GameProfile.Key == "madden27")
+            {
+                if (awayScore != null && awayScore.Available) maddenLiveAwayScore = awayScore.Value;
+                if (homeScore != null && homeScore.Available) maddenLiveHomeScore = homeScore.Value;
+                MaybeStartMaddenResearch(screenJsonPath);
+            }
+            return "RAM export LIVE: {0} {1} | play {2} | {3} | possession {4} | timeouts away {5}, home {6} | {7}";
         }
 
         private static string OutputPath(string screenJsonPath)

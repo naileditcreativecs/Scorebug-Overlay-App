@@ -4074,6 +4074,12 @@ namespace CollegeFootballRamDiagnostic
                 Array.Copy(BitConverter.GetBytes(99), 0, hunt, 68, 4);
                 if (MemoryScanner.HuntPatternMatches(hunt, 60, 17, 3))
                     throw new Exception("ScoreHud hunt accepts an impossible win count.");
+                Array.Copy(BitConverter.GetBytes(8), 0, hunt, 68, 4);
+                if (!MemoryScanner.HuntPatternMatches(hunt, 60, 17, -1))
+                    throw new Exception("ScoreHud hunt wildcard timeouts do not match.");
+                Array.Copy(BitConverter.GetBytes(9), 0, hunt, 52, 4);
+                if (MemoryScanner.HuntPatternMatches(hunt, 60, 17, -1))
+                    throw new Exception("ScoreHud hunt wildcard accepts timeouts > 3.");
                 // Restore for the rest of the self-test.
                 GameProfile.Key = "cfb27"; GameProfile.ProcessName = "CollegeFB27";
                 GameProfile.ScoreHudTeamVtableOffset = 0xB0F3168L;

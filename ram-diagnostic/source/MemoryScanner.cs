@@ -720,7 +720,11 @@ namespace CollegeFootballRamDiagnostic
         {
             if (offset < 8 || offset + 12 > bytes.Length) return false;
             if (BitConverter.ToInt32(bytes, offset) != score) return false;
-            if (BitConverter.ToInt32(bytes, offset - 8) != timeouts) return false;
+            int slotTimeouts = BitConverter.ToInt32(bytes, offset - 8);
+            // timeouts < 0 is a wildcard: the caller does not know the live
+            // count (that is what the hunt is trying to find), so any legal
+            // 0..3 qualifies.
+            if (timeouts >= 0 ? slotTimeouts != timeouts : (slotTimeouts < 0 || slotTimeouts > 3)) return false;
             int wins = BitConverter.ToInt32(bytes, offset + 8);
             return wins >= 0 && wins <= 40;
         }
