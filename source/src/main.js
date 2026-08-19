@@ -973,10 +973,14 @@ function ramScoreboardPayload(document) {
   // Penalty flag, from the game's own FLAG banner (probe-verified id + text
   // fallback). Present and true only while the game itself shows the banner.
   const flag = flagStateFromMessages(document.ram?.recentMessages, Date.now());
-  apply(state.game, 'flag', true, flag.active, 'game.flag');
+  // Publish an explicit false/'' when the banner is gone - a theme that
+  // showed its flag animation needs a real value to take it down again
+  // (a missing key means "unknown", and the themes rightly keep the last
+  // known state for unknowns).
+  apply(state.game, 'flag', flag.active, true, 'game.flag');
   // Side-aware value for themes with their own penalty treatment:
   // 'away'/'home' when the game attributed the flag, 'flag' when it did not.
-  apply(state.game, 'penaltyFlag', flag.side || 'flag', flag.active, 'game.penaltyFlag');
+  apply(state.game, 'penaltyFlag', flag.active ? (flag.side || 'flag') : '', true, 'game.penaltyFlag');
   // The penalty being announced (type + offense/defense), read by the
   // reader from the game's own commentary/referee strings ~10 s after the
   // banner. Which TEAM that is follows from possession: offense = the side
@@ -1167,6 +1171,19 @@ function pollRamScoreboardState() {
     if (held.held) {
       // Nothing new to publish - the previous state is already on screen.
       lastRamDataAtMs = Date.now();
+      // Except the flag: its ~8 s banner window keeps ticking while the
+      // reader is quiet (the game blanks its scorebug during the penalty
+      // presentation, which is exactly when documents get held). Without
+      // this, the held payload kept flag=true on the bug indefinitely.
+      const heldGame = payload.state?.game;
+      if (heldGame && (heldGame.flag === true || heldGame.penaltyFlag)) {
+        const flagNow = flagStateFromMessages(liveDocument?.ram?.recentMessages, Date.now());
+        if (!flagNow.active) {
+          heldGame.flag = false;
+          heldGame.penaltyFlag = '';
+          publishCurrentScoreboardState();
+        }
+      }
       return;
     }
     // A different game in the same process: force a fresh locate so the
@@ -1593,10 +1610,14 @@ function currentThemeSizingSnapshot() {
     3000,
   );
   const scale = Math.min(2, Math.max(0.1, Number(runtime.layout?.scale ?? settings.overlay?.scale) || 0.5));
-  const scaleAt2160 = Math.min(4, Math.max(
-    0.1,
-    Number(runtime.layout?.scaleAt2160 ?? settings.overlay?.scaleAt2160) || scale,
-  ));
+  // Derive scaleAt2160 from the on-screen scale instead of trusting a runtime
+  // copy that a resize gesture may not have refreshed - the profile must
+  // describe what the user is looking at.
+  const scaleAt2160 = Math.min(4, Math.max(0.1, scaleAt2160FromEffective(
+    scale,
+    normalizeOutputResolution(settings.overlay?.outputResolution),
+    scale,
+  )));
   const crop = normalizeThemeCrop(
     runtime.layout?.crop ?? settings.theme?.crop,
     canvasWidth,
@@ -1669,7 +1690,15 @@ function restoreThemeSizing(themePath, preferred = {}, { usePreferredCrop = true
   if (isPlainObject(saved)) {
     settings.overlay ||= {};
     settings.overlay.scale = saved.scale;
-    settings.overlay.scaleAt2160 = saved.scaleAt2160;
+    // Old profiles could hold a scaleAt2160 from before the last resize.
+    // The on-screen scale is the truth; recompute the pair when they
+    // disagree so the saved SIZE comes back, not just the position.
+    const savedResolution = normalizeOutputResolution(settings.overlay.outputResolution);
+    const consistent = scaleAt2160FromEffective(Number(saved.scale), savedResolution, Number(saved.scale));
+    settings.overlay.scaleAt2160 = Number.isFinite(Number(saved.scaleAt2160))
+      && Math.abs(Number(saved.scaleAt2160) - consistent) <= 0.001
+      ? saved.scaleAt2160
+      : consistent;
     // Older snapshots carry no position; restore it only when present so the
     // upgrade never moves anything that was not saved by this build.
     if (typeof saved.anchor === 'string' && saved.anchor.includes('-')) {
@@ -3119,6 +3148,14 @@ function applyOverlayHandleGesture(payload = {}) {
   runtime.layout = {
     ...runtime.layout,
     scale: result.scale,
+    // scaleAt2160 is what restore actually uses (resolveScaleSettings prefers
+    // it over scale). Leaving it stale here was why a saved profile brought
+    // back the position but the PRE-resize size.
+    scaleAt2160: scaleAt2160FromEffective(
+      result.scale,
+      normalizeOutputResolution(settings.overlay?.outputResolution),
+      result.scale,
+    ),
     crop: result.crop,
     width: result.bounds.width,
     height: result.bounds.height,

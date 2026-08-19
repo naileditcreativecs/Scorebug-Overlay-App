@@ -68,3 +68,12 @@ test('garbage input never activates', () => {
   const noTime = { ...PROBE_FLAG, displayTime: -1 };
   assert.strictEqual(flagStateFromMessages([noTime], SHOWN_AT + 100).active, true);
 });
+
+test('flag state: expires by the banner clock even if no new messages arrive', () => {
+  const shownAt = Date.parse('2026-08-19T01:00:00.000Z');
+  const messages = [{ messageId: 1150630092, displayText: 'FLAG', displayTime: 8000, t: '2026-08-19T01:00:00.000Z' }];
+  assert.equal(flagStateFromMessages(messages, shownAt + 5000).active, true);
+  assert.equal(flagStateFromMessages(messages, shownAt + 8001).active, false);
+  // No document at all (reader quiet during the presentation): not active.
+  assert.equal(flagStateFromMessages(undefined, shownAt).active, false);
+});
