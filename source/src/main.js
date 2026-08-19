@@ -4611,11 +4611,37 @@ function gameTitle() {
 }
 
 function noteDetectedGame(windows) {
-  if (String(settings.gameTitle || 'auto').toLowerCase() !== 'auto') return;
   const names = new Set((Array.isArray(windows) ? windows : [])
     .map((w) => String(w?.processName || '').toLowerCase().split(/[\/]/).pop()));
-  const cfb = names.has('collegefb27.exe') || names.has('collegefb27_trial.exe');
-  const madden = names.has('madden27.exe') || names.has('madden27_trial.exe');
+  noteDetectedGameProcesses(
+    names.has('collegefb27.exe') || names.has('collegefb27_trial.exe'),
+    names.has('madden27.exe') || names.has('madden27_trial.exe'),
+  );
+}
+
+// The window probe alone missed Madden entirely in a live tester session
+// (2026-08-19: one window event in 18 minutes, reader stuck "waiting for
+// CollegeFB27.exe" through a whole Madden game), so Auto also polls the
+// process list directly every 15 s while it is in charge.
+let gameDetectTimer = null;
+function startGameDetectPoll() {
+  if (gameDetectTimer) return;
+  gameDetectTimer = setInterval(() => {
+    if (String(settings.gameTitle || 'auto').toLowerCase() !== 'auto') return;
+    execFile('tasklist', ['/FO', 'CSV', '/NH'], { windowsHide: true, timeout: 10000 }, (error, stdout) => {
+      if (error || !stdout) return;
+      const lower = stdout.toLowerCase();
+      noteDetectedGameProcesses(
+        lower.includes('"collegefb27.exe"') || lower.includes('"collegefb27_trial.exe"'),
+        lower.includes('"madden27.exe"') || lower.includes('"madden27_trial.exe"'),
+      );
+    });
+  }, 15000);
+  gameDetectTimer.unref?.();
+}
+
+function noteDetectedGameProcesses(cfb, madden) {
+  if (String(settings.gameTitle || 'auto').toLowerCase() !== 'auto') return;
   const next = cfb ? 'cfb27' : (madden ? 'madden27' : null);
   if (!next || next === (detectedGameTitle || 'cfb27')) { if (next) detectedGameTitle = next; return; }
   const previous = gameTitle();
@@ -8066,6 +8092,7 @@ if (!hasSingleInstanceLock) {
     ensureBundledOriginalThemeInLibrary();
     repairKnownThemeLibraryBugs();
     try { startDynastyWatch(); } catch (error) { logMessage(`Dynasty watch could not start: ${error.message}`); }
+    try { startGameDetectPoll(); } catch { /* window-probe path still detects */ }
     runtime.positionLocked = settings.overlay?.positionLocked === true;
     const initialThemePath = configuredThemePath();
     runtime.themePath = null;
