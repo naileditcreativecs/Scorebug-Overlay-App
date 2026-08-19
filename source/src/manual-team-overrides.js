@@ -45,7 +45,7 @@ function normalizeManualTeamOverride(resolver, payload = {}) {
   return { teamId, rankMode, rank, recordMode, record };
 }
 
-function applyManualTeamOverrides(sourceState, overrides, resolver) {
+function applyManualTeamOverrides(sourceState, overrides, resolver, { clearStaleTeamAssets = true } = {}) {
   const payload = {
     ...sourceState,
     away: { ...(sourceState?.away || {}) },
@@ -62,29 +62,43 @@ function applyManualTeamOverrides(sourceState, overrides, resolver) {
       const asset = resolver?.resolveTeamId(override.teamId);
       if (asset) {
         payload[side].name = asset.name;
+        // Themes bind away/home.name to shortName first. Leaving the reader's
+        // old shortName here made a successful manual selection still display
+        // the previous team on most bugs.
+        payload[side].shortName = asset.abbreviation || asset.name;
         payload[side].nickname = asset.nickname;
-        payload[side].color = null;
-        payload[side].logo = null;
+        payload[side].nameSource = 'manual-override';
+        if (clearStaleTeamAssets) {
+          // The early pass clears the prior team's art so normal asset, color,
+          // and logo resolution can rebuild it for the selected team.
+          payload[side].color = null;
+          payload[side].logo = null;
+        }
         applied[side] = {
-          ...(applied[side] || {}), teamId: asset.id, name: asset.name, nickname: asset.nickname,
+          ...(applied[side] || {}), teamId: asset.id, name: asset.name,
+          shortName: asset.abbreviation || asset.name, nickname: asset.nickname,
         };
       }
     }
     if (override.rankMode === 'unranked') {
       payload[side].rank = null;
-      applied[side] = { ...(applied[side] || {}), rank: null };
+      payload[side].rankSource = 'manual-override';
+      applied[side] = { ...(applied[side] || {}), rankMode: 'unranked', rank: null };
     } else if (override.rankMode === 'ranked') {
       payload[side].rank = override.rank;
-      applied[side] = { ...(applied[side] || {}), rank: override.rank };
+      payload[side].rankSource = 'manual-override';
+      applied[side] = { ...(applied[side] || {}), rankMode: 'ranked', rank: override.rank };
     }
     if (override.recordMode === 'custom' && RECORD_PATTERN.test(String(override.record || ''))) {
       payload[side].record = override.record;
-      applied[side] = { ...(applied[side] || {}), record: override.record };
+      payload[side].recordSource = 'manual-override';
+      applied[side] = { ...(applied[side] || {}), recordMode: 'custom', record: override.record };
     } else if (override.recordMode === 'hidden') {
       // Show nothing where the record would be - the overlay blanks a
       // null-bound element, so the bug simply has no record text.
       payload[side].record = null;
-      applied[side] = { ...(applied[side] || {}), record: null };
+      payload[side].recordSource = 'manual-override';
+      applied[side] = { ...(applied[side] || {}), recordMode: 'hidden', record: null };
     }
   }
 
@@ -93,8 +107,18 @@ function applyManualTeamOverrides(sourceState, overrides, resolver) {
   return payload;
 }
 
+// Reassert operator choices after every automatic RAM/Dynasty/asset pass.
+// Art has already been resolved by this point, so preserve the selected
+// team's processed logo/color while making its display fields authoritative.
+function finalizeManualTeamOverrides(sourceState, overrides, resolver) {
+  return applyManualTeamOverrides(sourceState, overrides, resolver, {
+    clearStaleTeamAssets: false,
+  });
+}
+
 module.exports = {
   applyManualTeamOverrides,
   emptyManualTeamOverrides,
+  finalizeManualTeamOverrides,
   normalizeManualTeamOverride,
 };

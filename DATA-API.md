@@ -57,6 +57,8 @@ Top-level keys:
                   real; "ram-pending" means not identified yet and name
                   holds a placeholder like "Away")
     rank          1-25 or null (null = unranked or not yet read)
+    rankSource    "manual-override" when Ctrl+Alt+O owns the rank; otherwise
+                  the active RAM/Dynasty source
     record        "W-L" or "W-L-T" string, or null
     score         integer
     timeouts      0-3 or null

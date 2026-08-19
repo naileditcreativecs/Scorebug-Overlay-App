@@ -1,4 +1,4 @@
-CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.55)
+CFB27 SCOREBUG CENTER — FIELDS YOUR BUG RECEIVES (v1.4.56)
 =========================================================
 
 Every bug gets one state object on every change: in `update(obj)` /
@@ -108,6 +108,10 @@ Team names in Dynasty
   used as matchup evidence for filling the opposite side, so overriding away
   cannot replace home with that selected team's scheduled opponent (and vice
   versa). The untouched side continues to follow the live/current matchup.
+  Ctrl+Alt+O choices are the final publication layer: a selected team replaces
+  both name and shortName, and a selected #1-#25 or Unranked value is reapplied
+  after every RAM/Dynasty update. Their nameSource/rankSource is
+  "manual-override". Auto returns only that chosen field to the reader.
 
   TeamBuilder logo URL metadata is retained from the save but is not fetched
   yet; a real TeamBuilder save sample is needed to verify URL lifetime,

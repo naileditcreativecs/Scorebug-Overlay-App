@@ -60,6 +60,7 @@ const {
 const {
   applyManualTeamOverrides,
   emptyManualTeamOverrides,
+  finalizeManualTeamOverrides,
   normalizeManualTeamOverride,
 } = require('./manual-team-overrides');
 const {
@@ -3407,6 +3408,14 @@ function publishCurrentScoreboardState() {
     ),
   );
   try { applyDynastyContext(runtime.scoreboardState, runtime.dynasty); } catch (error) { console.warn('[dynasty] apply failed:', error.message); }
+  // Ctrl+Alt+O is the operator's final authority. Automatic RAM/Dynasty
+  // enrichment stays active underneath, but it can never replace a team,
+  // rank, or record field the operator explicitly chose.
+  runtime.scoreboardState = finalizeManualTeamOverrides(
+    runtime.scoreboardState,
+    runtime.manualTeamOverrides,
+    teamAssetResolver,
+  );
   try { maybeRequestDynastyLeaders(); } catch { /* optional */ }
   const themeSettingValues = currentThemeSettingValues();
   if (themeSettingValues) runtime.scoreboardState.themeSettings = themeSettingValues;
