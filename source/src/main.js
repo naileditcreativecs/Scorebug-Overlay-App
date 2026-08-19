@@ -288,6 +288,9 @@ let autoNewGameReacquire = false;
 // kills it mid-acquisition and it can never finish. Measured 2026-08-12:
 // a 25s threshold restarted it five times in a row and it never read once.
 const RAM_DATA_STALE_MS = 90000;
+// A reader that has not touched its status file for this long is hung/dead.
+const RAM_HEARTBEAT_STALE_MS = 45000;
+let ramQuietNoted = false;
 // However long the threshold, never judge a reader that has only just
 // started - it has produced nothing yet because it is still looking.
 const RAM_READER_GRACE_MS = 60000;
@@ -1194,6 +1197,7 @@ function pollRamScoreboardState() {
     // reader, and the scorebug vanished until play resumed and re-acquired.
     lastRamDataAtMs = Date.now();
     consecutiveRamRecoveries = 0;
+    ramQuietNoted = false;
     if (signature === ramScoreboardSignature) return;
     const firstRamState = !runtime.ramScoreboardState;
     ramScoreboardSignature = signature;
@@ -1394,6 +1398,21 @@ function watchRamReaderHealth() {
   if (staleFor < RAM_DATA_STALE_MS) return;
   // Still inside its acquisition window: leave it alone.
   if (lastRamReaderStartAtMs && now - lastRamReaderStartAtMs < RAM_READER_GRACE_MS) return;
+  // No live data is not the same as a dead reader. The reader heartbeats
+  // its status file every tick even while the scoreboard is off screen
+  // (halftime, replays, menus, the play-call screen). A fresh heartbeat
+  // means it is alive and looking - restarting it would only throw away
+  // its bindings and blank the bug for the re-locate.
+  const heartbeat = readJsonFile(ramReaderStatusPath(), {});
+  const heartbeatAgeMs = now - Date.parse(heartbeat?.updatedAt || '');
+  if (heartbeat?.running && Number.isFinite(heartbeatAgeMs) && heartbeatAgeMs < RAM_HEARTBEAT_STALE_MS) {
+    if (staleFor > RAM_DATA_STALE_MS && !ramQuietNoted) {
+      ramQuietNoted = true;
+      logMessage(`RAM reader alive but no live scoreboard for ${Math.round(staleFor / 1000)}s (${heartbeat.message || 'no status'}); keeping the last state, not restarting.`);
+    }
+    return;
+  }
+  ramQuietNoted = false;
   const cooldown = consecutiveRamRecoveries >= RAM_RECOVERY_ATTEMPTS_BEFORE_BACKOFF
     ? RAM_RECOVERY_BACKOFF_MS
     : RAM_RECOVERY_COOLDOWN_MS;

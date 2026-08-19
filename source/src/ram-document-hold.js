@@ -13,7 +13,11 @@
 //    (hold) and "a NEW game / matchup" (clear immediately - never carry one
 //    game's numbers into the next).
 //  - A game process change or a manual New game always clears.
-const RAM_DOCUMENT_HOLD_MS = 90_000;
+// 30 minutes: halftime shows, replays, long menus and the play-call screen
+// all stop the reader's live file for well over 90 s while the reader itself
+// is fine. Game changes are caught by the reader's status line, the process
+// id and looksLikeNewGame - not by a timer.
+const RAM_DOCUMENT_HOLD_MS = 30 * 60_000;
 
 // Status text the reader writes when it has decided the game changed. Any
 // of these means the held state is a previous game: drop it now.
