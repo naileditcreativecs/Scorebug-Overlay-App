@@ -22,17 +22,15 @@ const HELD_FIELDS = [
   ['away', 'rank', IDENTITY_HOLD_MS],
   ['away', 'record', IDENTITY_HOLD_MS],
   ['away', 'score', RAM_FIELD_HOLD_MS],
-  // Timeouts change only when a team uses one (or a half starts) - the reader
-  // dropping the value between proofs is never "the team got a timeout back".
-  // Hold the last verified count until a new one is read; the half/quarter
-  // change path and a new game clear the cache.
-  ['away', 'timeouts', IDENTITY_HOLD_MS],
+  // Timeouts follow the reader like every other live field (the long hold
+  // tried in v1.4.48 left stale counts on screen for testers).
+  ['away', 'timeouts', RAM_FIELD_HOLD_MS],
   ['away', 'possession', RAM_FIELD_HOLD_MS],
   ['home', 'name', IDENTITY_HOLD_MS],
   ['home', 'rank', IDENTITY_HOLD_MS],
   ['home', 'record', IDENTITY_HOLD_MS],
   ['home', 'score', RAM_FIELD_HOLD_MS],
-  ['home', 'timeouts', IDENTITY_HOLD_MS],
+  ['home', 'timeouts', RAM_FIELD_HOLD_MS],
   ['home', 'possession', RAM_FIELD_HOLD_MS],
   ['game', 'quarter', RAM_FIELD_HOLD_MS],
   ['game', 'clock', RAM_FIELD_HOLD_MS],
