@@ -16,6 +16,7 @@
   { "key": "showContext", "label": "Week / dynasty",   "type": "toggle", "default": true },
   { "key": "showMeta",    "label": "Meta + sources",   "type": "toggle", "default": false },
   { "key": "hideEmpty",   "label": "Hide empty fields","type": "toggle", "default": false },
+  { "key": "rememberSeen","label": "Keep last values",  "type": "toggle", "default": true },
   { "key": "showPaths",   "label": "Show field paths", "type": "toggle", "default": true },
   { "key": "columns",     "label": "Columns",          "type": "choice", "options": ["1", "2", "3"], "default": "2" },
   { "key": "textSize",    "label": "Text size",        "type": "slider", "min": 60, "max": 160, "step": 5, "default": 100, "unit": "%" },
@@ -78,6 +79,9 @@
     font-size: calc(13px * var(--scale));
   }
   .v.empty { color: rgba(142,160,184,0.5); font-style: italic; }
+  .v.stale { color: rgba(232,238,247,0.55); }
+  .ago { color: rgba(142,160,184,0.65); font-size: calc(10.5px * var(--scale)); margin-left: 6px; }
+  .never { color: rgba(248,113,113,0.75); font-size: calc(10.5px * var(--scale)); margin-left: 6px; }
   .v.changed { animation: flash 1.1s ease-out; }
   @keyframes flash { from { color: var(--live); } to { color: var(--ink); } }
   .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgba(255,255,255,0.25); }
@@ -96,7 +100,7 @@
     <span class="pill"><span class="dot" id="dot"></span><span id="status">waiting for data</span></span>
   </header>
   <div id="grid"></div>
-  <p class="note">Turn sections on and off in the in-game editor (Ctrl+Alt+O) under Bug settings. Italic grey means the app has no value for that field &mdash; it withholds rather than guesses.</p>
+  <p class="note">Turn sections on and off in the in-game editor (Ctrl+Alt+O) under Bug settings. With "Keep last values" on, a field that has fired keeps its last value and says when &mdash; that is your proof it works. "not seen yet" means it has never had a value this session.</p>
 </div>
 
 <script>
@@ -106,7 +110,7 @@
   var DEFAULTS = {
     showTeams: true, showGame: true, showPenalty: true, showStats: true,
     showSeason: true, showContext: true, showMeta: false, hideEmpty: false,
-    showPaths: true, columns: '2', textSize: 100,
+    showPaths: true, rememberSeen: true, columns: '2', textSize: 100,
     accent: '#38bdf8', background: '#0b1220'
   };
 
@@ -175,7 +179,15 @@
   var state = {};
   var settings = {};
   var lastRendered = {};
+  var seen = {};          // path -> { value: shown, atMs: when it last had a value }
   var lastUpdateMs = 0;
+
+  function ago(ms) {
+    var s = Math.round((Date.now() - ms) / 1000);
+    if (s < 60) return s + 's ago';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    return Math.round(s / 3600) + 'h ago';
+  }
 
   function value(path) {
     var parts = String(path).split('.');
@@ -234,15 +246,27 @@
   function rowHtml(label, path) {
     var raw = value(path);
     var shown = display(raw);
-    if (shown === null && setting('hideEmpty')) return '';
-    var changed = lastRendered[path] !== undefined && lastRendered[path] !== shown;
+    if (shown !== null) seen[path] = { value: shown, atMs: Date.now(), raw: raw };
+    var memory = seen[path];
+    if (shown === null && setting('hideEmpty') && !(memory && setting('rememberSeen'))) return '';
+    var changed = lastRendered[path] !== undefined && lastRendered[path] !== shown && shown !== null;
     lastRendered[path] = shown;
-    var swatch = (typeof raw === 'string' && /^#[0-9a-f]{6}$/i.test(raw))
-      ? '<span class="swatch" style="background:' + raw + '"></span>' : '';
+    var swatchFor = function (v) {
+      return (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v))
+        ? '<span class="swatch" style="background:' + v + '"></span>' : '';
+    };
     var pathHtml = setting('showPaths') ? '<span class="path">' + path + '</span>' : '';
-    var valueHtml = shown === null
-      ? '<span class="v empty">&mdash;</span>'
-      : '<span class="v' + (changed ? ' changed' : '') + '">' + swatch + escapeHtml(shown) + '</span>';
+    var valueHtml;
+    if (shown !== null) {
+      valueHtml = '<span class="v' + (changed ? ' changed' : '') + '">' + swatchFor(raw) + escapeHtml(shown) + '</span>';
+    } else if (memory && setting('rememberSeen')) {
+      // Proof the field works: its last real value, and when it had it.
+      valueHtml = '<span class="v stale">' + swatchFor(memory.raw) + escapeHtml(memory.value)
+        + '<span class="ago">' + ago(memory.atMs) + '</span></span>';
+    } else {
+      valueHtml = '<span class="v empty">&mdash;'
+        + (setting('rememberSeen') ? '<span class="never">not seen yet</span>' : '') + '</span>';
+    }
     return '<div class="row"><span class="k">' + escapeHtml(label) + pathHtml + '</span>' + valueHtml + '</div>';
   }
 
