@@ -7304,6 +7304,7 @@ namespace CollegeFootballRamDiagnostic
         private int pendingKickPairScanDistance;
         private long lastFgBannerAddress;
         private DateTime fgBannerFirstSeenUtc = DateTime.MinValue;
+        private double lastPreciseSlotSample = double.NaN;
 
         private void RefreshPlayCallFieldGoalText(int downValue)
         {
@@ -7901,13 +7902,7 @@ namespace CollegeFootballRamDiagnostic
             // a long window let post-kick slot values re-latch during the
             // ensuing kickoff (the fake 19-yarder of 2026-08-20).
             bool textRecent = now - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(20);
-            // Only a scrimmage state can latch from the slot: during Kickoff
-            // and PAT presentations the slot still holds the previous kick's
-            // number and must not refresh the latch.
-            bool scrimmageState = String.Equals(downDistanceKind, "numeric", StringComparison.Ordinal)
-                || String.Equals(downDistanceKind, "goal", StringComparison.Ordinal)
-                || String.Equals(downDistanceKind, "inches", StringComparison.Ordinal);
-            // EXCEPT in the first seconds of a NEW FIELD GOAL banner: the
+            // In the first seconds of a NEW FIELD GOAL banner: the
             // game flips its plate to Kickoff in the same instant the banner
             // appears (proven 20:55:59.065, a real 39-yarder the scrimmage
             // gate wrongly blocked), while the slot still holds the true
@@ -7923,8 +7918,29 @@ namespace CollegeFootballRamDiagnostic
             }
             bool bannerFresh = lastFgBannerAddress != 0
                 && now - fgBannerFirstSeenUtc <= TimeSpan.FromSeconds(5);
-            if ((scrimmageState || bannerFresh) && !double.IsNaN(preciseYards)
-                && LooksLikeFieldGoalKick(preciseYards, distanceYards, down, textRecent || bannerFresh))
+            // MISSED kicks have no FIELD GOAL banner at all (proven 21:10,
+            // score unchanged, zero banners) - so the slot itself is the
+            // trigger: it mirrors yards-to-go every cycle, and a SUSTAINED
+            // value in kick range that clearly is not the yards-to-go is the
+            // kick being loaded. Two consecutive agreeing cycles (500 ms)
+            // filter transients; the scrimmage-kind gate keeps kickoff
+            // leftovers out, with the fresh-banner exception for makes.
+            bool slotStable = !double.IsNaN(preciseYards)
+                && Math.Abs(preciseYards - lastPreciseSlotSample) < 0.05;
+            bool slotHoldsKick = !double.IsNaN(preciseYards)
+                && preciseYards >= 18 && preciseYards <= 120
+                && Math.Abs(preciseYards - distanceYards) > 3;
+            if (!double.IsNaN(preciseYards)) lastPreciseSlotSample = preciseYards;
+            // The plate BLANKS during the kick presentation itself (a missed
+            // attempt on 21:16's game never latched because the scrimmage-
+            // kind requirement saw ''), so the gate is now only the EXPLICIT
+            // kickoff/conversion presentations - the stability + strict-text
+            // rules already block the leftover-value fakes on their own.
+            bool kickoffLike = String.Equals(downDistanceKind, "kickoff", StringComparison.Ordinal)
+                || String.Equals(downDistanceKind, "conversion", StringComparison.Ordinal)
+                || String.Equals(downDistanceKind, "twoPointConversion", StringComparison.Ordinal);
+            if ((!kickoffLike || bannerFresh) && slotHoldsKick
+                && (slotStable || down == 4 || textRecent || bannerFresh))
             {
                 int rounded = (int)Math.Round(preciseYards);
                 // A NEW latch is the research moment: the kick length is known
