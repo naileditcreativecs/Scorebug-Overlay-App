@@ -4391,6 +4391,20 @@ async function exportTestPackage() {
     fs.cpSync(folder, path.join(staging, path.basename(folder)), { recursive: true, filter: (src) => !/ram-live-profile-cache\.json$/.test(src) });
   }
   fs.writeFileSync(path.join(staging, 'README.txt'), `CFB27 Scorebug Center test package\nApp ${app.getVersion()} - ${new Date().toISOString()}\nContents: data-export (probe logs, latest-state.json, tester-notes.json), logs.\n`, 'utf8');
+  // Session manifest: version, game mode, detection and reader state - the
+  // first three questions of every test-package analysis, answered upfront.
+  try {
+    fs.writeFileSync(path.join(staging, 'manifest.json'), JSON.stringify({
+      appVersion: app.getVersion(),
+      exportedAt: new Date().toISOString(),
+      gameSetting: String(settings.gameTitle || 'auto'),
+      effectiveGame: gameTitle(),
+      detectedGame: detectedGameTitle,
+      readerStatus: readJsonFile(ramReaderStatusPath(), {}).message || null,
+      ramLive: Boolean(runtime.ramScoreboardState),
+      maddenHuntRounds: (() => { try { return fs.readFileSync(path.join(dataExportRootPath(), 'madden-hunt.jsonl'), 'utf8').split('\n').filter(Boolean).length; } catch { return 0; } })(),
+    }, null, 2), 'utf8');
+  } catch { /* manifest is a convenience */ }
   await new Promise((resolve, reject) => {
     const script = `Compress-Archive -Path '${staging.replace(/'/g, "''")}\*' -DestinationPath '${target.replace(/'/g, "''")}' -Force`;
     execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, timeout: 120000 }, (error, stdout, stderr) => {
