@@ -7396,12 +7396,33 @@ namespace CollegeFootballRamDiagnostic
         private bool statTupleHuntRunning;
         private DateTime nextStatTupleHuntUtc = DateTime.MinValue;
         private int statTupleHuntCount;
+        // The stat objects' own PlayerId field is useless (reads 0/1 live,
+        // 2026-08-20) - the real roster id rides in the identity tokens
+        // ("GlassKourdey_28851") the game shows alongside the stat banner.
+        private int lastIdentityTokenId;
+        private DateTime lastIdentityTokenUtc = DateTime.MinValue;
+
+        private void NoteIdentityToken(string text)
+        {
+            System.Text.RegularExpressions.Match match =
+                System.Text.RegularExpressions.Regex.Match(text ?? "", "^[A-Za-z.'-]+_([0-9]{3,7})$");
+            if (!match.Success) return;
+            lastIdentityTokenId = Int32.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            lastIdentityTokenUtc = DateTime.UtcNow;
+        }
 
         private void MaybeHuntStatTuple(string text, int playerId)
         {
             if (GameProfile.Key != "cfb27") return;
-            // The player id is the discriminator that keeps small tuples like
-            // (4, 60, 1) from matching half the heap; skip anonymous banners.
+            try { NoteIdentityToken(text); } catch { }
+            // The id is the discriminator that keeps small tuples like
+            // (4, 60, 1) from matching half the heap. The object's own field
+            // is dead, so borrow the freshest identity token - the name plate
+            // the game shows with the stat line.
+            if (playerId <= 100
+                && lastIdentityTokenId > 100
+                && DateTime.UtcNow - lastIdentityTokenUtc <= TimeSpan.FromSeconds(15))
+                playerId = lastIdentityTokenId;
             if (playerId <= 100) return;
             if (statTupleHuntRunning || statTupleHuntCount >= 30) return;
             if (DateTime.UtcNow < nextStatTupleHuntUtc) return;

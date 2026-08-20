@@ -1842,6 +1842,32 @@ namespace CollegeFootballRamDiagnostic
             // banners (2026-08-20: "ZoneCoverage_SpyReceiver", "x5QK",
             // "/user/profile/..." outnumbered stats 10:1).
             if (trimmed[0] == '/') return false;
+            if (trimmed.IndexOf(';') >= 0) return false;
+            // Short strings with punctuation are pointer debris ("HA&K",
+            // "o- ;dP") - a real 4-6 char display is a word ("RUSH", "FLAG",
+            // "Binns") or a period name ("T.Dix").
+            if (trimmed.Length <= 6)
+            {
+                foreach (char c in trimmed)
+                {
+                    bool wordly = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
+                        || (c >= '0' && c <= '9') || c == ' ' || c == '.';
+                    if (!wordly) return false;
+                }
+            }
+            // Long single-token camelCase ("audioCorePostMix") is engine
+            // naming; real one-word banners are names and short. The 12-char
+            // floor spares real surnames like "McCall", and identity tokens
+            // ("AbdoulayeSyPape_6133") are already vetted above.
+            if (trimmed.Length > 12 && trimmed.IndexOf(' ') < 0 && !hasUnderscore)
+            {
+                for (int i = 1; i < trimmed.Length; i++)
+                {
+                    if (trimmed[i] >= 'A' && trimmed[i] <= 'Z'
+                        && trimmed[i - 1] >= 'a' && trimmed[i - 1] <= 'z')
+                        return false;
+                }
+            }
             if (hasUnderscore)
             {
                 // Player identity tokens ("AbdoulayeSyPape_6133") are the ONE
