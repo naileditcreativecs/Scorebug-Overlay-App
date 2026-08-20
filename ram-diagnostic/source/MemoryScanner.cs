@@ -783,7 +783,8 @@ namespace CollegeFootballRamDiagnostic
                                 + (away ? " away" : " home");
                             int count;
                             histogram[key] = histogram.TryGetValue(key, out count) ? count + 1 : 1;
-                            if (matchDumps != null && matchDumps.Count < 24 && dumpVtables.Contains(vtable))
+                            if (matchDumps != null && matchDumps.Count < 24 && dumpVtables.Contains(vtable)
+                                && CountDumpsFor(matchDumps, vtable - moduleBase) < 12)
                             {
                                 try
                                 {
@@ -826,6 +827,16 @@ namespace CollegeFootballRamDiagnostic
                 }
             }
             return histogram;
+        }
+
+        // Round-6 lesson: one prolific decoy type (player gear objects) filled
+        // every dump slot before the real pair was reached. Cap per type.
+        private static int CountDumpsFor(List<string> dumps, long vtableOffset)
+        {
+            string prefix = "0x" + vtableOffset.ToString("X", CultureInfo.InvariantCulture) + "@";
+            int count = 0;
+            foreach (string dump in dumps) if (dump.StartsWith(prefix, StringComparison.Ordinal)) count++;
+            return count;
         }
 
         private int ReadIntoBuffer(long address, byte[] buffer, int size)

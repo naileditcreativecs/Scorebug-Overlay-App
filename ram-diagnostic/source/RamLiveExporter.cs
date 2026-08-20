@@ -6886,7 +6886,10 @@ namespace CollegeFootballRamDiagnostic
                         List<string> matchDumps = new List<string>();
                         Dictionary<string, int> histogram = research.HuntScoreHudTeamObjects(
                             awayScore, homeScore, -1, -1, 24, samples,
-                            new long[] { 0xE88ACD8L, 0xAB58298L, 0xA9CD6B0L, 0xAA14580L }, matchDumps);
+                            // Round 6 identified 0xA9CD6B0 as player-gear objects
+                            // (a decoy that hogged every dump slot) - dump only
+                            // the score-tracking pair now.
+                            new long[] { 0xE88ACD8L, 0xAB58298L }, matchDumps);
                         List<KeyValuePair<string, int>> ranked = new List<KeyValuePair<string, int>>(histogram);
                         ranked.Sort(delegate (KeyValuePair<string, int> left, KeyValuePair<string, int> right) { return right.Value.CompareTo(left.Value); });
                         Dictionary<string, int> top = new Dictionary<string, int>(StringComparer.Ordinal);
