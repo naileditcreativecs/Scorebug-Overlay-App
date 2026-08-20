@@ -21,7 +21,7 @@ function parseStatLine(text) {
     player = name[1].trim();
     rest = raw.slice(name[0].length);
   }
-  let match = /(\d+)\s*REC(?:EPTIONS?)?\s*,\s*(\d+)\s*Y(?:AR)?DS?(?:\s*,\s*(\d+)\s*TDS?)?/i.exec(rest);
+  let match = /(\d+)\s*(?:REC(?:EPTIONS?)?|CATCH(?:ES)?)\s*,\s*(\d+)\s*Y(?:AR)?DS?(?:\s*,\s*(\d+)\s*TDS?)?/i.exec(rest);
   if (match) {
     return { kind: 'receiving', player, receptions: Number(match[1]), yards: Number(match[2]), tds: match[3] !== undefined ? Number(match[3]) : null, text: raw };
   }

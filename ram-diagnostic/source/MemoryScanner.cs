@@ -1825,13 +1825,36 @@ namespace CollegeFootballRamDiagnostic
             string trimmed = text.Trim();
             if (trimmed.Length < 4 || trimmed.Length > 96) return false;
             int letters = 0;
+            int digits = 0;
+            bool hasSpace = false, hasUnderscore = false, hasSeparator = false;
             foreach (char c in trimmed)
             {
                 if (c < 32 || c > 126) return false;
                 if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) letters++;
+                if (c >= '0' && c <= '9') digits++;
+                if (c == ' ') hasSpace = true;
+                if (c == '_') hasUnderscore = true;
+                if (c == ',' || c == '.' || c == '/' || c == '&') hasSeparator = true;
                 if (c == '`' || c == '\\' || c == '^' || c == '~' || c == '|') return false;
             }
-            return letters >= 3;
+            if (letters < 3) return false;
+            // Engine identifiers crowd the 12 text slots and starve real stat
+            // banners (2026-08-20: "ZoneCoverage_SpyReceiver", "x5QK",
+            // "/user/profile/..." outnumbered stats 10:1).
+            if (trimmed[0] == '/') return false;
+            if (hasUnderscore)
+            {
+                // Player identity tokens ("AbdoulayeSyPape_6133") are the ONE
+                // underscore family worth keeping: letters, one underscore,
+                // then digits to the end.
+                if (!System.Text.RegularExpressions.Regex.IsMatch(trimmed,
+                    "^[A-Za-z.'-]+_[0-9]+$")) return false;
+            }
+            // A digit buried in a single unspaced token ("x5QK") is a pooled
+            // identifier, never broadcast text - real stat lines always carry
+            // a space or a separator next to their numbers.
+            if (digits > 0 && !hasSpace && !hasSeparator && !hasUnderscore) return false;
+            return true;
         }
 
         private static long OffsetOrZero(long moduleBase, long offset)

@@ -8,6 +8,9 @@ test('stat lines: every probe-proven format parses, junk does not', () => {
     { kind: 'receiving', player: 'T.Dixon', receptions: 4, yards: 60, tds: 1, text: 'T.Dixon 4 Rec, 60 Yds, 1 TD' });
   assert.equal(parseStatLine('2 RUSH, 33 YDS').kind, 'rushing');
   assert.equal(parseStatLine('2 RUSH, 33 YDS').yards, 33);
+  assert.equal(parseStatLine('2 CATCH, 25 YDS').kind, 'receiving');
+  assert.equal(parseStatLine('2 CATCH, 25 YDS').receptions, 2);
+  assert.equal(parseStatLine('3 RUSH, 21 YDS').carries, 3);
   const pass = parseStatLine('29 YDS, 0 TDs, 0 INTs');
   assert.equal(pass.kind, 'passing');
   assert.equal(pass.ints, 0);

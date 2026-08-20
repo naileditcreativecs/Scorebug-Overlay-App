@@ -4095,7 +4095,13 @@ namespace CollegeFootballRamDiagnostic
                     || MemoryScanner.LooksLikeDisplayText("H,&K")
                     || MemoryScanner.LooksLikeDisplayText("AQ^")
                     || MemoryScanner.LooksLikeDisplayText("")
-                    || MemoryScanner.LooksLikeDisplayText("abc"))
+                    || MemoryScanner.LooksLikeDisplayText("abc")
+                    || MemoryScanner.LooksLikeDisplayText("x5QK")
+                    || MemoryScanner.LooksLikeDisplayText("ZoneCoverage_SpyReceiver")
+                    || MemoryScanner.LooksLikeDisplayText("Formation_PlayerBox_NegSideline")
+                    || MemoryScanner.LooksLikeDisplayText("/user/profile/twinkle/Bellman/kvstore")
+                    || !MemoryScanner.LooksLikeDisplayText("3 RUSH, 21 YDS")
+                    || !MemoryScanner.LooksLikeDisplayText("2 CATCH, 25 YDS"))
                     throw new Exception("Display-text filter is wrong.");
                 // Field-goal detection: the slot diverging from yards-to-go while
                 // holding a legal kick length, on 4th down or near the FG text.
