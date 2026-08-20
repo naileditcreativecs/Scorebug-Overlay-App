@@ -4097,7 +4097,8 @@ namespace CollegeFootballRamDiagnostic
                     || !RamLiveExporter.LooksLikeFieldGoalKick(23.4, 8, 1, true)
                     || RamLiveExporter.LooksLikeFieldGoalKick(10, 10, 1, true)
                     || RamLiveExporter.LooksLikeFieldGoalKick(25.2, 25, 4, true)
-                    || RamLiveExporter.LooksLikeFieldGoalKick(95, 10, 4, true)
+                    || !RamLiveExporter.LooksLikeFieldGoalKick(96.06, 12, 4, true)
+                    || RamLiveExporter.LooksLikeFieldGoalKick(125, 10, 4, true)
                     || RamLiveExporter.LooksLikeFieldGoalKick(30, 5, 2, false))
                     throw new Exception("Field-goal kick detection rule is wrong.");
                 // FG distance straight from banner text.
@@ -4105,7 +4106,8 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.FieldGoalDistanceFromText("55 YD FIELD GOAL") != 55
                     || RamLiveExporter.FieldGoalDistanceFromText("30-YD PICK 6") != 0
                     || RamLiveExporter.FieldGoalDistanceFromText("Face Mask 15 YD") != 0
-                    || RamLiveExporter.FieldGoalDistanceFromText("95-YD FG") != 0
+                    || RamLiveExporter.FieldGoalDistanceFromText("96-YD FG") != 96
+                    || RamLiveExporter.FieldGoalDistanceFromText("125-YD FG") != 0
                     || RamLiveExporter.FieldGoalDistanceFromText("") != 0)
                     throw new Exception("FG-from-text rule is wrong.");
                 // Precise-yardage rules (2026-08-20 probe: floats at +0xA8/+0xD8).

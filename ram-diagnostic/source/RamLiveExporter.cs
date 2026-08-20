@@ -888,7 +888,7 @@ namespace CollegeFootballRamDiagnostic
                         float primary = BitConverter.ToSingle(preciseBytes, 0);
                         float copy = BitConverter.ToSingle(copyBytes, 0);
                         if (!float.IsNaN(primary) && !float.IsInfinity(primary)
-                            && primary >= 0f && primary <= 110f
+                            && primary >= 0f && primary <= 120f
                             && PreciseYardsPairAgrees(primary, copy))
                             preciseYards = primary;
                     }
@@ -5943,7 +5943,11 @@ namespace CollegeFootballRamDiagnostic
         internal static bool LooksLikeFieldGoalKick(double preciseYards, int distanceYards,
             int down, bool fieldGoalTextRecent)
         {
-            if (preciseYards < 18 || preciseYards > 90) return false;
+            // Upper bound 120, not a "realistic" 90: the game happily lets a
+            // player line up a 96-yarder (live test 2026-08-20), and a kick
+            // from your own 1-yard line would be ~116. Yards-to-go can never
+            // exceed ~99, so the divergence guard still blocks normal plays.
+            if (preciseYards < 18 || preciseYards > 120) return false;
             if (Math.Abs(preciseYards - distanceYards) <= 3) return false;
             return down == 4 || fieldGoalTextRecent;
         }
@@ -7475,11 +7479,11 @@ namespace CollegeFootballRamDiagnostic
         {
             if (String.IsNullOrWhiteSpace(text)) return 0;
             System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(
-                text, "(\\d{1,2})\\s*-?\\s*(?:YD|YARD)S?\\b[^A-Z]*(?:FG|FIELD\\s*GOAL)",
+                text, "(\\d{1,3})\\s*-?\\s*(?:YD|YARD)S?\\b[^A-Z]*(?:FG|FIELD\\s*GOAL)",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (!match.Success) return 0;
             int yards = Int32.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-            return yards >= 18 && yards <= 90 ? yards : 0;
+            return yards >= 18 && yards <= 120 ? yards : 0;
         }
 
         private object CurrentFieldGoalDistance(double preciseYards, int distanceYards, int down)
