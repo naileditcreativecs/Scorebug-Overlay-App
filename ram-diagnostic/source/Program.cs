@@ -4080,6 +4080,16 @@ namespace CollegeFootballRamDiagnostic
                 Array.Copy(BitConverter.GetBytes(9), 0, hunt, 52, 4);
                 if (MemoryScanner.HuntPatternMatches(hunt, 60, 17, -1))
                     throw new Exception("ScoreHud hunt wildcard accepts timeouts > 3.");
+                // Display-text filter: real banner text in, pointer garbage out.
+                if (!MemoryScanner.LooksLikeDisplayText("T.Dixon 4 Rec, 60 Yds, 1 TD")
+                    || !MemoryScanner.LooksLikeDisplayText("Binns")
+                    || !MemoryScanner.LooksLikeDisplayText("AbdoulayeSyPape_6133")
+                    || !MemoryScanner.LooksLikeDisplayText("1st & Goal")
+                    || MemoryScanner.LooksLikeDisplayText("H,&K")
+                    || MemoryScanner.LooksLikeDisplayText("AQ^")
+                    || MemoryScanner.LooksLikeDisplayText("")
+                    || MemoryScanner.LooksLikeDisplayText("abc"))
+                    throw new Exception("Display-text filter is wrong.");
                 // Precise-yardage rules (2026-08-20 probe: floats at +0xA8/+0xD8).
                 if (RamLiveExporter.DistanceFromPreciseYards(6.574) != 7
                     || RamLiveExporter.DistanceFromPreciseYards(9.531) != 10

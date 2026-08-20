@@ -1778,6 +1778,25 @@ namespace CollegeFootballRamDiagnostic
             return TimeoutContextSimilarity(buffer, 0, pattern);
         }
 
+        // Pointer slots in these pooled objects also hold raw bytes that
+        // decode as short garbage ("`O\K", "H,&K"). Publishing those crowded
+        // the real stat banners out of hudTexts entirely (2026-08-20). Keep
+        // only strings that look like something the game would draw.
+        internal static bool LooksLikeDisplayText(string text)
+        {
+            if (String.IsNullOrWhiteSpace(text)) return false;
+            string trimmed = text.Trim();
+            if (trimmed.Length < 4 || trimmed.Length > 96) return false;
+            int letters = 0;
+            foreach (char c in trimmed)
+            {
+                if (c < 32 || c > 126) return false;
+                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) letters++;
+                if (c == '`' || c == '\\' || c == '^' || c == '~' || c == '|') return false;
+            }
+            return letters >= 3;
+        }
+
         private static long OffsetOrZero(long moduleBase, long offset)
         {
             return offset == 0 ? 0 : moduleBase + offset;
@@ -1904,7 +1923,7 @@ namespace CollegeFootballRamDiagnostic
                 if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
                 string text;
                 try { text = ReadAsciiString(pointer, 96); } catch { continue; }
-                if (String.IsNullOrWhiteSpace(text) || text.Trim().Length < 3) continue;
+                if (!LooksLikeDisplayText(text)) continue;
                 text = text.Trim();
                 if (!result.Texts.Contains(text)) result.Texts.Add(text);
             }
@@ -2058,7 +2077,18 @@ namespace CollegeFootballRamDiagnostic
                     try
                     {
                         if (TryReadScoreHudTextCandidate(address, matched, moduleBase, out candidate))
-                            found.Add(candidate);
+                        {
+                            // Identity objects are far more numerous than the
+                            // stat banners; cap them so a banner always fits.
+                            bool identity = matched == moduleBase + GameProfile.ScoreHudIdentityVtableOffset;
+                            int identityCount = 0;
+                            if (identity)
+                            {
+                                foreach (ScoreHudTextCandidate existing in found)
+                                    if (existing.Kind == candidate.Kind) identityCount++;
+                            }
+                            if (!identity || identityCount < 4) found.Add(candidate);
+                        }
                     }
                     catch { }
                     if (found.Count >= 18) return found;
