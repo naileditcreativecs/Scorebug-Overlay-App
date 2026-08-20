@@ -1013,7 +1013,7 @@ namespace CollegeFootballRamDiagnostic
                 // During the FG presentation the precise slot IS the kick
                 // distance; published only while the game's own FIELD GOAL
                 // text is up and the value is a legal kick length.
-                { "fieldGoalDistance", CurrentFieldGoalDistance(preciseYards) },
+                { "fieldGoalDistance", CurrentFieldGoalDistance(preciseYards, distanceValue, downValue) },
                 { "downDistanceSource", downDistanceKind != "numeric" || (stableDownRead.Available && stableDistanceRead.Available) ? "ram" : "screen" }
             };
 
@@ -5932,6 +5932,19 @@ namespace CollegeFootballRamDiagnostic
         // "Inches" when the float is under one yard. During a field-goal
         // attempt the same slot holds the kick distance (55.3 / 60.1 / 65 in
         // the probe game's three attempts).
+        // A field-goal attempt repurposes the yards-to-go slot to hold the KICK
+        // LENGTH (proven 2026-08-20: 55.736 at 4th & 14). The tell is not the
+        // game's FIELD GOAL text - that text is also shown for the result, long
+        // after the slot reverts - it is the slot DIVERGING from the numeric
+        // yards to go while holding a legal kick length.
+        internal static bool LooksLikeFieldGoalKick(double preciseYards, int distanceYards,
+            int down, bool fieldGoalTextRecent)
+        {
+            if (preciseYards < 18 || preciseYards > 90) return false;
+            if (Math.Abs(preciseYards - distanceYards) <= 3) return false;
+            return down == 4 || fieldGoalTextRecent;
+        }
+
         internal static int DistanceFromPreciseYards(double preciseYards)
         {
             return (int)Math.Ceiling(preciseYards - 0.0005);
@@ -7418,11 +7431,12 @@ namespace CollegeFootballRamDiagnostic
         // Publishes the kick length for the whole attempt: latch it the first
         // tick the game's FIELD GOAL text and a legal distance coincide, then
         // hold it for the presentation. Fail closed - no text, no latch.
-        private object CurrentFieldGoalDistance(double preciseYards)
+        private object CurrentFieldGoalDistance(double preciseYards, int distanceYards, int down)
         {
             DateTime now = DateTime.UtcNow;
-            bool textLive = now - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(6);
-            if (textLive && !double.IsNaN(preciseYards) && preciseYards >= 18 && preciseYards <= 90)
+            bool textRecent = now - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(120);
+            if (!double.IsNaN(preciseYards)
+                && LooksLikeFieldGoalKick(preciseYards, distanceYards, down, textRecent))
             {
                 latchedFieldGoalDistance = (int)Math.Round(preciseYards);
                 latchedFieldGoalUtc = now;

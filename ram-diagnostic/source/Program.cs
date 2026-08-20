@@ -4090,6 +4090,16 @@ namespace CollegeFootballRamDiagnostic
                     || MemoryScanner.LooksLikeDisplayText("")
                     || MemoryScanner.LooksLikeDisplayText("abc"))
                     throw new Exception("Display-text filter is wrong.");
+                // Field-goal detection: the slot diverging from yards-to-go while
+                // holding a legal kick length, on 4th down or near the FG text.
+                if (!RamLiveExporter.LooksLikeFieldGoalKick(55.736, 14, 4, true)
+                    || !RamLiveExporter.LooksLikeFieldGoalKick(55.736, 14, 4, false)
+                    || !RamLiveExporter.LooksLikeFieldGoalKick(23.4, 8, 1, true)
+                    || RamLiveExporter.LooksLikeFieldGoalKick(10, 10, 1, true)
+                    || RamLiveExporter.LooksLikeFieldGoalKick(25.2, 25, 4, true)
+                    || RamLiveExporter.LooksLikeFieldGoalKick(95, 10, 4, true)
+                    || RamLiveExporter.LooksLikeFieldGoalKick(30, 5, 2, false))
+                    throw new Exception("Field-goal kick detection rule is wrong.");
                 // Precise-yardage rules (2026-08-20 probe: floats at +0xA8/+0xD8).
                 if (RamLiveExporter.DistanceFromPreciseYards(6.574) != 7
                     || RamLiveExporter.DistanceFromPreciseYards(9.531) != 10
