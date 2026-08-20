@@ -7307,6 +7307,7 @@ namespace CollegeFootballRamDiagnostic
         private double lastPreciseSlotSample = double.NaN;
         private int fgDivergenceStreak;
         private int lastDistanceForStreak = -1;
+        private int fgLatchProbeEntries;
 
         private void RefreshPlayCallFieldGoalText(int downValue)
         {
@@ -7947,6 +7948,32 @@ namespace CollegeFootballRamDiagnostic
             bool kickoffLike = String.Equals(downDistanceKind, "kickoff", StringComparison.Ordinal)
                 || String.Equals(downDistanceKind, "conversion", StringComparison.Ordinal)
                 || String.Equals(downDistanceKind, "twoPointConversion", StringComparison.Ordinal);
+            // DIAGNOSTIC (2026-08-20): a 65-yard lineup sustained for 15 s
+            // and still never latched - some input to this decision is not
+            // what the outside data says it is. Log every input per cycle
+            // while the slot looks kick-like, so the next lineup writes the
+            // complete decision record.
+            if (slotHoldsKick && fgLatchProbeEntries < 600)
+            {
+                fgLatchProbeEntries++;
+                try
+                {
+                    AppendProbeLine(probeOutputSeedPath, "fg-latch-probe.jsonl",
+                        new Dictionary<string, object>
+                        {
+                            { "t", now.ToString("o", CultureInfo.InvariantCulture) },
+                            { "precise", Math.Round(preciseYards, 3) },
+                            { "dist", distanceYards }, { "down", down },
+                            { "kind", downDistanceKind ?? "" },
+                            { "streak", fgDivergenceStreak },
+                            { "stable", slotStable }, { "sustained", sustained },
+                            { "textRecent", textRecent }, { "bannerFresh", bannerFresh },
+                            { "kickoffLike", kickoffLike },
+                            { "latched", latchedFieldGoalDistance }
+                        });
+                }
+                catch { }
+            }
             if ((!kickoffLike || bannerFresh) && slotHoldsKick && (sustained || bannerFresh)
                 && LooksLikeFieldGoalKick(preciseYards, distanceYards, down,
                     textRecent || bannerFresh || sustained))
