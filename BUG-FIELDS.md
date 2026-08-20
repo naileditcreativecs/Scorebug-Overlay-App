@@ -41,6 +41,12 @@ GAME  (game.*)
                   possession) or null, text "ENCROACHMENT - DEFENSE"
   penaltyType, penaltySide, penaltyTeam, penaltyText   (flat copies)
   playCallOpen    true while the play-call menu is open (experimental)
+  playerStats     [ { kind, player, teamSide, ...numbers, text } ]  parsed
+                  from the game's own stat lower-thirds while they are up:
+                  kind 'receiving' (receptions/yards/tds), 'rushing'
+                  (carries/yards/tds), 'passing' (completions/attempts/
+                  yards/tds/ints), 'defense' (tackles/sacks). player may be
+                  null when the banner shows no name. playerStat = first.
   hudTexts        [ { kind, texts[], teamSide, playerId, displayTime } ]
                   the game's own stat lower-thirds while they are on screen,
                   e.g. texts ["T.Dixon 4 Rec, 60 Yds, 1 TD"]; teamSide

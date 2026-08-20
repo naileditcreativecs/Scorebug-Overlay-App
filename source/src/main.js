@@ -212,6 +212,7 @@ const { applyRamFieldHold, clearRamFieldHold, createRamFieldHoldCache,
   forgetRamFieldHold,
 } = require('./ram-field-hold');
 const { flagStateFromMessages } = require('./flag-detector');
+const { parseHudTexts } = require('./stat-line-parser');
 let lastRamQuarter = null;
 const { runPreflight, reportText: preflightReportText } = require('./preflight');
 const { applyRamDocumentHold, clearRamDocumentHold, createRamDocumentHold, looksLikeNewGame } = require('./ram-document-hold');
@@ -1013,6 +1014,12 @@ function ramScoreboardPayload(document) {
       teamSide: item?.teamSide === 'away' || item?.teamSide === 'home' ? item.teamSide : null,
       playerId: Number.isInteger(item?.playerId) ? item.playerId : null,
     })).filter((item) => item.texts.length), true, 'game.hudTexts');
+    // Parsed player stat lines (receiving/rushing/passing/defense) from the
+    // same banners - structured fields a bug can style; unrecognized lines
+    // stay raw in hudTexts and are recorded by the reader's stat probe.
+    const parsedStats = parseHudTexts(state.game.hudTexts);
+    apply(state.game, 'playerStats', parsedStats, parsedStats.length > 0, 'game.playerStats');
+    apply(state.game, 'playerStat', parsedStats[0] || null, parsedStats.length > 0, 'game.playerStat');
   }
   // Play-call menu state (experimental byte published by the reader).
   if (typeof document.ram?.playCallOpen === 'boolean') {

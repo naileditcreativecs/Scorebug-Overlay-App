@@ -936,6 +936,13 @@ namespace CollegeFootballRamDiagnostic
                     }
                 }
             }
+            // Tonight's research (CFB27): full dumps of every NEW stat-banner /
+            // identity object (statbanner-probe.jsonl) and, whenever any live
+            // text mentions a field goal, a snapshot of the whole scoreboard
+            // block (fgspot-probe.jsonl) - the FG text's own yardage minus 17
+            // is the yards-to-goal ground truth that identifies the ball-spot
+            // slot after a couple of attempts.
+            try { WriteStatBannerProbe(screenJsonPath, quarterValue, clockValue, downValue, distanceValue); } catch { }
             root["game"] = new Dictionary<string, object>
             {
                 { "quarter", quarterValue },
@@ -7014,6 +7021,115 @@ namespace CollegeFootballRamDiagnostic
                 MaybeStartMaddenResearch(screenJsonPath);
             }
             return "RAM export LIVE: {0} {1} | play {2} | {3} | possession {4} | timeouts away {5}, home {6} | {7}";
+        }
+
+        private readonly HashSet<string> statBannerSeen = new HashSet<string>(StringComparer.Ordinal);
+        private int statBannerEntries;
+        private int fgSpotEntries;
+
+        private void WriteStatBannerProbe(string screenJsonPath, int quarterValue, int clockValue,
+            int downValue, int distanceValue)
+        {
+            if (GameProfile.Key != "cfb27") return;
+            List<ScoreHudTextCandidate> texts = scanner.LastScoreHudTexts;
+            if (texts == null || texts.Count == 0) return;
+            string folder = Path.GetDirectoryName(OutputPath(screenJsonPath));
+            System.Web.Script.Serialization.JavaScriptSerializer serializer =
+                new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
+            bool fieldGoalSeen = false;
+            string fieldGoalText = null;
+            foreach (ScoreHudTextCandidate item in texts)
+            {
+                if (item == null || item.Texts == null || item.Texts.Count == 0) continue;
+                foreach (string text in item.Texts)
+                {
+                    if (System.Text.RegularExpressions.Regex.IsMatch(text, "FIELD\\s*GOAL|\\bFG\\b|\\b\\d{1,2}\\s*(?:YD|YARD)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    { fieldGoalSeen = true; if (fieldGoalText == null) fieldGoalText = text; }
+                }
+                string signature = item.Kind + "|" + item.Address.ToString(CultureInfo.InvariantCulture)
+                    + "|" + item.Texts[0];
+                if (statBannerSeen.Contains(signature) || statBannerEntries >= 400) continue;
+                statBannerSeen.Add(signature);
+                statBannerEntries++;
+                Dictionary<string, object> entry = new Dictionary<string, object>
+                {
+                    { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                    { "quarter", quarterValue }, { "clock", clockValue },
+                    { "down", downValue }, { "distance", distanceValue },
+                    { "kind", item.Kind },
+                    { "address", "0x" + item.Address.ToString("X", CultureInfo.InvariantCulture) },
+                    { "playerId", item.PlayerId }, { "teamId", item.TeamId },
+                    { "texts", item.Texts }
+                };
+                // Full object image: every int and every string it points at,
+                // 0x180 bytes - the passing/rushing name question is answered
+                // by whatever sits in the slots we have not read before.
+                try
+                {
+                    byte[] full = scanner.ReadBytes(item.Address, 0x180);
+                    List<int> ints = new List<int>();
+                    for (int o = 0; o + 4 <= full.Length; o += 4) ints.Add(BitConverter.ToInt32(full, o));
+                    entry["ints"] = ints;
+                    List<string> strings = new List<string>();
+                    for (int o = 0; o + 8 <= full.Length; o += 8)
+                    {
+                        long pointer = BitConverter.ToInt64(full, o);
+                        if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
+                        string text = null;
+                        try { text = scanner.ReadAsciiString(pointer, 64); } catch { }
+                        if (String.IsNullOrWhiteSpace(text) || text.Trim().Length < 3) continue;
+                        strings.Add("+" + o.ToString(CultureInfo.InvariantCulture) + "=" + text.Trim());
+                    }
+                    entry["strings"] = strings;
+                }
+                catch { }
+                try { File.AppendAllText(Path.Combine(folder, "statbanner-probe.jsonl"), serializer.Serialize(entry) + Environment.NewLine); } catch { }
+            }
+            // Also check the message banners for FG text (kick meter / result).
+            if (!fieldGoalSeen)
+            {
+                ScoreHudMessageCandidate message = CurrentScoreHudMessage();
+                if (message != null)
+                {
+                    string text = ((message.DisplayText ?? "") + " " + (message.InfoText ?? "")).Trim();
+                    if (text.Length > 0 && System.Text.RegularExpressions.Regex.IsMatch(text, "FIELD\\s*GOAL|\\bFG\\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    { fieldGoalSeen = true; fieldGoalText = text; }
+                }
+            }
+            if (fieldGoalSeen && fgSpotEntries < 200)
+            {
+                List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
+                if (quarterAddresses.Count == 1)
+                {
+                    try
+                    {
+                        long block = quarterAddresses[0] - 0xC8;
+                        byte[] bytes = scanner.ReadBytes(block, 0x300);
+                        Dictionary<string, object> ints = new Dictionary<string, object>();
+                        Dictionary<string, object> floats = new Dictionary<string, object>();
+                        for (int offset = 0; offset + 4 <= bytes.Length; offset += 4)
+                        {
+                            int value = BitConverter.ToInt32(bytes, offset);
+                            if (value >= 1 && value <= 120)
+                                ints["0x" + offset.ToString("X", CultureInfo.InvariantCulture)] = value;
+                            float real = BitConverter.ToSingle(bytes, offset);
+                            if (!float.IsNaN(real) && !float.IsInfinity(real) && real >= 0.25f && real <= 110f)
+                                floats["0x" + offset.ToString("X", CultureInfo.InvariantCulture)] = Math.Round(real, 3);
+                        }
+                        fgSpotEntries++;
+                        Dictionary<string, object> entry = new Dictionary<string, object>
+                        {
+                            { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                            { "quarter", quarterValue }, { "clock", clockValue },
+                            { "down", downValue }, { "distance", distanceValue },
+                            { "fieldGoalText", fieldGoalText },
+                            { "ints", ints }, { "floats", floats }
+                        };
+                        File.AppendAllText(Path.Combine(folder, "fgspot-probe.jsonl"), serializer.Serialize(entry) + Environment.NewLine);
+                    }
+                    catch { }
+                }
+            }
         }
 
         private static string OutputPath(string screenJsonPath)

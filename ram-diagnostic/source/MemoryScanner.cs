@@ -27,6 +27,10 @@ namespace CollegeFootballRamDiagnostic
         public static long ScoreHudMessageVtableOffset = 0xB0F3368L;
         public static long ScoreHudStatLineVtableOffset = 0xB0F3148L;
         public static long ScoreHudStatSummaryVtableOffset = 0xB0F3388L;
+        // Player identity tokens ("AbshireCameron_33901") live on this type
+        // right next to the stat banners (probe 2026-08-18) - the likely
+        // source of the missing passing/rushing player names.
+        public static long ScoreHudIdentityVtableOffset = 0xB0F31A8L;
         public static long ScoreHudDownDistanceTypeInfoOffset = 0xE158810L;
 
         // Reads "--game <key>" from anywhere in the argument list. Unknown
@@ -47,6 +51,7 @@ namespace CollegeFootballRamDiagnostic
                     ScoreHudMessageVtableOffset = 0;
                     ScoreHudStatLineVtableOffset = 0;
                     ScoreHudStatSummaryVtableOffset = 0;
+                    ScoreHudIdentityVtableOffset = 0;
                     ScoreHudDownDistanceTypeInfoOffset = 0;
                 }
                 return;
@@ -1788,10 +1793,11 @@ namespace CollegeFootballRamDiagnostic
             // player stat line and the stat summary banners (probe 2026-08-18).
             long expectedStatLineVtable = OffsetOrZero(moduleBase, GameProfile.ScoreHudStatLineVtableOffset);
             long expectedStatSummaryVtable = OffsetOrZero(moduleBase, GameProfile.ScoreHudStatSummaryVtableOffset);
+            long expectedIdentityVtable = OffsetOrZero(moduleBase, GameProfile.ScoreHudIdentityVtableOffset);
             List<long> scoreHudTargetList = new List<long>();
             foreach (long target in new long[]
                 { expectedTeamVtable, expectedDownDistanceVtable, expectedMessageVtable,
-                  expectedStatLineVtable, expectedStatSummaryVtable })
+                  expectedStatLineVtable, expectedStatSummaryVtable, expectedIdentityVtable })
                 if (target != 0) scoreHudTargetList.Add(target);
             long[] scoreHudTargets = scoreHudTargetList.ToArray();
             // A game whose ScoreHud offsets are not mapped yet (Madden
@@ -1855,13 +1861,14 @@ namespace CollegeFootballRamDiagnostic
                 if (TryReadLiveScoreHudMessageCandidate(address, out candidate)) messages.Add(candidate);
             }
             List<ScoreHudTextCandidate> texts = new List<ScoreHudTextCandidate>();
-            foreach (long vtable in new long[] { expectedStatLineVtable, expectedStatSummaryVtable })
+            foreach (long vtable in new long[] { expectedStatLineVtable, expectedStatSummaryVtable, expectedIdentityVtable })
             {
+                if (vtable == 0) continue;
                 foreach (long address in references[vtable])
                 {
                     ScoreHudTextCandidate candidate;
                     if (TryReadScoreHudTextCandidate(address, vtable, moduleBase, out candidate)) texts.Add(candidate);
-                    if (texts.Count >= 12) break;
+                    if (texts.Count >= 18) break;
                 }
             }
             LastScoreHudTexts = texts;
