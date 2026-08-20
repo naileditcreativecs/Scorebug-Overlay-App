@@ -1539,6 +1539,38 @@ function bundledOriginalThemePath() {
   return resolveThemePath(path.join(app.getAppPath(), 'themes/espn-2013/index.html'));
 }
 
+// Every bundled bug under themes/defaults belongs in the library, not just
+// the original ESPN 2013 one - before this they shipped inside the app and
+// no user could see them. Import is idempotent (the store dedupes by file
+// hash), so this only ever adds what is missing.
+function ensureBundledDefaultThemesInLibrary() {
+  const folder = path.join(app.getAppPath(), 'themes', 'defaults');
+  let names = [];
+  try { names = fs.readdirSync(folder).filter((name) => /\.html?$/i.test(name)); }
+  catch { return; }
+  const added = [];
+  for (const name of names) {
+    try {
+      // The library import and the theme protocol apply different rules; a
+      // file that imports but cannot be SELECTED (no doctype/html/body) would
+      // sit in the list throwing "not a valid standalone HTML document".
+      // Refuse it here so the library only ever holds usable bugs.
+      const bytes = fs.readFileSync(path.join(folder, name));
+      const prefix = bytes.subarray(0, 65536).toString('utf8').replace(/^\uFEFF/, '');
+      if (!/<!doctype\s+html\b|<html\b|<body\b|<svg\b/i.test(prefix)) {
+        logMessage(`Bundled bug "${name}" is not a standalone HTML document; skipped.`);
+        continue;
+      }
+      const before = themeLibraryStore().list().length;
+      const theme = themeLibraryStore().importFile(path.join(folder, name));
+      if (themeLibraryStore().list().length > before) added.push(theme.name);
+    } catch (error) {
+      logMessage(`Bundled bug "${name}" could not be added to the library: ${error.message}`);
+    }
+  }
+  if (added.length) logMessage(`Bundled bugs added to the library: ${added.join(', ')}.`);
+}
+
 function ensureBundledOriginalThemeInLibrary() {
   const bundledTheme = bundledOriginalThemePath();
   if (!bundledTheme) return null;
@@ -8148,6 +8180,7 @@ if (!hasSingleInstanceLock) {
       applyScoreboardDataSourcePreference({ publish: false });
     }
     ensureBundledOriginalThemeInLibrary();
+    ensureBundledDefaultThemesInLibrary();
     repairKnownThemeLibraryBugs();
     try { startDynastyWatch(); } catch (error) { logMessage(`Dynasty watch could not start: ${error.message}`); }
     try { startGameDetectPoll(); } catch { /* window-probe path still detects */ }
