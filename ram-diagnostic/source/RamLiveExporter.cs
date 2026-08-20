@@ -7392,6 +7392,65 @@ namespace CollegeFootballRamDiagnostic
             });
         }
 
+        // --- Stat-table hunt (toward always-on per-player stats) ----------
+        private bool statTupleHuntRunning;
+        private DateTime nextStatTupleHuntUtc = DateTime.MinValue;
+        private int statTupleHuntCount;
+
+        private void MaybeHuntStatTuple(string text, int playerId)
+        {
+            if (GameProfile.Key != "cfb27") return;
+            // The player id is the discriminator that keeps small tuples like
+            // (4, 60, 1) from matching half the heap; skip anonymous banners.
+            if (playerId <= 100) return;
+            if (statTupleHuntRunning || statTupleHuntCount >= 30) return;
+            if (DateTime.UtcNow < nextStatTupleHuntUtc) return;
+            if (String.IsNullOrWhiteSpace(text)) return;
+            if (!System.Text.RegularExpressions.Regex.IsMatch(text,
+                "REC|CATCH|RUSH|CAR|Y(?:AR)?DS?|TKL|TD", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                return;
+            System.Text.RegularExpressions.MatchCollection numbers =
+                System.Text.RegularExpressions.Regex.Matches(text, "\\d+");
+            if (numbers.Count < 2) return;
+            int first = Int32.Parse(numbers[0].Value, CultureInfo.InvariantCulture);
+            int second = Int32.Parse(numbers[1].Value, CultureInfo.InvariantCulture);
+            int third = numbers.Count >= 3 ? Int32.Parse(numbers[2].Value, CultureInfo.InvariantCulture) : -1;
+            if (first > 999 || second > 999) return;
+            nextStatTupleHuntUtc = DateTime.UtcNow.AddSeconds(12);
+            if (scanner.Process == null || scanner.Process.HasExited) return;
+            int processId = scanner.Process.Id;
+            string huntText = text;
+            statTupleHuntRunning = true;
+            statTupleHuntCount++;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                List<string> hits = null;
+                try
+                {
+                    Process game = Process.GetProcessById(processId);
+                    using (MemoryScanner backgroundScanner = new MemoryScanner())
+                    {
+                        backgroundScanner.Attach(game);
+                        hits = backgroundScanner.HuntStatTuples(first, second, third, playerId, CancellationToken.None);
+                    }
+                }
+                catch { }
+                try
+                {
+                    AppendProbeLine(probeOutputSeedPath, "stattable-probe.jsonl",
+                        new Dictionary<string, object>
+                        {
+                            { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                            { "text", huntText }, { "playerId", playerId },
+                            { "numbers", new int[] { first, second, third } },
+                            { "hits", hits != null ? hits : new List<string>() }
+                        });
+                }
+                catch { }
+                statTupleHuntRunning = false;
+            });
+        }
+
         private void MaybeRebaseScoreHudOffsets(int downValue, int distanceValue, string downDistanceKind)
         {
             if (GameProfile.Key != "cfb27") return;
@@ -7635,6 +7694,12 @@ namespace CollegeFootballRamDiagnostic
                     + "|" + item.Texts[0];
                 if (statBannerSeen.Contains(signature) || statBannerEntries >= 400) continue;
                 statBannerSeen.Add(signature);
+                // Every NEW stat banner triggers a hunt for the accumulator
+                // table its numbers live in (see HuntStatTuples).
+                foreach (string text in item.Texts)
+                {
+                    try { MaybeHuntStatTuple(text, item.PlayerId); } catch { }
+                }
                 statBannerEntries++;
                 Dictionary<string, object> entry = new Dictionary<string, object>
                 {

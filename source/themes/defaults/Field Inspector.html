@@ -240,6 +240,23 @@
     }).filter(Boolean);
   }
 
+  function boardLines() {
+    var board = value('game.statBoard');
+    if (!Array.isArray(board) || !board.length) return [];
+    return board.map(function (item) {
+      if (!item) return '';
+      var who = item.player || (item.playerId ? '#' + item.playerId : 'unnamed');
+      var side = item.teamSide ? ' (' + item.teamSide + ')' : '';
+      var bits = [];
+      if (item.kind === 'receiving') bits = [item.receptions + ' rec', item.yards + ' yds', item.tds + ' td'];
+      else if (item.kind === 'rushing') bits = [item.carries + ' car', item.yards + ' yds', item.tds + ' td'];
+      else if (item.kind === 'passing') bits = [(item.completions !== null && item.completions !== undefined ? item.completions + '/' + item.attempts : ''), item.yards + ' yds', item.tds + ' td', item.ints + ' int'];
+      else if (item.kind === 'defense') bits = [item.tackles + ' tkl', item.sacks + ' sk'];
+      bits = bits.filter(function (n) { return n && n.indexOf('null') === -1 && n.indexOf('undefined') === -1; });
+      return item.kind + side + ': ' + who + ' - ' + bits.join(', ');
+    }).filter(Boolean);
+  }
+
   function rawBanners() {
     var texts = value('game.hudTexts');
     if (!Array.isArray(texts) || !texts.length) return [];
@@ -308,6 +325,7 @@
     });
     if (setting('showStats')) {
       html += listSection('Live player stats', statLines(), 'No stat banner on screen right now');
+      html += listSection('Stat board (all seen this game)', boardLines(), 'No stat lines captured yet this game');
       html += listSection('Raw banner text', rawBanners(), 'game.hudTexts is empty');
     }
     // Rebuilding a large DOM every second for identical content is free

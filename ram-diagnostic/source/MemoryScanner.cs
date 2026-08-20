@@ -2529,6 +2529,72 @@ namespace CollegeFootballRamDiagnostic
             return found;
         }
 
+        // RESEARCH toward always-on per-player stats: every broadcast stat
+        // banner is a search warrant - the game just told us this player's
+        // exact numbers, so the accumulator TABLE those numbers live in can
+        // be found by scanning for the ordered tuple near the player's id.
+        // Each hit logs the layout (offsets between fields, id offset); the
+        // recurring layout across banners IS the table row shape.
+        public List<string> HuntStatTuples(int first, int second, int third, int playerId,
+            CancellationToken token)
+        {
+            EnsureAttached();
+            List<string> found = new List<string>();
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize];
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                token.ThrowIfCancellationRequested();
+                MemoryRegion region = regions[regionIndex];
+                if (region.BaseAddress < 0x10000L || region.BaseAddress >= 0x100000000L) continue;
+                long readableSize = Math.Min(region.Size, 0x100000000L - region.BaseAddress);
+                long offset = 0;
+                while (offset < readableSize)
+                {
+                    int requested = (int)Math.Min(buffer.Length, readableSize - offset);
+                    int bytesRead = Read(region.BaseAddress + offset, buffer, requested);
+                    long chunkAddress = region.BaseAddress + offset;
+                    int alignment = (int)((4 - (chunkAddress & 3)) & 3);
+                    for (int index = alignment + 0x200; index + 4 <= bytesRead - 0x200; index += 4)
+                    {
+                        if (BitConverter.ToInt32(buffer, index) != first) continue;
+                        for (int deltaSecond = 4; deltaSecond <= 0x80; deltaSecond += 4)
+                        {
+                            if (BitConverter.ToInt32(buffer, index + deltaSecond) != second) continue;
+                            int thirdDelta = -1;
+                            if (third >= 0)
+                            {
+                                for (int deltaThird = 4; deltaThird <= 0x80; deltaThird += 4)
+                                {
+                                    if (BitConverter.ToInt32(buffer, index + deltaSecond + deltaThird) == third)
+                                    { thirdDelta = deltaThird; break; }
+                                }
+                                if (thirdDelta < 0) continue;
+                            }
+                            // The clincher: the player's id nearby. Without it
+                            // small tuples like (4, 60, 1) are everywhere.
+                            int idDelta = int.MinValue;
+                            for (int deltaId = -0x200; deltaId <= 0x200; deltaId += 4)
+                            {
+                                if (BitConverter.ToInt32(buffer, index + deltaId) == playerId)
+                                { idDelta = deltaId; break; }
+                            }
+                            if (idDelta == int.MinValue) continue;
+                            found.Add("0x" + (chunkAddress + index).ToString("X", CultureInfo.InvariantCulture)
+                                + " +s" + deltaSecond.ToString(CultureInfo.InvariantCulture)
+                                + (thirdDelta >= 0 ? " +t" + thirdDelta.ToString(CultureInfo.InvariantCulture) : "")
+                                + " id" + idDelta.ToString(CultureInfo.InvariantCulture));
+                            if (found.Count >= 40) return found;
+                            break;
+                        }
+                    }
+                    if (requested <= 0x400) break;
+                    offset += requested - 0x400;
+                }
+            }
+            return found;
+        }
+
         private static ulong HashRankContext(byte[] buffer, int start, int length, int awayIndex, int homeIndex,
             long chunkAddress, bool normalizePointers, bool shapeOnly)
         {

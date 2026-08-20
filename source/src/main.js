@@ -213,6 +213,8 @@ const { applyRamFieldHold, clearRamFieldHold, createRamFieldHoldCache,
 } = require('./ram-field-hold');
 const { flagStateFromMessages } = require('./flag-detector');
 const { parseHudTexts } = require('./stat-line-parser');
+const { createStatBoard, updateStatBoard } = require('./stat-board');
+const liveStatBoard = createStatBoard();
 let lastRamQuarter = null;
 const { runPreflight, reportText: preflightReportText } = require('./preflight');
 const { applyRamDocumentHold, clearRamDocumentHold, createRamDocumentHold, looksLikeNewGame } = require('./ram-document-hold');
@@ -1020,6 +1022,12 @@ function ramScoreboardPayload(document) {
     const parsedStats = parseHudTexts(state.game.hudTexts);
     apply(state.game, 'playerStats', parsedStats, parsedStats.length > 0, 'game.playerStats');
     apply(state.game, 'playerStat', parsedStats[0] || null, parsedStats.length > 0, 'game.playerStat');
+    // Accumulated board: every stat line the broadcast has ever shown this
+    // game, latest per player - survives between banners, resets only when
+    // the matchup changes.
+    const matchupKey = `${state.away?.name ?? ''}@${state.home?.name ?? ''}`;
+    const boardOut = updateStatBoard(liveStatBoard, matchupKey, parsedStats, Date.now());
+    apply(state.game, 'statBoard', boardOut, boardOut.length > 0, 'game.statBoard');
   }
   // Precise yardage (float, two verified copies in the scoreboard block)
   // and field-goal distance (same slot while the FG presentation is up).
