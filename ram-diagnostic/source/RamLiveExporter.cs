@@ -1013,10 +1013,7 @@ namespace CollegeFootballRamDiagnostic
                 // During the FG presentation the precise slot IS the kick
                 // distance; published only while the game's own FIELD GOAL
                 // text is up and the value is a legal kick length.
-                { "fieldGoalDistance", !double.IsNaN(preciseYards)
-                    && DateTime.UtcNow - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(4)
-                    && preciseYards >= 18 && preciseYards <= 90
-                    ? (object)(int)Math.Round(preciseYards) : null },
+                { "fieldGoalDistance", CurrentFieldGoalDistance(preciseYards) },
                 { "downDistanceSource", downDistanceKind != "numeric" || (stableDownRead.Available && stableDistanceRead.Available) ? "ram" : "screen" }
             };
 
@@ -7140,6 +7137,13 @@ namespace CollegeFootballRamDiagnostic
         private int statBannerEntries;
         private int fgSpotEntries;
         private DateTime lastFieldGoalTextUtc = DateTime.MinValue;
+        // The FG presentation outlives the few ticks where the reader happens
+        // to catch the banner text (2026-08-20: a 55.7 yard kick produced one
+        // sample). Latch the distance when text + a legal kick length line up
+        // and keep publishing it through the attempt and its result.
+        private int latchedFieldGoalDistance;
+        private DateTime latchedFieldGoalUtc = DateTime.MinValue;
+        private static readonly TimeSpan FieldGoalLatchWindow = TimeSpan.FromSeconds(25);
 
         private void WriteStatBannerProbe(string screenJsonPath, int quarterValue, int clockValue,
             int downValue, int distanceValue)
@@ -7409,6 +7413,23 @@ namespace CollegeFootballRamDiagnostic
                 result["awayTimeouts"] = maddenSlotValues[candidates[1]];
             }
             return result;
+        }
+
+        // Publishes the kick length for the whole attempt: latch it the first
+        // tick the game's FIELD GOAL text and a legal distance coincide, then
+        // hold it for the presentation. Fail closed - no text, no latch.
+        private object CurrentFieldGoalDistance(double preciseYards)
+        {
+            DateTime now = DateTime.UtcNow;
+            bool textLive = now - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(6);
+            if (textLive && !double.IsNaN(preciseYards) && preciseYards >= 18 && preciseYards <= 90)
+            {
+                latchedFieldGoalDistance = (int)Math.Round(preciseYards);
+                latchedFieldGoalUtc = now;
+            }
+            if (latchedFieldGoalDistance > 0 && now - latchedFieldGoalUtc <= FieldGoalLatchWindow)
+                return latchedFieldGoalDistance;
+            return null;
         }
 
         private static string OutputPath(string screenJsonPath)
