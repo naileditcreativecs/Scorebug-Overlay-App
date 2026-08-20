@@ -4100,6 +4100,14 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.LooksLikeFieldGoalKick(95, 10, 4, true)
                     || RamLiveExporter.LooksLikeFieldGoalKick(30, 5, 2, false))
                     throw new Exception("Field-goal kick detection rule is wrong.");
+                // FG distance straight from banner text.
+                if (RamLiveExporter.FieldGoalDistanceFromText("42-YD FG GOOD") != 42
+                    || RamLiveExporter.FieldGoalDistanceFromText("55 YD FIELD GOAL") != 55
+                    || RamLiveExporter.FieldGoalDistanceFromText("30-YD PICK 6") != 0
+                    || RamLiveExporter.FieldGoalDistanceFromText("Face Mask 15 YD") != 0
+                    || RamLiveExporter.FieldGoalDistanceFromText("95-YD FG") != 0
+                    || RamLiveExporter.FieldGoalDistanceFromText("") != 0)
+                    throw new Exception("FG-from-text rule is wrong.");
                 // Precise-yardage rules (2026-08-20 probe: floats at +0xA8/+0xD8).
                 if (RamLiveExporter.DistanceFromPreciseYards(6.574) != 7
                     || RamLiveExporter.DistanceFromPreciseYards(9.531) != 10

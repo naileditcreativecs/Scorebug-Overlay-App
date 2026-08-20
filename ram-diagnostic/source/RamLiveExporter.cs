@@ -7139,11 +7139,22 @@ namespace CollegeFootballRamDiagnostic
             if (anchors.Count == 0) return;
             List<ScoreHudTextCandidate> found;
             try { found = scanner.FindScoreHudTextCandidatesNear(anchors, 12); }
-            catch { return; }
-            if (found.Count == 0) return;
-            foreach (ScoreHudTextCandidate item in found)
-                if (scoreHudTextAnchors.Count < 256) scoreHudTextAnchors.Add(item.Address);
-            scanner.LastScoreHudTexts = found;
+            catch { found = new List<ScoreHudTextCandidate>(); }
+            if (found.Count > 0)
+            {
+                foreach (ScoreHudTextCandidate item in found)
+                    if (scoreHudTextAnchors.Count < 256) scoreHudTextAnchors.Add(item.Address);
+                scanner.LastScoreHudTexts = found;
+            }
+            // Banner messages ride the same pooled region: refreshing them here
+            // makes FLAG appear with the game's banner instead of ~10 s late,
+            // and catches FIELD GOAL presentations the sweep used to miss.
+            try
+            {
+                List<ScoreHudMessageCandidate> messages = scanner.FindMessageCandidatesNear(anchors, 12);
+                if (messages.Count > 0) RememberScoreHudMessages(messages);
+            }
+            catch { }
         }
 
         private readonly HashSet<string> statBannerSeen = new HashSet<string>(StringComparer.Ordinal);
@@ -7431,9 +7442,33 @@ namespace CollegeFootballRamDiagnostic
         // Publishes the kick length for the whole attempt: latch it the first
         // tick the game's FIELD GOAL text and a legal distance coincide, then
         // hold it for the presentation. Fail closed - no text, no latch.
+        // "42-YD FG GOOD", "55-YD FIELD GOAL" - the game prints the length in
+        // its own banner; that number is authoritative when present.
+        internal static int FieldGoalDistanceFromText(string text)
+        {
+            if (String.IsNullOrWhiteSpace(text)) return 0;
+            System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(
+                text, "(\\d{1,2})\\s*-?\\s*(?:YD|YARD)S?\\b[^A-Z]*(?:FG|FIELD\\s*GOAL)",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!match.Success) return 0;
+            int yards = Int32.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            return yards >= 18 && yards <= 90 ? yards : 0;
+        }
+
         private object CurrentFieldGoalDistance(double preciseYards, int distanceYards, int down)
         {
             DateTime now = DateTime.UtcNow;
+            ScoreHudMessageCandidate bannerMessage = CurrentScoreHudMessage();
+            if (bannerMessage != null)
+            {
+                int fromText = FieldGoalDistanceFromText(
+                    ((bannerMessage.DisplayText ?? "") + " " + (bannerMessage.InfoText ?? "")).Trim());
+                if (fromText > 0)
+                {
+                    latchedFieldGoalDistance = fromText;
+                    latchedFieldGoalUtc = now;
+                }
+            }
             bool textRecent = now - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(120);
             if (!double.IsNaN(preciseYards)
                 && LooksLikeFieldGoalKick(preciseYards, distanceYards, down, textRecent))

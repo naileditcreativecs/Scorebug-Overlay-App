@@ -2097,6 +2097,43 @@ namespace CollegeFootballRamDiagnostic
             return found;
         }
 
+        // Fast anchored scan for the banner MESSAGE objects (FLAG, FIELD
+        // GOAL, pick-six results...). They previously refreshed only on the
+        // slow full sweep - the source of the ~10 s flag delay and of missed
+        // field-goal presentations (2026-08-20).
+        public List<ScoreHudMessageCandidate> FindMessageCandidatesNear(
+            IEnumerable<long> anchorAddresses, int maximumWindows)
+        {
+            EnsureAttached();
+            List<ScoreHudMessageCandidate> found = new List<ScoreHudMessageCandidate>();
+            if (GameProfile.ScoreHudMessageVtableOffset == 0) return found;
+            long moduleBase = process.MainModule.BaseAddress.ToInt64();
+            long expectedVtable = moduleBase + GameProfile.ScoreHudMessageVtableOffset;
+            const long windowSize = 0x100000;
+            HashSet<long> seen = new HashSet<long>();
+            foreach (long windowBase in AnchorScanWindows(anchorAddresses, maximumWindows))
+            {
+                byte[] buffer = new byte[(int)windowSize];
+                int bytesRead = Read(windowBase, buffer, buffer.Length);
+                int alignment = (int)((8 - (windowBase & 7)) & 7);
+                for (int index = alignment; index + 8 <= bytesRead; index += 8)
+                {
+                    if (BitConverter.ToInt64(buffer, index) != expectedVtable) continue;
+                    long address = windowBase + index;
+                    if (!seen.Add(address)) continue;
+                    ScoreHudMessageCandidate candidate;
+                    try
+                    {
+                        if (TryReadLiveScoreHudMessageCandidate(address, out candidate))
+                            found.Add(candidate);
+                    }
+                    catch { }
+                    if (found.Count >= 12) return found;
+                }
+            }
+            return found;
+        }
+
         public List<ScoreHudDownDistanceCandidate> FindDownDistanceCandidatesNear(
             IEnumerable<long> anchorAddresses, int maximumWindows)
         {
