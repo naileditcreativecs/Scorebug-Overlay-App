@@ -35,6 +35,31 @@ namespace CollegeFootballRamDiagnostic
         // records and Madden's own team stat lines (capture round 7).
         public static long MaddenTickerVtableOffset = 0;
         public static long ScoreHudDownDistanceTypeInfoOffset = 0xE158810L;
+        public static long ScoreHudTeamTypeInfoOffset = 0xE158930L;
+        public static long ScoreHudMessageTypeInfoOffset = 0xE159488L;
+        public static long ScoreHudAlertVtableOffset = 0xB0F3268L;
+        public static long ScoreHudAlertTypeInfoOffset = 0xE158DB0L;
+
+        // A game title update recompiles the exe and every one of the offsets
+        // above goes stale at once - the sweep silently finds nothing (first
+        // hit: the 2026-08-20 patch). The vtables all move together (.rdata)
+        // and the typeinfo statics all move together (.data), so two deltas
+        // re-derived from ONE live object rebase the whole family. Zero
+        // offsets stay zero: they mean "subsystem disabled", not an address.
+        public static void ApplyScoreHudRebase(long vtableDelta, long typeInfoDelta)
+        {
+            if (ScoreHudTeamVtableOffset != 0) ScoreHudTeamVtableOffset += vtableDelta;
+            if (ScoreHudDownDistanceVtableOffset != 0) ScoreHudDownDistanceVtableOffset += vtableDelta;
+            if (ScoreHudMessageVtableOffset != 0) ScoreHudMessageVtableOffset += vtableDelta;
+            if (ScoreHudStatLineVtableOffset != 0) ScoreHudStatLineVtableOffset += vtableDelta;
+            if (ScoreHudStatSummaryVtableOffset != 0) ScoreHudStatSummaryVtableOffset += vtableDelta;
+            if (ScoreHudIdentityVtableOffset != 0) ScoreHudIdentityVtableOffset += vtableDelta;
+            if (ScoreHudAlertVtableOffset != 0) ScoreHudAlertVtableOffset += vtableDelta;
+            if (ScoreHudDownDistanceTypeInfoOffset != 0) ScoreHudDownDistanceTypeInfoOffset += typeInfoDelta;
+            if (ScoreHudTeamTypeInfoOffset != 0) ScoreHudTeamTypeInfoOffset += typeInfoDelta;
+            if (ScoreHudMessageTypeInfoOffset != 0) ScoreHudMessageTypeInfoOffset += typeInfoDelta;
+            if (ScoreHudAlertTypeInfoOffset != 0) ScoreHudAlertTypeInfoOffset += typeInfoDelta;
+        }
 
         // Reads "--game <key>" from anywhere in the argument list. Unknown
         // keys are ignored so a typo can never change how CFB27 reads.
@@ -56,6 +81,10 @@ namespace CollegeFootballRamDiagnostic
                     ScoreHudStatSummaryVtableOffset = 0;
                     ScoreHudIdentityVtableOffset = 0;
                     ScoreHudDownDistanceTypeInfoOffset = 0;
+                    ScoreHudTeamTypeInfoOffset = 0;
+                    ScoreHudMessageTypeInfoOffset = 0;
+                    ScoreHudAlertVtableOffset = 0;
+                    ScoreHudAlertTypeInfoOffset = 0;
                     MaddenTickerVtableOffset = 0xCAE8DC4L;
                 }
                 return;
@@ -292,6 +321,14 @@ namespace CollegeFootballRamDiagnostic
         public int PlayerId;
         public int TeamId;
         public int DisplayTime;
+    }
+
+    internal sealed class ScoreHudRebaseCandidate
+    {
+        public long VtableOffset;
+        public long TypeInfoOffset;
+        public int Matches;
+        public string Display;
     }
 
     internal sealed class TypeInfoHeadCandidate
@@ -1937,7 +1974,7 @@ namespace CollegeFootballRamDiagnostic
             EnsureAttached();
             candidate = null;
             long scoreHudTeamVtableOffset = GameProfile.ScoreHudTeamVtableOffset;
-            const long scoreHudTeamTypeInfoOffset = 0xE158930L;
+            long scoreHudTeamTypeInfoOffset = GameProfile.ScoreHudTeamTypeInfoOffset;
             const long defaultObjectFlag = 0x0000800000000000L;
             if (scoreHudTeamVtableOffset == 0) return false;
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
@@ -2219,7 +2256,7 @@ namespace CollegeFootballRamDiagnostic
             if (GameProfile.ScoreHudMessageVtableOffset == 0) return false;
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
             long expectedVtable = moduleBase + GameProfile.ScoreHudMessageVtableOffset;
-            long expectedTypeInfo = moduleBase + 0xE159488L;
+            long expectedTypeInfo = moduleBase + GameProfile.ScoreHudMessageTypeInfoOffset;
             byte[] bytes;
             try { bytes = ReadBytes(address, 64); }
             catch { return false; }
@@ -2261,9 +2298,10 @@ namespace CollegeFootballRamDiagnostic
         public List<ScoreHudAlertCandidate> FindLiveScoreHudAlertCandidates(CancellationToken token)
         {
             EnsureAttached();
+            if (GameProfile.ScoreHudAlertVtableOffset == 0) return new List<ScoreHudAlertCandidate>();
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
-            long expectedVtable = moduleBase + 0xB0F3268L;
-            long expectedTypeInfo = moduleBase + 0xE158DB0L;
+            long expectedVtable = moduleBase + GameProfile.ScoreHudAlertVtableOffset;
+            long expectedTypeInfo = moduleBase + GameProfile.ScoreHudAlertTypeInfoOffset;
             const long defaultObjectFlag = 0x0000800000000000L;
             List<long> references = FindPrivateInt64References(expectedVtable, 0x100000000L, 64, token);
             List<ScoreHudAlertCandidate> result = new List<ScoreHudAlertCandidate>();
@@ -2292,6 +2330,159 @@ namespace CollegeFootballRamDiagnostic
                 });
             }
             return result;
+        }
+
+        // After a title update the compiled-in ScoreHud offsets all dangle and
+        // the sweep silently finds nothing (first hit: the 2026-08-20 patch).
+        // The down-distance object can still be re-found with NO addresses:
+        // its field layout, the live core down/distance (pattern-scanned, so
+        // patch-proof), and its own display text ("1st & 10") identify it.
+        // Each hit yields the NEW vtable and typeinfo module offsets; the
+        // caller turns the unique pair into two deltas and rebases the family.
+        public List<ScoreHudRebaseCandidate> HuntScoreHudDownDistanceRebase(
+            int coreDown, int coreDistance, CancellationToken token)
+        {
+            EnsureAttached();
+            ProcessModule module = process.MainModule;
+            long moduleBase = module.BaseAddress.ToInt64();
+            long moduleEnd = moduleBase + module.ModuleMemorySize;
+            string[] ordinals = { "1st", "2nd", "3rd", "4th" };
+            const long defaultObjectFlag = 0x0000800000000000L;
+            Dictionary<string, ScoreHudRebaseCandidate> tally =
+                new Dictionary<string, ScoreHudRebaseCandidate>(StringComparer.Ordinal);
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize];
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                token.ThrowIfCancellationRequested();
+                MemoryRegion region = regions[regionIndex];
+                if (region.BaseAddress < 0 || region.BaseAddress >= 0x100000000L) continue;
+                long readableSize = Math.Min(region.Size, 0x100000000L - region.BaseAddress);
+                long offset = 0;
+                while (offset < readableSize)
+                {
+                    int requested = (int)Math.Min(buffer.Length, readableSize - offset);
+                    int bytesRead = Read(region.BaseAddress + offset, buffer, requested);
+                    if (bytesRead >= 56)
+                    {
+                        long chunkAddress = region.BaseAddress + offset;
+                        int alignment = (int)((8 - (chunkAddress & 7)) & 7);
+                        for (int index = alignment; index <= bytesRead - 56; index += 8)
+                        {
+                            long vtable = BitConverter.ToInt64(buffer, index);
+                            if (vtable < moduleBase || vtable >= moduleEnd || (vtable & 7) != 0) continue;
+                            long typeInfo = BitConverter.ToInt64(buffer, index + 8);
+                            if (typeInfo < moduleBase || typeInfo >= moduleEnd || (typeInfo & 7) != 0) continue;
+                            // In every observed build the typeinfo statics sit
+                            // a few dozen MB past the vtables; the window is a
+                            // cheap pre-filter, generous on both sides.
+                            long spread = typeInfo - vtable;
+                            if (spread < 0x1000000 || spread > 0x10000000) continue;
+                            if ((BitConverter.ToInt64(buffer, index + 16) & defaultObjectFlag) != 0) continue;
+                            // Stale pooled instances are welcome evidence too
+                            // (ScoreHud pools dozens of old plates), so the
+                            // hunt does NOT demand a match with the live core
+                            // values - the first version did, missed, and the
+                            // log showed why: during a kick lineup the core
+                            // has already flipped while the pooled objects
+                            // hold arbitrary old downs. What identifies the
+                            // type is INTERNAL consistency: the object's own
+                            // display string spells its own down field.
+                            int down = BitConverter.ToInt32(buffer, index + 40);
+                            int distance = BitConverter.ToInt32(buffer, index + 44);
+                            int style = BitConverter.ToInt32(buffer, index + 48);
+                            int isEmpty = BitConverter.ToInt32(buffer, index + 52);
+                            if (down < 1 || down > 4 || distance < 0 || distance > 100
+                                || style < -1 || style > 20 || (isEmpty != 0 && isEmpty != 1)) continue;
+                            long displayPointer = BitConverter.ToInt64(buffer, index + 24);
+                            if (displayPointer < 0x10000 || displayPointer >= 0x100000000L) continue;
+                            string display;
+                            try { display = ReadAsciiString(displayPointer, 32); }
+                            catch { continue; }
+                            if (display == null
+                                || !display.TrimStart().StartsWith(ordinals[down - 1], StringComparison.OrdinalIgnoreCase))
+                                continue;
+                            string key = (vtable - moduleBase).ToString(CultureInfo.InvariantCulture)
+                                + "|" + (typeInfo - moduleBase).ToString(CultureInfo.InvariantCulture);
+                            ScoreHudRebaseCandidate entry;
+                            if (!tally.TryGetValue(key, out entry))
+                            {
+                                entry = new ScoreHudRebaseCandidate
+                                {
+                                    VtableOffset = vtable - moduleBase,
+                                    TypeInfoOffset = typeInfo - moduleBase,
+                                    Display = display.Trim()
+                                };
+                                tally[key] = entry;
+                            }
+                            entry.Matches++;
+                        }
+                    }
+                    if (requested <= 64) break;
+                    offset += requested - 55;
+                }
+            }
+            return new List<ScoreHudRebaseCandidate>(tally.Values);
+        }
+
+        // RESEARCH (2026-08-20 evening). The play-call tile's "104 Yd FG" is
+        // NOT stored as readable text (a full-memory ASCII/UTF-16 scan during
+        // a live 104-yard lineup found zero matches - it is glyph-indexed).
+        // But the NUMBERS are there: during that same lineup the pool held
+        // many objects pairing 104 with 87 (yards to goal) and 104 with 13
+        // (the yard line), e.g. five objects with the yardline at +20. This
+        // probe logs every such pair so the recurring template (fixed offset
+        // between kick distance and field position) identifies itself across
+        // a few kicks - then the pre-snap distance can be READ, fail-closed.
+        public List<string> FindKickDistancePairs(CancellationToken token)
+        {
+            EnsureAttached();
+            List<string> found = new List<string>();
+            const long windowLow = 0x2C000000L;
+            const long windowHigh = 0x40000000L;
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize];
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                token.ThrowIfCancellationRequested();
+                MemoryRegion region = regions[regionIndex];
+                long start = Math.Max(region.BaseAddress, windowLow);
+                long end = Math.Min(region.BaseAddress + region.Size, windowHigh);
+                if (start >= end) continue;
+                long offset = 0;
+                long size = end - start;
+                while (offset < size)
+                {
+                    int requested = (int)Math.Min(buffer.Length, size - offset);
+                    int bytesRead = Read(start + offset, buffer, requested);
+                    int lowIndex = (int)((4 - ((start + offset) & 3)) & 3);
+                    for (int index = lowIndex + 64; index + 4 <= bytesRead - 64; index += 4)
+                    {
+                        int value = BitConverter.ToInt32(buffer, index);
+                        if (value < 28 || value > 120) continue;
+                        int yardsToGoal = value - 17;
+                        int mirrored = 100 - yardsToGoal;
+                        for (int delta = -64; delta <= 64; delta += 4)
+                        {
+                            if (delta == 0) continue;
+                            int neighbor = BitConverter.ToInt32(buffer, index + delta);
+                            string kind = null;
+                            if (neighbor == yardsToGoal) kind = "ytg";
+                            else if (neighbor == mirrored && mirrored >= 1 && mirrored <= 50) kind = "yardline";
+                            if (kind == null) continue;
+                            found.Add("0x" + (start + offset + index).ToString("X", CultureInfo.InvariantCulture)
+                                + " dist=" + value.ToString(CultureInfo.InvariantCulture)
+                                + " mate=" + neighbor.ToString(CultureInfo.InvariantCulture)
+                                + " delta=" + delta.ToString(CultureInfo.InvariantCulture)
+                                + " kind=" + kind);
+                            if (found.Count >= 60) return found;
+                        }
+                    }
+                    if (requested <= 128) break;
+                    offset += requested - 68;
+                }
+            }
+            return found;
         }
 
         private static ulong HashRankContext(byte[] buffer, int start, int length, int awayIndex, int homeIndex,

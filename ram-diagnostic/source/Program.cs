@@ -4061,6 +4061,13 @@ namespace CollegeFootballRamDiagnostic
                 if (GameProfile.Key != "madden27" || GameProfile.ProcessName != "Madden27"
                     || GameProfile.ScoreHudTeamVtableOffset != 0)
                     throw new Exception("Madden 27 profile did not apply.");
+                // Offset rebase (2026-08-20 game patch): zeroed offsets mean
+                // "subsystem disabled" and must never move.
+                GameProfile.ApplyScoreHudRebase(0x1000, -0x2000);
+                if (GameProfile.ScoreHudTeamVtableOffset != 0
+                    || GameProfile.ScoreHudDownDistanceTypeInfoOffset != 0
+                    || GameProfile.ScoreHudAlertVtableOffset != 0)
+                    throw new Exception("Rebase moved a disabled (zero) offset.");
                 // Hunt pattern (Madden round 2): score at X, timeouts at X-8,
                 // plausible wins at X+8 - the CFB27 team-object relation.
                 byte[] hunt = new byte[128];
@@ -4107,6 +4114,8 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.FieldGoalDistanceFromText("30-YD PICK 6") != 0
                     || RamLiveExporter.FieldGoalDistanceFromText("Face Mask 15 YD") != 0
                     || RamLiveExporter.FieldGoalDistanceFromText("96-YD FG") != 96
+                    || RamLiveExporter.FieldGoalDistanceFromText("96 Yd FG") != 96
+                    || RamLiveExporter.FieldGoalDistanceFromText("33 Yd FG") != 33
                     || RamLiveExporter.FieldGoalDistanceFromText("125-YD FG") != 0
                     || RamLiveExporter.FieldGoalDistanceFromText("") != 0)
                     throw new Exception("FG-from-text rule is wrong.");
@@ -4131,7 +4140,31 @@ namespace CollegeFootballRamDiagnostic
                 GameProfile.ScoreHudMessageVtableOffset = 0xB0F3368L;
                 GameProfile.ScoreHudStatLineVtableOffset = 0xB0F3148L;
                 GameProfile.ScoreHudStatSummaryVtableOffset = 0xB0F3388L;
+                GameProfile.ScoreHudIdentityVtableOffset = 0xB0F31A8L;
+                GameProfile.ScoreHudAlertVtableOffset = 0xB0F3268L;
                 GameProfile.ScoreHudDownDistanceTypeInfoOffset = 0xE158810L;
+                GameProfile.ScoreHudTeamTypeInfoOffset = 0xE158930L;
+                GameProfile.ScoreHudMessageTypeInfoOffset = 0xE159488L;
+                GameProfile.ScoreHudAlertTypeInfoOffset = 0xE158DB0L;
+                // Rebase on live offsets: the whole family shifts by the two
+                // deltas, vtables and typeinfo statics independently.
+                GameProfile.ApplyScoreHudRebase(0x1000, -0x2000);
+                if (GameProfile.ScoreHudTeamVtableOffset != 0xB0F4168L
+                    || GameProfile.ScoreHudDownDistanceVtableOffset != 0xB0F4128L
+                    || GameProfile.ScoreHudMessageVtableOffset != 0xB0F4368L
+                    || GameProfile.ScoreHudStatLineVtableOffset != 0xB0F4148L
+                    || GameProfile.ScoreHudStatSummaryVtableOffset != 0xB0F4388L
+                    || GameProfile.ScoreHudIdentityVtableOffset != 0xB0F41A8L
+                    || GameProfile.ScoreHudAlertVtableOffset != 0xB0F4268L
+                    || GameProfile.ScoreHudDownDistanceTypeInfoOffset != 0xE156810L
+                    || GameProfile.ScoreHudTeamTypeInfoOffset != 0xE156930L
+                    || GameProfile.ScoreHudMessageTypeInfoOffset != 0xE157488L
+                    || GameProfile.ScoreHudAlertTypeInfoOffset != 0xE156DB0L)
+                    throw new Exception("Rebase deltas were not applied family-wide.");
+                GameProfile.ApplyScoreHudRebase(-0x1000, 0x2000);
+                if (GameProfile.ScoreHudTeamVtableOffset != 0xB0F3168L
+                    || GameProfile.ScoreHudDownDistanceTypeInfoOffset != 0xE158810L)
+                    throw new Exception("Rebase is not invertible.");
                 // Only a complementary HUD pair may move the arrow: both-off is
                 // a real dead-ball state, both-on is a mid-update read.
                 if (RamLiveExporter.HudPossessionCandidate(1, 0) != 1

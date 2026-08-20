@@ -756,6 +756,9 @@ namespace CollegeFootballRamDiagnostic
             // Stat lower-thirds and other ScoreHud text objects, passed through
             // raw (newest scan). Experimental: layout not decoded yet.
             ram["hudTexts"] = HudTextsDictionary();
+            // Post-patch offset re-derivation, when it has happened - so a
+            // tester zip shows at a glance that this session self-repaired.
+            if (scoreHudRebaseSummary != null) ram["scoreHudRebase"] = scoreHudRebaseSummary;
             string publishedAwayName = matchupTransitionPending ? null : lastAwayTeamName;
             string publishedHomeName = matchupTransitionPending ? null : lastHomeTeamName;
             ram["awayTeamName"] = TeamNameDictionary(publishedAwayName, publishedAwayRead);
@@ -984,6 +987,8 @@ namespace CollegeFootballRamDiagnostic
             // is the yards-to-goal ground truth that identifies the ball-spot
             // slot after a couple of attempts.
             try { RefreshScoreHudTextsFast(); } catch { }
+            try { MaybeRebaseScoreHudOffsets(downValue, distanceValue, downDistanceKind); } catch { }
+            try { RefreshPlayCallFieldGoalText(downValue); } catch { }
             try { WriteStatBannerProbe(screenJsonPath, quarterValue, clockValue, downValue, distanceValue); } catch { }
             if (GameProfile.Key == "madden27")
             {
@@ -1665,8 +1670,14 @@ namespace CollegeFootballRamDiagnostic
             // (b) the ScoreHud object family: sweep the vtable neighbourhood
             long moduleBase = scanner.Process.MainModule.BaseAddress.ToInt64();
             List<long> targets = new List<long>();
-            for (long vtable = moduleBase + 0xB0F2C00L; vtable <= moduleBase + 0xB0F3C00L; vtable += 8) targets.Add(vtable);
-            long knownTeam = moduleBase + 0xB0F3168L, knownDown = moduleBase + 0xB0F3128L, knownMessage = moduleBase + 0xB0F3368L;
+            // Relative to the (possibly rebased) team vtable so the research
+            // window survives a game patch: the family spans team-0x568 to
+            // team+0xA98 in every observed build.
+            long familyBase = moduleBase + GameProfile.ScoreHudTeamVtableOffset;
+            for (long vtable = familyBase - 0x568L; vtable <= familyBase + 0xA98L; vtable += 8) targets.Add(vtable);
+            long knownTeam = familyBase,
+                knownDown = moduleBase + GameProfile.ScoreHudDownDistanceVtableOffset,
+                knownMessage = moduleBase + GameProfile.ScoreHudMessageVtableOffset;
             Dictionary<long, List<long>> objects = scanner.FindPrivateInt64ReferencesBelow4G(targets.ToArray(), 12);
             int objectCount = 0;
             foreach (KeyValuePair<long, List<long>> pair in objects)
@@ -3410,6 +3421,27 @@ namespace CollegeFootballRamDiagnostic
             if (result == null || scanner.Process == null || scanner.Process.Id != result.ProcessId
                 || result.MatchupGeneration != matchupGeneration)
                 return null;
+
+            // A game patch dangles every compiled-in ScoreHud offset at once,
+            // and this is where it shows: sweep after sweep with NOTHING in
+            // it. Count them; three in a row arms the offset re-derivation.
+            if (result.Teams.Count == 0 && result.DownDistance.Count == 0
+                && result.Messages.Count == 0)
+            {
+                consecutiveEmptyScoreHudSweeps++;
+            }
+            else
+            {
+                if (scoreHudRebaseApplied && !scoreHudRebaseVerifiedLogged)
+                {
+                    scoreHudRebaseVerifiedLogged = true;
+                    LogScoreHudRebase("verified", "Rebased offsets confirmed by a live sweep: "
+                        + result.Teams.Count.ToString(CultureInfo.InvariantCulture) + " team, "
+                        + result.DownDistance.Count.ToString(CultureInfo.InvariantCulture) + " down-distance, "
+                        + result.Messages.Count.ToString(CultureInfo.InvariantCulture) + " message objects.");
+                }
+                consecutiveEmptyScoreHudSweeps = 0;
+            }
 
             foreach (ScoreHudMessageCandidate sweepMessage in result.Messages)
                 if (scoreHudTextAnchors.Count < 256 && sweepMessage.Address != 0)
@@ -7124,6 +7156,349 @@ namespace CollegeFootballRamDiagnostic
 
         private readonly HashSet<long> scoreHudTextAnchors = new HashSet<long>();
         private DateTime nextTextFastScanUtc = DateTime.MinValue;
+
+        // --- ScoreHud offset re-derivation after a game patch -------------
+        // A title update moves the vtable cluster (.rdata) and the typeinfo
+        // statics (.data); every ScoreHud read then fails silently while the
+        // pattern-scanned core keeps working. When three consecutive sweeps
+        // come back empty during live play, hunt the down-distance object by
+        // its FIELD CONTENT (core down/distance + its own "1st & 10" text),
+        // read the new vtable/typeinfo off the found object, and shift the
+        // whole family by the two deltas. Fail closed: an ambiguous hunt
+        // changes nothing, and a wrong shift cannot publish garbage because
+        // every reader still demands vtable AND typeinfo agree per object.
+        private int consecutiveEmptyScoreHudSweeps;
+        private bool scoreHudRebaseDone;
+        private bool scoreHudRebaseApplied;
+        private bool scoreHudRebaseVerifiedLogged;
+        private bool scoreHudRebaseRunning;
+        private DateTime nextScoreHudRebaseAttemptUtc = DateTime.MinValue;
+        private readonly object scoreHudRebaseSync = new object();
+        private List<ScoreHudRebaseCandidate> pendingScoreHudRebase;
+        private int pendingScoreHudRebaseDown;
+        private int pendingScoreHudRebaseDistance;
+        private string scoreHudRebaseSummary;
+        private long lastWeakRebaseVtableOffset;
+        private long lastWeakRebaseTypeInfoOffset;
+        // The rebase is persisted so a reader restart applies it instantly -
+        // without this, every restart needed two corroborating hunts during
+        // live play before flags or any banner worked again (the 2026-08-20
+        // evening regression). Keyed to the exe so the NEXT patch invalidates.
+        private bool scoreHudRebaseCacheChecked;
+        private bool scoreHudRebaseFromCache;
+        private long appliedRebaseVtableDelta;
+        private long appliedRebaseTypeInfoDelta;
+
+        private string ScoreHudRebaseCachePath()
+        {
+            string folder = Path.GetDirectoryName(OutputPath(probeOutputSeedPath));
+            return Path.Combine(folder, "scorehud-rebase-cache.json");
+        }
+
+        private void LoadScoreHudRebaseCache()
+        {
+            scoreHudRebaseCacheChecked = true;
+            try
+            {
+                string path = ScoreHudRebaseCachePath();
+                if (!File.Exists(path)) return;
+                System.Web.Script.Serialization.JavaScriptSerializer serializer =
+                    new System.Web.Script.Serialization.JavaScriptSerializer();
+                Dictionary<string, object> data =
+                    serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(path));
+                long vtableDelta = Convert.ToInt64(data["vtableDelta"], CultureInfo.InvariantCulture);
+                long typeInfoDelta = Convert.ToInt64(data["typeInfoDelta"], CultureInfo.InvariantCulture);
+                long exeTicks = Convert.ToInt64(data["exeWriteUtcTicks"], CultureInfo.InvariantCulture);
+                long moduleSize = Convert.ToInt64(data["moduleSize"], CultureInfo.InvariantCulture);
+                ProcessModule module = scanner.Process.MainModule;
+                if (File.GetLastWriteTimeUtc(module.FileName).Ticks != exeTicks
+                    || module.ModuleMemorySize != moduleSize)
+                {
+                    // A newer patch than the cached one: stale, start fresh.
+                    try { File.Delete(path); } catch { }
+                    LogScoreHudRebase("cache-stale", "Cached rebase is for a different game build; deleted.");
+                    return;
+                }
+                GameProfile.ApplyScoreHudRebase(vtableDelta, typeInfoDelta);
+                appliedRebaseVtableDelta = vtableDelta;
+                appliedRebaseTypeInfoDelta = typeInfoDelta;
+                scoreHudRebaseDone = true;
+                scoreHudRebaseApplied = true;
+                scoreHudRebaseFromCache = true;
+                scoreHudRebaseSummary = "vtables "
+                    + (vtableDelta >= 0 ? "+" : "-") + "0x" + Math.Abs(vtableDelta).ToString("X", CultureInfo.InvariantCulture)
+                    + ", typeinfo "
+                    + (typeInfoDelta >= 0 ? "+" : "-") + "0x" + Math.Abs(typeInfoDelta).ToString("X", CultureInfo.InvariantCulture)
+                    + " (cached)";
+                LogScoreHudRebase("cache-applied", "Cached rebase applied at startup: " + scoreHudRebaseSummary + ".");
+            }
+            catch { }
+        }
+
+        private void SaveScoreHudRebaseCache(long vtableDelta, long typeInfoDelta)
+        {
+            try
+            {
+                ProcessModule module = scanner.Process.MainModule;
+                System.Web.Script.Serialization.JavaScriptSerializer serializer =
+                    new System.Web.Script.Serialization.JavaScriptSerializer();
+                Dictionary<string, object> data = new Dictionary<string, object>
+                {
+                    { "vtableDelta", vtableDelta },
+                    { "typeInfoDelta", typeInfoDelta },
+                    { "exeWriteUtcTicks", File.GetLastWriteTimeUtc(module.FileName).Ticks },
+                    { "moduleSize", (long)module.ModuleMemorySize },
+                    { "savedAt", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) }
+                };
+                File.WriteAllText(ScoreHudRebaseCachePath(), serializer.Serialize(data));
+            }
+            catch { }
+        }
+
+        private void InvalidateScoreHudRebaseCache()
+        {
+            // Cached deltas that no longer verify (yet another patch, or a
+            // bad save): undo them, delete the cache, let the hunts re-derive.
+            GameProfile.ApplyScoreHudRebase(-appliedRebaseVtableDelta, -appliedRebaseTypeInfoDelta);
+            appliedRebaseVtableDelta = 0;
+            appliedRebaseTypeInfoDelta = 0;
+            scoreHudRebaseDone = false;
+            scoreHudRebaseApplied = false;
+            scoreHudRebaseFromCache = false;
+            scoreHudRebaseSummary = null;
+            try { File.Delete(ScoreHudRebaseCachePath()); } catch { }
+            LogScoreHudRebase("cache-invalidated", "Cached rebase never verified against live objects; reverted and re-hunting.");
+        }
+
+        private void LogScoreHudRebase(string stage, string detail)
+        {
+            try
+            {
+                Dictionary<string, object> entry = new Dictionary<string, object>
+                {
+                    { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                    { "stage", stage },
+                    { "detail", detail }
+                };
+                AppendProbeLine(probeOutputSeedPath, "rebase-probe.jsonl", entry);
+            }
+            catch { }
+        }
+
+        // --- Play-pick kick length: RESEARCH probe ------------------------
+        // The requirement is the kick distance AT PLAY SELECTION. Proven so
+        // far (2026-08-20): the scoreboard block does not hold it until the
+        // snap, and the play tile's "104 Yd FG" is glyph-indexed - a full
+        // memory scan during a live 104-yard lineup found NO readable text.
+        // But the NUMBERS live in pooled objects (104 beside 87 yards-to-goal
+        // and beside yard line 13). Log every such pair during play; the
+        // recurring fixed-offset template across a few kicks identifies the
+        // slot to READ pre-snap. Log-only - fail closed until proven.
+        private DateTime nextPlayCallFgScanUtc = DateTime.MinValue;
+        private bool playCallFgScanRunning;
+        private readonly object playCallFgSync = new object();
+        private List<string> pendingPlayCallFgTexts;
+        private int pendingFgPairDown;
+        private int playCallFgProbeEntries;
+
+        private void RefreshPlayCallFieldGoalText(int downValue)
+        {
+            if (GameProfile.Key != "cfb27") return;
+            List<string> completed = null;
+            lock (playCallFgSync)
+            {
+                if (pendingPlayCallFgTexts != null)
+                {
+                    completed = pendingPlayCallFgTexts;
+                    pendingPlayCallFgTexts = null;
+                }
+            }
+            if (completed != null && completed.Count > 0 && playCallFgProbeEntries < 500)
+            {
+                playCallFgProbeEntries++;
+                try
+                {
+                    AppendProbeLine(probeOutputSeedPath, "fgpick-probe.jsonl",
+                        new Dictionary<string, object>
+                        {
+                            { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                            { "down", pendingFgPairDown },
+                            { "pairs", completed }
+                        });
+                }
+                catch { }
+            }
+            // Test mode 2026-08-20 (user request): scan on EVERY down, not
+            // just 4th, so the play-call tile can be caught whenever a kick
+            // play is browsed. Revert to a downValue == 4 gate if the sweep
+            // ever shows up in performance.
+            if (downValue < 1 || downValue > 4) return;
+            if (playCallFgScanRunning || DateTime.UtcNow < nextPlayCallFgScanUtc) return;
+            nextPlayCallFgScanUtc = DateTime.UtcNow.AddSeconds(2);
+            if (scanner.Process == null || scanner.Process.HasExited) return;
+            int processId = scanner.Process.Id;
+            playCallFgScanRunning = true;
+            int scanDown = downValue;
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                List<string> texts = null;
+                try
+                {
+                    Process game = Process.GetProcessById(processId);
+                    using (MemoryScanner backgroundScanner = new MemoryScanner())
+                    {
+                        backgroundScanner.Attach(game);
+                        texts = backgroundScanner.FindKickDistancePairs(CancellationToken.None);
+                    }
+                }
+                catch { }
+                lock (playCallFgSync)
+                {
+                    pendingPlayCallFgTexts = texts != null ? texts : new List<string>();
+                    pendingFgPairDown = scanDown;
+                }
+                playCallFgScanRunning = false;
+            });
+        }
+
+        private void MaybeRebaseScoreHudOffsets(int downValue, int distanceValue, string downDistanceKind)
+        {
+            if (GameProfile.Key != "cfb27") return;
+            if (!scoreHudRebaseCacheChecked) LoadScoreHudRebaseCache();
+            // A cache-applied rebase that never produces a live object is
+            // wrong (a newer patch with the same module size, or corruption):
+            // revert it and fall through to the normal hunts.
+            if (scoreHudRebaseFromCache && !scoreHudRebaseVerifiedLogged
+                && consecutiveEmptyScoreHudSweeps >= 10)
+                InvalidateScoreHudRebaseCache();
+            if (scoreHudRebaseDone) return;
+            List<ScoreHudRebaseCandidate> completed = null;
+            lock (scoreHudRebaseSync)
+            {
+                if (pendingScoreHudRebase != null)
+                {
+                    completed = pendingScoreHudRebase;
+                    pendingScoreHudRebase = null;
+                }
+            }
+            if (completed != null)
+            {
+                ApplyScoreHudRebaseHunt(completed);
+                return;
+            }
+            if (scoreHudRebaseRunning) return;
+            if (consecutiveEmptyScoreHudSweeps < 3) return;
+            if (!String.Equals(downDistanceKind, "numeric", StringComparison.Ordinal)) return;
+            if (downValue < 1 || downValue > 4 || distanceValue < 1 || distanceValue > 99) return;
+            if (DateTime.UtcNow < nextScoreHudRebaseAttemptUtc) return;
+            nextScoreHudRebaseAttemptUtc = DateTime.UtcNow.AddSeconds(30);
+            if (scanner.Process == null || scanner.Process.HasExited) return;
+            int processId = scanner.Process.Id;
+            int huntDown = downValue;
+            int huntDistance = distanceValue;
+            scoreHudRebaseRunning = true;
+            LogScoreHudRebase("hunt", "Sweeps empty " + consecutiveEmptyScoreHudSweeps.ToString(CultureInfo.InvariantCulture)
+                + "x during live play; hunting the down-distance object for " + huntDown.ToString(CultureInfo.InvariantCulture)
+                + " & " + huntDistance.ToString(CultureInfo.InvariantCulture) + ".");
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                List<ScoreHudRebaseCandidate> found = null;
+                try
+                {
+                    Process game = Process.GetProcessById(processId);
+                    using (MemoryScanner backgroundScanner = new MemoryScanner())
+                    {
+                        backgroundScanner.Attach(game);
+                        found = backgroundScanner.HuntScoreHudDownDistanceRebase(
+                            huntDown, huntDistance, CancellationToken.None);
+                    }
+                }
+                catch { }
+                lock (scoreHudRebaseSync)
+                {
+                    pendingScoreHudRebase = found != null ? found : new List<ScoreHudRebaseCandidate>();
+                    pendingScoreHudRebaseDown = huntDown;
+                    pendingScoreHudRebaseDistance = huntDistance;
+                }
+                scoreHudRebaseRunning = false;
+            });
+        }
+
+        private void ApplyScoreHudRebaseHunt(List<ScoreHudRebaseCandidate> found)
+        {
+            if (found.Count == 0)
+            {
+                LogScoreHudRebase("miss", "Hunt found no down-distance object; will retry.");
+                return;
+            }
+            ScoreHudRebaseCandidate winner = found[0];
+            for (int index = 1; index < found.Count; index++)
+                if (found[index].Matches > winner.Matches) winner = found[index];
+            for (int index = 0; index < found.Count; index++)
+            {
+                ScoreHudRebaseCandidate rival = found[index];
+                if (rival == winner) continue;
+                if (rival.Matches >= winner.Matches)
+                {
+                    lastWeakRebaseVtableOffset = 0;
+                    lastWeakRebaseTypeInfoOffset = 0;
+                    LogScoreHudRebase("ambiguous", "Hunt returned "
+                        + found.Count.ToString(CultureInfo.InvariantCulture)
+                        + " tied candidate pairs; refusing to rebase.");
+                    return;
+                }
+            }
+            // Pooled stale plates would give the real type many instances,
+            // but the patched build recycles them - live sessions showed a
+            // single plate per hunt. One instance is accepted only when TWO
+            // consecutive independent hunts (different moments, different
+            // core states) name the exact same pair with no rivals.
+            if (winner.Matches < 3)
+            {
+                string pairText = "vtable 0x"
+                    + winner.VtableOffset.ToString("X", CultureInfo.InvariantCulture)
+                    + ", typeinfo 0x"
+                    + winner.TypeInfoOffset.ToString("X", CultureInfo.InvariantCulture)
+                    + " (\"" + winner.Display + "\", "
+                    + winner.Matches.ToString(CultureInfo.InvariantCulture) + " instance(s))";
+                bool corroborated = winner.VtableOffset == lastWeakRebaseVtableOffset
+                    && winner.TypeInfoOffset == lastWeakRebaseTypeInfoOffset
+                    && lastWeakRebaseVtableOffset != 0;
+                if (!corroborated)
+                {
+                    lastWeakRebaseVtableOffset = winner.VtableOffset;
+                    lastWeakRebaseTypeInfoOffset = winner.TypeInfoOffset;
+                    LogScoreHudRebase("weak", "Single-instance candidate " + pairText
+                        + "; waiting for a second hunt to corroborate.");
+                    return;
+                }
+                LogScoreHudRebase("corroborated", "Two consecutive hunts agree on " + pairText + ".");
+            }
+            long vtableDelta = winner.VtableOffset - GameProfile.ScoreHudDownDistanceVtableOffset;
+            long typeInfoDelta = winner.TypeInfoOffset - GameProfile.ScoreHudDownDistanceTypeInfoOffset;
+            if (vtableDelta == 0 && typeInfoDelta == 0)
+            {
+                scoreHudRebaseDone = true;
+                LogScoreHudRebase("current", "The compiled-in offsets are still correct; empty sweeps have another cause.");
+                return;
+            }
+            GameProfile.ApplyScoreHudRebase(vtableDelta, typeInfoDelta);
+            appliedRebaseVtableDelta = vtableDelta;
+            appliedRebaseTypeInfoDelta = typeInfoDelta;
+            SaveScoreHudRebaseCache(vtableDelta, typeInfoDelta);
+            scoreHudRebaseDone = true;
+            scoreHudRebaseApplied = true;
+            consecutiveEmptyScoreHudSweeps = 0;
+            scoreHudTextAnchors.Clear();
+            scoreHudRebaseSummary = "vtables "
+                + (vtableDelta >= 0 ? "+" : "-") + "0x" + Math.Abs(vtableDelta).ToString("X", CultureInfo.InvariantCulture)
+                + ", typeinfo "
+                + (typeInfoDelta >= 0 ? "+" : "-") + "0x" + Math.Abs(typeInfoDelta).ToString("X", CultureInfo.InvariantCulture);
+            LogScoreHudRebase("applied", "Game patch detected. ScoreHud offsets re-derived from the live \""
+                + winner.Display + "\" object (" + winner.Matches.ToString(CultureInfo.InvariantCulture)
+                + " instance(s)): " + scoreHudRebaseSummary + ".");
+            try { RequestScoreHudDiscovery(); } catch { }
+        }
 
         // Keep LastScoreHudTexts fresh between full sweeps: scan the pooled
         // object region (seeded by the down-distance anchors, which live in
