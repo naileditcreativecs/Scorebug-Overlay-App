@@ -6820,6 +6820,8 @@ namespace CollegeFootballRamDiagnostic
         private System.Threading.Thread maddenResearchThread;
         private volatile int maddenLiveAwayScore = -1;
         private volatile int maddenLiveHomeScore = -1;
+        private volatile int maddenLiveQuarter = -1;
+        private volatile int maddenLiveClock = -1;
         private volatile bool maddenNicknameScanDone;
         private int maddenResearchRounds;
         private static readonly string[] NflNicknames = new string[] {
@@ -6860,9 +6862,9 @@ namespace CollegeFootballRamDiagnostic
             string outputPath = Path.Combine(outputFolder, "madden-hunt.jsonl");
             System.Web.Script.Serialization.JavaScriptSerializer serializer =
                 new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = 64 * 1024 * 1024 };
-            while (maddenResearchRounds < 6)
+            while (maddenResearchRounds < 12)
             {
-                System.Threading.Thread.Sleep(90000);
+                System.Threading.Thread.Sleep(60000);
                 try
                 {
                     if (scanner.Process == null || scanner.Process.HasExited
@@ -6877,7 +6879,11 @@ namespace CollegeFootballRamDiagnostic
                         { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
                         { "round", maddenResearchRounds },
                         { "awayScore", awayScore },
-                        { "homeScore", homeScore }
+                        { "homeScore", homeScore },
+                        // Quarter/clock anchor each round so timeout burns and
+                        // half transitions can be located in the dumps later.
+                        { "quarter", maddenLiveQuarter },
+                        { "clockSeconds", maddenLiveClock }
                     };
                     using (MemoryScanner research = new MemoryScanner())
                     {
@@ -6997,6 +7003,14 @@ namespace CollegeFootballRamDiagnostic
             {
                 if (awayScore != null && awayScore.Available) maddenLiveAwayScore = awayScore.Value;
                 if (homeScore != null && homeScore.Available) maddenLiveHomeScore = homeScore.Value;
+                try
+                {
+                    RamReadResult quarter = Read("quarter", 1, 20);
+                    if (quarter.Available) maddenLiveQuarter = quarter.Value;
+                    RamReadResult clock = Read("gameClockSeconds", 0, 3600);
+                    if (clock.Available) maddenLiveClock = clock.Value;
+                }
+                catch { }
                 MaybeStartMaddenResearch(screenJsonPath);
             }
             return "RAM export LIVE: {0} {1} | play {2} | {3} | possession {4} | timeouts away {5}, home {6} | {7}";

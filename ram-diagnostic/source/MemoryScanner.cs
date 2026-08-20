@@ -752,6 +752,11 @@ namespace CollegeFootballRamDiagnostic
             if (matchDumpVtableOffsets != null)
                 foreach (long offset in matchDumpVtableOffsets) dumpVtables.Add(moduleBase + offset);
             Dictionary<string, int> histogram = new Dictionary<string, int>(StringComparer.Ordinal);
+            // Both-sides tracking: an object type whose instances match BOTH
+            // teams' scores in the same sweep is a team-object candidate even
+            // if it is not in the requested dump set - the backstop for the
+            // requested pair being wrong. Two sample addresses per side.
+            Dictionary<long, long[]> bothSides = matchDumps != null ? new Dictionary<long, long[]>() : null;
             List<MemoryRegion> regions = EnumerateRegions();
             byte[] buffer = new byte[1 << 20];
             foreach (MemoryRegion region in regions)
@@ -766,6 +771,7 @@ namespace CollegeFootballRamDiagnostic
                     {
                         long vtable = BitConverter.ToInt64(buffer, start);
                         if (vtable < moduleBase || vtable >= moduleEnd) continue;
+                        bool objectMatched = false;
                         for (int x = 32; x <= 120; x += 4)
                         {
                             if (start + x + 12 > read) break;
@@ -778,39 +784,29 @@ namespace CollegeFootballRamDiagnostic
                             bool away = awayScore > 0 && HuntPatternMatches(buffer, start + x, awayScore, awayTimeouts);
                             bool home = !away && homeScore > 0 && HuntPatternMatches(buffer, start + x, homeScore, homeTimeouts);
                             if (!away && !home) continue;
+                            objectMatched = true;
                             string key = "0x" + (vtable - moduleBase).ToString("X", CultureInfo.InvariantCulture)
                                 + "@+" + x.ToString(CultureInfo.InvariantCulture)
                                 + (away ? " away" : " home");
                             int count;
                             histogram[key] = histogram.TryGetValue(key, out count) ? count + 1 : 1;
-                            if (matchDumps != null && matchDumps.Count < 24 && dumpVtables.Contains(vtable)
-                                && CountDumpsFor(matchDumps, vtable - moduleBase) < 12)
+                            if (bothSides != null && awayScore != homeScore)
                             {
-                                try
+                                long[] slots;
+                                if (!bothSides.TryGetValue(vtable, out slots))
                                 {
-                                    byte[] full = ReadBytes(chunk + start, 0x140);
-                                    StringBuilder line = new StringBuilder();
-                                    line.Append(key).Append(" @0x").Append((chunk + start).ToString("X", CultureInfo.InvariantCulture)).Append(" ints=");
-                                    for (int o = 0; o + 4 <= full.Length; o += 4)
-                                    {
-                                        if (o > 0) line.Append(",");
-                                        line.Append(BitConverter.ToInt32(full, o));
-                                    }
-                                    line.Append(" strings=");
-                                    for (int o = 0; o + 8 <= full.Length; o += 8)
-                                    {
-                                        long pointer = BitConverter.ToInt64(full, o);
-                                        if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
-                                        string text = null;
-                                        try { text = ReadAsciiString(pointer, 48); } catch { }
-                                        if (String.IsNullOrWhiteSpace(text) || text.Trim().Length < 3) continue;
-                                        line.Append("+").Append(o.ToString(CultureInfo.InvariantCulture))
-                                            .Append("='").Append(text.Trim()).Append("' ");
-                                    }
-                                    matchDumps.Add(line.ToString());
+                                    if (bothSides.Count < 96) bothSides[vtable] = slots = new long[4];
                                 }
-                                catch { }
+                                if (slots != null)
+                                {
+                                    int baseIndex = away ? 0 : 2;
+                                    if (slots[baseIndex] == 0) slots[baseIndex] = chunk + start;
+                                    else if (slots[baseIndex + 1] == 0 && slots[baseIndex] != chunk + start) slots[baseIndex + 1] = chunk + start;
+                                }
                             }
+                            if (matchDumps != null && dumpVtables.Contains(vtable)
+                                && CountDumpsFor(matchDumps, vtable - moduleBase) < 12)
+                                DumpObject(chunk + start, key, matchDumps);
                             if (samples != null && samples.Count < maximumSamples)
                             {
                                 StringBuilder ints = new StringBuilder();
@@ -823,10 +819,71 @@ namespace CollegeFootballRamDiagnostic
                                     + " " + key + " ints[24..120]=" + ints);
                             }
                         }
+                        // Loose dump: a requested-pair instance whose score sits
+                        // OUTSIDE the strict timeouts/wins relation - covers the
+                        // layout not matching the CFB27 relation at all.
+                        if (!objectMatched && matchDumps != null && dumpVtables.Contains(vtable)
+                            && CountDumpsFor(matchDumps, vtable - moduleBase) < 12)
+                        {
+                            for (int o = 32; o <= 120 && start + o + 4 <= read; o += 4)
+                            {
+                                int value = BitConverter.ToInt32(buffer, start + o);
+                                if ((awayScore > 0 && value == awayScore) || (homeScore > 0 && value == homeScore))
+                                {
+                                    DumpObject(chunk + start, "0x" + (vtable - moduleBase).ToString("X", CultureInfo.InvariantCulture)
+                                        + "@+" + o.ToString(CultureInfo.InvariantCulture) + " loose", matchDumps);
+                                    break;
+                                }
+                            }
+                        }
                     }
                 }
             }
+            // Both-sides backstop: dump instances of every type that matched
+            // BOTH scores this sweep (score-holding team objects must), so a
+            // wrong requested pair still leaves the real one in this zip.
+            if (bothSides != null && matchDumps != null)
+            {
+                foreach (KeyValuePair<long, long[]> pair in bothSides)
+                {
+                    if (matchDumps.Count >= 64) break;
+                    long[] slots = pair.Value;
+                    if (slots[0] == 0 || slots[2] == 0) continue;
+                    string label = "0x" + (pair.Key - moduleBase).ToString("X", CultureInfo.InvariantCulture) + " both";
+                    for (int i = 0; i < 4; i++)
+                        if (slots[i] != 0) DumpObject(slots[i], label + (i < 2 ? "-away" : "-home"), matchDumps);
+                }
+            }
             return histogram;
+        }
+
+        private void DumpObject(long address, string label, List<string> dumps)
+        {
+            if (dumps.Count >= 64) return;
+            try
+            {
+                byte[] full = ReadBytes(address, 0x140);
+                StringBuilder line = new StringBuilder();
+                line.Append(label).Append(" @0x").Append(address.ToString("X", CultureInfo.InvariantCulture)).Append(" ints=");
+                for (int o = 0; o + 4 <= full.Length; o += 4)
+                {
+                    if (o > 0) line.Append(",");
+                    line.Append(BitConverter.ToInt32(full, o));
+                }
+                line.Append(" strings=");
+                for (int o = 0; o + 8 <= full.Length; o += 8)
+                {
+                    long pointer = BitConverter.ToInt64(full, o);
+                    if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
+                    string text = null;
+                    try { text = ReadAsciiString(pointer, 48); } catch { }
+                    if (String.IsNullOrWhiteSpace(text) || text.Trim().Length < 3) continue;
+                    line.Append("+").Append(o.ToString(CultureInfo.InvariantCulture))
+                        .Append("='").Append(text.Trim()).Append("' ");
+                }
+                dumps.Add(line.ToString());
+            }
+            catch { }
         }
 
         // Round-6 lesson: one prolific decoy type (player gear objects) filled
