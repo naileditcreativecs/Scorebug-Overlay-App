@@ -2021,6 +2021,52 @@ namespace CollegeFootballRamDiagnostic
         // faster - it proves nothing about absence, concludes nothing, and the
         // exhaustive sweep remains the authority (the mistake the withdrawn
         // narrowed-scan made was treating a partial scan's silence as absence).
+        // Fast anchored scan for the stat-banner / identity text objects.
+        // The full sweep almost never overlaps a banner's few seconds on
+        // screen (2026-08-20: a whole game passed with hudTexts empty), so
+        // the banner pool is re-scanned continuously around known anchors -
+        // the same trick that made Goal/Inches appear with the snap.
+        public List<ScoreHudTextCandidate> FindScoreHudTextCandidatesNear(
+            IEnumerable<long> anchorAddresses, int maximumWindows)
+        {
+            EnsureAttached();
+            List<ScoreHudTextCandidate> found = new List<ScoreHudTextCandidate>();
+            long moduleBase = process.MainModule.BaseAddress.ToInt64();
+            List<long> vtables = new List<long>();
+            foreach (long offset in new long[] {
+                GameProfile.ScoreHudStatLineVtableOffset,
+                GameProfile.ScoreHudStatSummaryVtableOffset,
+                GameProfile.ScoreHudIdentityVtableOffset })
+                if (offset != 0) vtables.Add(moduleBase + offset);
+            if (vtables.Count == 0) return found;
+            const long windowSize = 0x100000;
+            HashSet<long> seen = new HashSet<long>();
+            foreach (long windowBase in AnchorScanWindows(anchorAddresses, maximumWindows))
+            {
+                byte[] buffer = new byte[(int)windowSize];
+                int bytesRead = Read(windowBase, buffer, buffer.Length);
+                int alignment = (int)((8 - (windowBase & 7)) & 7);
+                for (int index = alignment; index + 8 <= bytesRead; index += 8)
+                {
+                    long value = BitConverter.ToInt64(buffer, index);
+                    long matched = 0;
+                    foreach (long vtable in vtables) if (value == vtable) { matched = vtable; break; }
+                    if (matched == 0) continue;
+                    long address = windowBase + index;
+                    if (!seen.Add(address)) continue;
+                    ScoreHudTextCandidate candidate;
+                    try
+                    {
+                        if (TryReadScoreHudTextCandidate(address, matched, moduleBase, out candidate))
+                            found.Add(candidate);
+                    }
+                    catch { }
+                    if (found.Count >= 18) return found;
+                }
+            }
+            return found;
+        }
+
         public List<ScoreHudDownDistanceCandidate> FindDownDistanceCandidatesNear(
             IEnumerable<long> anchorAddresses, int maximumWindows)
         {

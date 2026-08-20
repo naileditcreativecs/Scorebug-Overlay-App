@@ -942,6 +942,7 @@ namespace CollegeFootballRamDiagnostic
             // block (fgspot-probe.jsonl) - the FG text's own yardage minus 17
             // is the yards-to-goal ground truth that identifies the ball-spot
             // slot after a couple of attempts.
+            try { RefreshScoreHudTextsFast(); } catch { }
             try { WriteStatBannerProbe(screenJsonPath, quarterValue, clockValue, downValue, distanceValue); } catch { }
             if (GameProfile.Key == "madden27")
             {
@@ -7031,6 +7032,37 @@ namespace CollegeFootballRamDiagnostic
                 MaybeStartMaddenResearch(screenJsonPath);
             }
             return "RAM export LIVE: {0} {1} | play {2} | {3} | possession {4} | timeouts away {5}, home {6} | {7}";
+        }
+
+        private readonly HashSet<long> scoreHudTextAnchors = new HashSet<long>();
+        private DateTime nextTextFastScanUtc = DateTime.MinValue;
+
+        // Keep LastScoreHudTexts fresh between full sweeps: scan the pooled
+        // object region (seeded by the down-distance anchors, which live in
+        // the same pool family, plus every text object ever seen) twice a
+        // second while the game is live.
+        private void RefreshScoreHudTextsFast()
+        {
+            if (GameProfile.Key != "cfb27") return;
+            if (DateTime.UtcNow < nextTextFastScanUtc) return;
+            nextTextFastScanUtc = DateTime.UtcNow.AddMilliseconds(500);
+            List<long> anchors = new List<long>(scoreHudTextAnchors);
+            lock (scoreHudDownDistanceAnchors)
+            {
+                foreach (long address in scoreHudDownDistanceAnchors) anchors.Add(address);
+            }
+            List<ScoreHudTextCandidate> previous = scanner.LastScoreHudTexts;
+            if (previous != null)
+                foreach (ScoreHudTextCandidate item in previous)
+                    if (item != null && item.Address != 0) anchors.Add(item.Address);
+            if (anchors.Count == 0) return;
+            List<ScoreHudTextCandidate> found;
+            try { found = scanner.FindScoreHudTextCandidatesNear(anchors, 12); }
+            catch { return; }
+            if (found.Count == 0) return;
+            foreach (ScoreHudTextCandidate item in found)
+                if (scoreHudTextAnchors.Count < 256) scoreHudTextAnchors.Add(item.Address);
+            scanner.LastScoreHudTexts = found;
         }
 
         private readonly HashSet<string> statBannerSeen = new HashSet<string>(StringComparer.Ordinal);
