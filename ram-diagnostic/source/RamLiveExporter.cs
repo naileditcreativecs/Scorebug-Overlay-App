@@ -7123,15 +7123,18 @@ namespace CollegeFootballRamDiagnostic
 
         // Keep LastScoreHudTexts fresh between full sweeps: scan the pooled
         // object region (seeded by the down-distance anchors, which live in
-        // the same pool family, plus every text object ever seen) twice a
-        // second while the game is live.
+        // the same pool family, plus every text object ever seen) every
+        // export cycle while the game is live. The scan runs in the same
+        // cycle that writes the export, so a banner found here reaches the
+        // app in the SAME 250 ms tick - flags and field-goal text land on
+        // screen in well under half a second.
         private DateTime nextAnchorSeedSweepUtc = DateTime.MinValue;
 
         private void RefreshScoreHudTextsFast()
         {
             if (GameProfile.Key != "cfb27") return;
             if (DateTime.UtcNow < nextTextFastScanUtc) return;
-            nextTextFastScanUtc = DateTime.UtcNow.AddMilliseconds(500);
+            nextTextFastScanUtc = DateTime.UtcNow.AddMilliseconds(250);
             List<long> anchors = new List<long>(scoreHudTextAnchors);
             lock (scoreHudDownDistanceAnchors)
             {
