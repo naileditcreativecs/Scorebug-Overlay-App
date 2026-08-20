@@ -7909,6 +7909,19 @@ namespace CollegeFootballRamDiagnostic
                 {
                     int burns;
                     maddenSlotBurns[offset] = maddenSlotBurns.TryGetValue(offset, out burns) ? burns + 1 : 1;
+                    // Context bytes: the first tester game (2026-08-20) found
+                    // ONE synchronized counter trio that ticks for EITHER
+                    // team's timeout - the team identity must live beside it.
+                    // Dump the surrounding ints so the companion team-id slot
+                    // identifies itself across burns.
+                    Dictionary<string, object> around = new Dictionary<string, object>();
+                    for (int nearby = Math.Max(0, offset - 0x40);
+                        nearby + 4 <= bytes.Length && nearby <= offset + 0x40; nearby += 4)
+                    {
+                        int neighbor = BitConverter.ToInt32(bytes, nearby);
+                        if (neighbor != 0)
+                            around[(nearby - offset).ToString(CultureInfo.InvariantCulture)] = neighbor;
+                    }
                     try
                     {
                         File.AppendAllText(Path.Combine(folder, "madden-timeout-probe.jsonl"),
@@ -7918,7 +7931,8 @@ namespace CollegeFootballRamDiagnostic
                                 { "offset", "0x" + offset.ToString("X", CultureInfo.InvariantCulture) },
                                 { "from", previous }, { "to", value },
                                 { "quarter", quarterValue }, { "clock", clockValue },
-                                { "burns", maddenSlotBurns[offset] }
+                                { "burns", maddenSlotBurns[offset] },
+                                { "around", around }
                             }) + Environment.NewLine);
                     }
                     catch { }
