@@ -2434,10 +2434,17 @@ namespace CollegeFootballRamDiagnostic
         // probe logs every such pair so the recurring template (fixed offset
         // between kick distance and field position) identifies itself across
         // a few kicks - then the pre-snap distance can be READ, fail-closed.
-        public List<string> FindKickDistancePairs(CancellationToken token)
+        // knownDistance > 0 = targeted mode, fired AT the kick when the
+        // latch already knows the length: every hit is then near-certain to
+        // be a real (kick, field-position) object. Generic mode (0) samples
+        // during ordinary play and needs the noise filters below - the first
+        // version's 60-hit budget was flooded by "116 beside 1" junk before
+        // the scan ever reached the real objects (2026-08-20).
+        public List<string> FindKickDistancePairs(int knownDistance, CancellationToken token)
         {
             EnsureAttached();
             List<string> found = new List<string>();
+            Dictionary<int, int> perValue = new Dictionary<int, int>();
             const long windowLow = 0x2C000000L;
             const long windowHigh = 0x40000000L;
             List<MemoryRegion> regions = EnumerateRegions();
@@ -2459,23 +2466,33 @@ namespace CollegeFootballRamDiagnostic
                     for (int index = lowIndex + 64; index + 4 <= bytesRead - 64; index += 4)
                     {
                         int value = BitConverter.ToInt32(buffer, index);
-                        if (value < 28 || value > 120) continue;
+                        if (knownDistance > 0)
+                        {
+                            if (value != knownDistance) continue;
+                        }
+                        else if (value < 28 || value > 120) continue;
                         int yardsToGoal = value - 17;
                         int mirrored = 100 - yardsToGoal;
+                        int seenForValue;
+                        perValue.TryGetValue(value, out seenForValue);
+                        if (seenForValue >= (knownDistance > 0 ? 40 : 6)) continue;
                         for (int delta = -64; delta <= 64; delta += 4)
                         {
                             if (delta == 0) continue;
                             int neighbor = BitConverter.ToInt32(buffer, index + delta);
                             string kind = null;
                             if (neighbor == yardsToGoal) kind = "ytg";
-                            else if (neighbor == mirrored && mirrored >= 1 && mirrored <= 50) kind = "yardline";
+                            // Mirrored below 5 pairs with the stray 1s and 2s
+                            // that fill every heap - worthless as evidence.
+                            else if (neighbor == mirrored && mirrored >= 5 && mirrored <= 50) kind = "yardline";
                             if (kind == null) continue;
+                            perValue[value] = seenForValue + 1;
                             found.Add("0x" + (start + offset + index).ToString("X", CultureInfo.InvariantCulture)
                                 + " dist=" + value.ToString(CultureInfo.InvariantCulture)
                                 + " mate=" + neighbor.ToString(CultureInfo.InvariantCulture)
                                 + " delta=" + delta.ToString(CultureInfo.InvariantCulture)
                                 + " kind=" + kind);
-                            if (found.Count >= 60) return found;
+                            if (found.Count >= 100) return found;
                         }
                     }
                     if (requested <= 128) break;

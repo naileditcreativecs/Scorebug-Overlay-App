@@ -1018,7 +1018,7 @@ namespace CollegeFootballRamDiagnostic
                 // During the FG presentation the precise slot IS the kick
                 // distance; published only while the game's own FIELD GOAL
                 // text is up and the value is a legal kick length.
-                { "fieldGoalDistance", CurrentFieldGoalDistance(preciseYards, distanceValue, downValue) },
+                { "fieldGoalDistance", CurrentFieldGoalDistance(preciseYards, distanceValue, downValue, downDistanceKind) },
                 { "downDistanceSource", downDistanceKind != "numeric" || (stableDownRead.Available && stableDistanceRead.Available) ? "ram" : "screen" }
             };
 
@@ -7299,7 +7299,9 @@ namespace CollegeFootballRamDiagnostic
         private readonly object playCallFgSync = new object();
         private List<string> pendingPlayCallFgTexts;
         private int pendingFgPairDown;
+        private int pendingFgPairKnown;
         private int playCallFgProbeEntries;
+        private int pendingKickPairScanDistance;
 
         private void RefreshPlayCallFieldGoalText(int downValue)
         {
@@ -7323,22 +7325,31 @@ namespace CollegeFootballRamDiagnostic
                         {
                             { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
                             { "down", pendingFgPairDown },
+                            { "knownDistance", pendingFgPairKnown },
                             { "pairs", completed }
                         });
                 }
                 catch { }
             }
-            // Test mode 2026-08-20 (user request): scan on EVERY down, not
-            // just 4th, so the play-call tile can be caught whenever a kick
-            // play is browsed. Revert to a downValue == 4 gate if the sweep
-            // ever shows up in performance.
-            if (downValue < 1 || downValue > 4) return;
-            if (playCallFgScanRunning || DateTime.UtcNow < nextPlayCallFgScanUtc) return;
+            // A fresh latch means the kick length is KNOWN right now - jump
+            // the 2 s throttle and scan for that exact value. Any hit is a
+            // real (kick, field-position) object; a couple of kicks' worth
+            // identifies the template to read pre-snap. Otherwise, the
+            // generic every-down sampler (test mode, user request) runs on
+            // its 2 s cadence.
+            int targeted = pendingKickPairScanDistance;
+            if (targeted <= 0)
+            {
+                if (downValue < 1 || downValue > 4) return;
+                if (DateTime.UtcNow < nextPlayCallFgScanUtc) return;
+            }
+            if (playCallFgScanRunning) return;
+            pendingKickPairScanDistance = 0;
             nextPlayCallFgScanUtc = DateTime.UtcNow.AddSeconds(2);
             if (scanner.Process == null || scanner.Process.HasExited) return;
             int processId = scanner.Process.Id;
-            playCallFgScanRunning = true;
             int scanDown = downValue;
+            playCallFgScanRunning = true;
             ThreadPool.QueueUserWorkItem(delegate
             {
                 List<string> texts = null;
@@ -7348,7 +7359,7 @@ namespace CollegeFootballRamDiagnostic
                     using (MemoryScanner backgroundScanner = new MemoryScanner())
                     {
                         backgroundScanner.Attach(game);
-                        texts = backgroundScanner.FindKickDistancePairs(CancellationToken.None);
+                        texts = backgroundScanner.FindKickDistancePairs(targeted, CancellationToken.None);
                     }
                 }
                 catch { }
@@ -7356,6 +7367,7 @@ namespace CollegeFootballRamDiagnostic
                 {
                     pendingPlayCallFgTexts = texts != null ? texts : new List<string>();
                     pendingFgPairDown = scanDown;
+                    pendingFgPairKnown = targeted;
                 }
                 playCallFgScanRunning = false;
             });
@@ -7591,7 +7603,13 @@ namespace CollegeFootballRamDiagnostic
                 if (item == null || item.Texts == null || item.Texts.Count == 0) continue;
                 foreach (string text in item.Texts)
                 {
-                    if (System.Text.RegularExpressions.Regex.IsMatch(text, "FIELD\\s*GOAL|\\bFG\\b|\\b\\d{1,2}\\s*(?:YD|YARD)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                    // STRICT: only genuine field-goal text arms the latch and
+                    // the fgspot dump. The old pattern also matched any "NN
+                    // YDS" stat banner ("2 CATCH, 25 YDS"), which kept the
+                    // trigger armed all game - a fake 19-yard FG published
+                    // during a kickoff, and junk burned the whole 200-row
+                    // fgspot budget before the first real kick (2026-08-20).
+                    if (System.Text.RegularExpressions.Regex.IsMatch(text, "FIELD\\s*GOAL|\\bFG\\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                     { fieldGoalSeen = true; if (fieldGoalText == null) fieldGoalText = text; }
                 }
                 string signature = item.Kind + "|" + item.Address.ToString(CultureInfo.InvariantCulture)
@@ -7861,7 +7879,8 @@ namespace CollegeFootballRamDiagnostic
             return yards >= 18 && yards <= 120 ? yards : 0;
         }
 
-        private object CurrentFieldGoalDistance(double preciseYards, int distanceYards, int down)
+        private object CurrentFieldGoalDistance(double preciseYards, int distanceYards, int down,
+            string downDistanceKind)
         {
             DateTime now = DateTime.UtcNow;
             ScoreHudMessageCandidate bannerMessage = CurrentScoreHudMessage();
@@ -7871,15 +7890,30 @@ namespace CollegeFootballRamDiagnostic
                     ((bannerMessage.DisplayText ?? "") + " " + (bannerMessage.InfoText ?? "")).Trim());
                 if (fromText > 0)
                 {
+                    if (fromText != latchedFieldGoalDistance) pendingKickPairScanDistance = fromText;
                     latchedFieldGoalDistance = fromText;
                     latchedFieldGoalUtc = now;
                 }
             }
-            bool textRecent = now - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(120);
-            if (!double.IsNaN(preciseYards)
+            // 20 s, not 120: the FG presentation is over well before that, and
+            // a long window let post-kick slot values re-latch during the
+            // ensuing kickoff (the fake 19-yarder of 2026-08-20).
+            bool textRecent = now - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(20);
+            // Only a scrimmage state can latch from the slot: during Kickoff
+            // and PAT presentations the slot still holds the previous kick's
+            // number and must not refresh the latch.
+            bool scrimmageState = String.Equals(downDistanceKind, "numeric", StringComparison.Ordinal)
+                || String.Equals(downDistanceKind, "goal", StringComparison.Ordinal)
+                || String.Equals(downDistanceKind, "inches", StringComparison.Ordinal);
+            if (scrimmageState && !double.IsNaN(preciseYards)
                 && LooksLikeFieldGoalKick(preciseYards, distanceYards, down, textRecent))
             {
-                latchedFieldGoalDistance = (int)Math.Round(preciseYards);
+                int rounded = (int)Math.Round(preciseYards);
+                // A NEW latch is the research moment: the kick length is known
+                // right now, so a targeted pair scan can identify the objects
+                // that also knew it at play-pick time.
+                if (rounded != latchedFieldGoalDistance) pendingKickPairScanDistance = rounded;
+                latchedFieldGoalDistance = rounded;
                 latchedFieldGoalUtc = now;
             }
             if (latchedFieldGoalDistance > 0 && now - latchedFieldGoalUtc <= FieldGoalLatchWindow)
