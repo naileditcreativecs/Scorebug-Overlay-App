@@ -310,7 +310,13 @@
       html += listSection('Live player stats', statLines(), 'No stat banner on screen right now');
       html += listSection('Raw banner text', rawBanners(), 'game.hudTexts is empty');
     }
-    document.getElementById('grid').innerHTML = html;
+    // Rebuilding a large DOM every second for identical content is free
+    // crash surface in the embedded renderer; write only on change.
+    var grid = document.getElementById('grid');
+    if (grid.getAttribute('data-last') !== html) {
+      grid.innerHTML = html;
+      grid.setAttribute('data-last', html);
+    }
 
     var live = Date.now() - lastUpdateMs < 5000;
     document.getElementById('dot').className = 'dot' + (live ? ' live' : '');
@@ -332,6 +338,30 @@
   window.CFB27ScoreboardOverlay = window.CFB27ScoreboardOverlay || {};
   window.CFB27ScoreboardOverlay.setState = accept;
   window.addEventListener('cfb27-scoreboard-state', function (event) { accept(event.detail); });
+  // The canvas is fixed at 1180x900; content taller than that was simply
+  // cut off at the bottom. Shrink-to-fit instead: scale the whole page down
+  // just enough that every section is visible. User crop still works - this
+  // only ever scales DOWN, never hides anything on its own.
+  function fitToCanvas() {
+    var wrap = document.getElementById('wrap');
+    wrap.style.transform = 'none';
+    wrap.style.width = '1180px';
+    var needed = wrap.scrollHeight;
+    var factor = Math.min(1, 900 / Math.max(1, needed));
+    if (factor < 0.999) {
+      wrap.style.transformOrigin = 'top left';
+      wrap.style.transform = 'scale(' + factor + ')';
+      wrap.style.width = Math.round(1180 / factor) + 'px';
+    }
+  }
+  var fitQueued = false;
+  function queueFit() {
+    if (fitQueued) return;
+    fitQueued = true;
+    requestAnimationFrame(function () { fitQueued = false; fitToCanvas(); });
+  }
+  var renderBase = render;
+  render = function () { renderBase(); queueFit(); };
   setInterval(render, 1000);
   render();
 }());
