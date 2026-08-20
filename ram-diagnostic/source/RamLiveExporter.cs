@@ -7302,6 +7302,8 @@ namespace CollegeFootballRamDiagnostic
         private int pendingFgPairKnown;
         private int playCallFgProbeEntries;
         private int pendingKickPairScanDistance;
+        private long lastFgBannerAddress;
+        private DateTime fgBannerFirstSeenUtc = DateTime.MinValue;
 
         private void RefreshPlayCallFieldGoalText(int downValue)
         {
@@ -7905,8 +7907,24 @@ namespace CollegeFootballRamDiagnostic
             bool scrimmageState = String.Equals(downDistanceKind, "numeric", StringComparison.Ordinal)
                 || String.Equals(downDistanceKind, "goal", StringComparison.Ordinal)
                 || String.Equals(downDistanceKind, "inches", StringComparison.Ordinal);
-            if (scrimmageState && !double.IsNaN(preciseYards)
-                && LooksLikeFieldGoalKick(preciseYards, distanceYards, down, textRecent))
+            // EXCEPT in the first seconds of a NEW FIELD GOAL banner: the
+            // game flips its plate to Kickoff in the same instant the banner
+            // appears (proven 20:55:59.065, a real 39-yarder the scrimmage
+            // gate wrongly blocked), while the slot still holds the true
+            // kick length. A per-banner-instance window keeps the late-
+            // kickoff fake (61 s after its banner) impossible.
+            if (bannerMessage != null && bannerMessage.Address != lastFgBannerAddress
+                && System.Text.RegularExpressions.Regex.IsMatch(
+                    (bannerMessage.DisplayText ?? "") + " " + (bannerMessage.InfoText ?? ""),
+                    "FIELD\\s*GOAL|\\bFG\\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                lastFgBannerAddress = bannerMessage.Address;
+                fgBannerFirstSeenUtc = now;
+            }
+            bool bannerFresh = lastFgBannerAddress != 0
+                && now - fgBannerFirstSeenUtc <= TimeSpan.FromSeconds(5);
+            if ((scrimmageState || bannerFresh) && !double.IsNaN(preciseYards)
+                && LooksLikeFieldGoalKick(preciseYards, distanceYards, down, textRecent || bannerFresh))
             {
                 int rounded = (int)Math.Round(preciseYards);
                 // A NEW latch is the research moment: the kick length is known
