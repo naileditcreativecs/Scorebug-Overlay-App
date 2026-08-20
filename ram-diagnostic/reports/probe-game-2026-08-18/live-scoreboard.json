@@ -1,0 +1,25 @@
+{
+  "away": {
+    "score": 13,
+    "timeouts": 3
+  },
+  "home": {
+    "score": 7,
+    "timeouts": 0
+  },
+  "game": {
+    "quarter": "OT",
+    "clock": "0:00",
+    "playClock": 40,
+    "downDistanceKind": "pendingSpecial"
+  },
+  "meta": {
+    "source": "ram",
+    "ramProcessId": 70256,
+    "ramProfileScope": "automatic-read-only-signatures-v16-dynasty-clone-possession",
+    "ramUpdatedAt": "2026-08-18T22:01:53.7608582Z",
+    "visible": true,
+    "confidence": 1,
+    "updatedAt": "2026-08-18T22:01:53.760Z"
+  }
+}

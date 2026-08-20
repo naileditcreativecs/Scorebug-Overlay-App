@@ -6891,6 +6891,59 @@ namespace CollegeFootballRamDiagnostic
                         for (int index = 0; index < ranked.Count && index < 200; index++) top[ranked[index].Key] = ranked[index].Value;
                         entry["teamObjectCandidates"] = top;
                         entry["samples"] = samples;
+                        // Round-4 result: these vtable offsets tracked the away
+                        // score through six rounds (7->35) - the prime team-
+                        // object candidates. Dump their live instances in full,
+                        // including any strings they point at, so the layout
+                        // (score/timeouts/wins/teamId/name pointer) can be read
+                        // out and hard-bound.
+                        long researchModuleBase = 0;
+                        try { researchModuleBase = Process.GetProcessById(processId).MainModule.BaseAddress.ToInt64(); } catch { }
+                        if (researchModuleBase != 0)
+                        {
+                            long[] candidateOffsets = new long[] { 0xE88ACD8L, 0xAB58298L, 0xA9CD6B0L, 0xAA14580L };
+                            long[] vtables = new long[candidateOffsets.Length];
+                            for (int i = 0; i < candidateOffsets.Length; i++) vtables[i] = researchModuleBase + candidateOffsets[i];
+                            Dictionary<long, List<long>> refs = research.FindPrivateInt64ReferencesBelow4G(vtables, 10);
+                            List<string> dumps = new List<string>();
+                            for (int i = 0; i < vtables.Length; i++)
+                            {
+                                List<long> addresses;
+                                if (!refs.TryGetValue(vtables[i], out addresses) || addresses == null) continue;
+                                int taken = 0;
+                                foreach (long address in addresses)
+                                {
+                                    if (taken >= 6 || dumps.Count >= 24) break;
+                                    try
+                                    {
+                                        byte[] bytes = research.ReadBytes(address, 0x140);
+                                        System.Text.StringBuilder line = new System.Text.StringBuilder();
+                                        line.Append("0x").Append(candidateOffsets[i].ToString("X", CultureInfo.InvariantCulture));
+                                        line.Append(" @0x").Append(address.ToString("X", CultureInfo.InvariantCulture)).Append(" ints=");
+                                        for (int o = 0; o + 4 <= bytes.Length; o += 4)
+                                        {
+                                            if (o > 0) line.Append(",");
+                                            line.Append(BitConverter.ToInt32(bytes, o));
+                                        }
+                                        line.Append(" strings=");
+                                        for (int o = 0; o + 8 <= bytes.Length; o += 8)
+                                        {
+                                            long pointer = BitConverter.ToInt64(bytes, o);
+                                            if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
+                                            string text = null;
+                                            try { text = research.ReadAsciiString(pointer, 48); } catch { }
+                                            if (String.IsNullOrWhiteSpace(text) || text.Trim().Length < 3) continue;
+                                            line.Append("+").Append(o.ToString(CultureInfo.InvariantCulture))
+                                                .Append("='").Append(text.Trim()).Append("' ");
+                                        }
+                                        dumps.Add(line.ToString());
+                                        taken++;
+                                    }
+                                    catch { }
+                                }
+                            }
+                            entry["targetedDumps"] = dumps;
+                        }
                         if (!maddenNicknameScanDone)
                         {
                             maddenNicknameScanDone = true;

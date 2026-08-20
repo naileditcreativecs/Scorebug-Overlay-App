@@ -1,0 +1,38 @@
+{
+  "away": {
+    "rank": null,
+    "name": null,
+    "nickname": null,
+    "record": null,
+    "score": null,
+    "timeouts": null,
+    "possession": false,
+    "color": null
+  },
+  "home": {
+    "rank": null,
+    "name": null,
+    "nickname": null,
+    "record": null,
+    "score": null,
+    "timeouts": null,
+    "possession": false,
+    "color": null
+  },
+  "game": {
+    "quarter": null,
+    "clock": null,
+    "playClock": null,
+    "downDistance": null,
+    "down": null,
+    "distance": null,
+    "ballOn": null,
+    "status": null
+  },
+  "meta": {
+    "source": "startup",
+    "visible": false,
+    "confidence": 0,
+    "updatedAt": "2026-08-18T21:34:32.989Z"
+  }
+}
