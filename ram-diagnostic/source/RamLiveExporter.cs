@@ -3411,6 +3411,9 @@ namespace CollegeFootballRamDiagnostic
                 || result.MatchupGeneration != matchupGeneration)
                 return null;
 
+            foreach (ScoreHudMessageCandidate sweepMessage in result.Messages)
+                if (scoreHudTextAnchors.Count < 256 && sweepMessage.Address != 0)
+                    scoreHudTextAnchors.Add(sweepMessage.Address);
             RememberScoreHudMessages(result.Messages);
             scoreHudTeamCandidateCount = result.Teams.Count;
             scoreHudDownDistanceCandidateCount = result.DownDistance.Count;
@@ -7122,6 +7125,8 @@ namespace CollegeFootballRamDiagnostic
         // object region (seeded by the down-distance anchors, which live in
         // the same pool family, plus every text object ever seen) twice a
         // second while the game is live.
+        private DateTime nextAnchorSeedSweepUtc = DateTime.MinValue;
+
         private void RefreshScoreHudTextsFast()
         {
             if (GameProfile.Key != "cfb27") return;
@@ -7136,6 +7141,16 @@ namespace CollegeFootballRamDiagnostic
             if (previous != null)
                 foreach (ScoreHudTextCandidate item in previous)
                     if (item != null && item.Address != 0) anchors.Add(item.Address);
+            // The anchored scan is only as good as its anchors, and a fresh
+            // session has NONE until a full ScoreHud sweep runs - which is
+            // rare by design. That made v1.4.91 inert (a whole session with
+            // zero banner rows). Seed via the off-thread sweep, and keep the
+            // pool fresh with one sweep every 30 s thereafter.
+            if (DateTime.UtcNow >= nextAnchorSeedSweepUtc)
+            {
+                nextAnchorSeedSweepUtc = DateTime.UtcNow.AddSeconds(anchors.Count == 0 ? 5 : 30);
+                try { RequestScoreHudDiscovery(); } catch { }
+            }
             if (anchors.Count == 0) return;
             List<ScoreHudTextCandidate> found;
             try { found = scanner.FindScoreHudTextCandidatesNear(anchors, 12); }
@@ -7152,7 +7167,16 @@ namespace CollegeFootballRamDiagnostic
             try
             {
                 List<ScoreHudMessageCandidate> messages = scanner.FindMessageCandidatesNear(anchors, 12);
-                if (messages.Count > 0) RememberScoreHudMessages(messages);
+                if (messages.Count > 0)
+                {
+                    // Message addresses are anchors too: banners pool in their
+                    // own corner of the region, and the first sweep-found one
+                    // teaches the fast scan where that corner is.
+                    foreach (ScoreHudMessageCandidate message in messages)
+                        if (scoreHudTextAnchors.Count < 256 && message.Address != 0)
+                            scoreHudTextAnchors.Add(message.Address);
+                    RememberScoreHudMessages(messages);
+                }
             }
             catch { }
         }
