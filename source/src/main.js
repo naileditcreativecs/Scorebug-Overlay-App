@@ -1021,6 +1021,14 @@ function ramScoreboardPayload(document) {
     apply(state.game, 'playerStats', parsedStats, parsedStats.length > 0, 'game.playerStats');
     apply(state.game, 'playerStat', parsedStats[0] || null, parsedStats.length > 0, 'game.playerStat');
   }
+  // Precise yardage (float, two verified copies in the scoreboard block)
+  // and field-goal distance (same slot while the FG presentation is up).
+  const precise = Number(game.distancePrecise);
+  apply(state.game, 'distancePrecise', Math.round(precise * 1000) / 1000,
+    game.downDistanceSource === 'ram' && Number.isFinite(precise) && precise >= 0 && precise <= 110,
+    'game.distancePrecise');
+  const fieldGoal = normalizeRamInteger(game.fieldGoalDistance, { min: 18, max: 90 });
+  apply(state.game, 'fieldGoalDistance', fieldGoal, fieldGoal !== null, 'game.fieldGoalDistance');
   // Madden: records + the game's own per-team stat lines from the ticker
   // object, matched to sides by the NFL catalog abbreviation; timeouts from
   // the burn-watcher once it is confident (exactly two legal slots).

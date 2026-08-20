@@ -4080,6 +4080,20 @@ namespace CollegeFootballRamDiagnostic
                 Array.Copy(BitConverter.GetBytes(9), 0, hunt, 52, 4);
                 if (MemoryScanner.HuntPatternMatches(hunt, 60, 17, -1))
                     throw new Exception("ScoreHud hunt wildcard accepts timeouts > 3.");
+                // Precise-yardage rules (2026-08-20 probe: floats at +0xA8/+0xD8).
+                if (RamLiveExporter.DistanceFromPreciseYards(6.574) != 7
+                    || RamLiveExporter.DistanceFromPreciseYards(9.531) != 10
+                    || RamLiveExporter.DistanceFromPreciseYards(10.0) != 10
+                    || RamLiveExporter.DistanceFromPreciseYards(0.899) != 1
+                    || RamLiveExporter.DistanceFromPreciseYards(14.71) != 15)
+                    throw new Exception("Precise-yardage ceiling rule is wrong.");
+                if (!RamLiveExporter.PreciseYardsAreInches(0.899)
+                    || RamLiveExporter.PreciseYardsAreInches(1.05)
+                    || RamLiveExporter.PreciseYardsAreInches(0.0))
+                    throw new Exception("Inches rule is wrong.");
+                if (!RamLiveExporter.PreciseYardsPairAgrees(55.301, 55.301)
+                    || RamLiveExporter.PreciseYardsPairAgrees(55.301, 55.4))
+                    throw new Exception("Precise-yardage copy agreement rule is wrong.");
                 // Restore for the rest of the self-test.
                 GameProfile.Key = "cfb27"; GameProfile.ProcessName = "CollegeFB27";
                 GameProfile.ScoreHudTeamVtableOffset = 0xB0F3168L;

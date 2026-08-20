@@ -871,6 +871,47 @@ namespace CollegeFootballRamDiagnostic
                 downDistanceKind = "pendingSpecial";
                 downDistanceText = String.Empty;
             }
+            // Precise yardage: trusted only when both float copies agree
+            // (fail closed). It refines the numeric distance and resolves the
+            // Goal/Inches-pending ambiguity for the inches case.
+            double preciseYards = double.NaN;
+            {
+                List<long> quarterAddressList = CopyConfiguredAddresses("quarter");
+                string coreSignature = ConfiguredCoreSignature();
+                if (quarterAddressList.Count == 1 && coreSignature.EndsWith(":W", StringComparison.Ordinal))
+                {
+                    try
+                    {
+                        long block = quarterAddressList[0] - 0xC8;
+                        byte[] preciseBytes = scanner.ReadBytes(block + 0xA8, 4);
+                        byte[] copyBytes = scanner.ReadBytes(block + 0xD8, 4);
+                        float primary = BitConverter.ToSingle(preciseBytes, 0);
+                        float copy = BitConverter.ToSingle(copyBytes, 0);
+                        if (!float.IsNaN(primary) && !float.IsInfinity(primary)
+                            && primary >= 0f && primary <= 110f
+                            && PreciseYardsPairAgrees(primary, copy))
+                            preciseYards = primary;
+                    }
+                    catch { }
+                }
+            }
+            if (!double.IsNaN(preciseYards) && downDistanceKind == "numeric"
+                && stableDownRead.Available && stableDistanceRead.Available
+                && Math.Abs(DistanceFromPreciseYards(preciseYards) - distanceValue) <= 1)
+            {
+                // Same play, better number: the game's bug shows ceil(float).
+                exportedDistance = DistanceFromPreciseYards(preciseYards);
+                downDistanceText = FormatDownDistance(downValue, DistanceFromPreciseYards(preciseYards));
+            }
+            if (!double.IsNaN(preciseYards) && downDistanceKind == "pendingSpecial"
+                && stableDownRead.Available && PreciseYardsAreInches(preciseYards))
+            {
+                // Distance zero + a sub-yard float is Inches, no HUD object needed.
+                exportedDown = downValue;
+                exportedDistance = null;
+                downDistanceKind = "inches";
+                downDistanceText = FormatSpecialDownDistance(downValue, "Inches");
+            }
             if (scoreHudDownDistance != null && !scoreHudDownDistance.IsEmpty)
             {
                 string scoreHudDisplay = (scoreHudDownDistance.Display ?? String.Empty).Trim();
@@ -968,6 +1009,14 @@ namespace CollegeFootballRamDiagnostic
                 { "distance", exportedDistance },
                 { "downDistance", downDistanceText },
                 { "downDistanceKind", downDistanceKind },
+                { "distancePrecise", double.IsNaN(preciseYards) ? null : (object)Math.Round(preciseYards, 3) },
+                // During the FG presentation the precise slot IS the kick
+                // distance; published only while the game's own FIELD GOAL
+                // text is up and the value is a legal kick length.
+                { "fieldGoalDistance", !double.IsNaN(preciseYards)
+                    && DateTime.UtcNow - lastFieldGoalTextUtc <= TimeSpan.FromSeconds(4)
+                    && preciseYards >= 18 && preciseYards <= 90
+                    ? (object)(int)Math.Round(preciseYards) : null },
                 { "downDistanceSource", downDistanceKind != "numeric" || (stableDownRead.Available && stableDistanceRead.Available) ? "ram" : "screen" }
             };
 
@@ -5879,6 +5928,28 @@ namespace CollegeFootballRamDiagnostic
             return Math.Abs(hudDistance - coreDistance) <= 1;
         }
 
+        // The wide scoreboard block stores yards-to-go as a FLOAT at +0xA8
+        // with a verification copy at +0xD8 (proven 2026-08-20: 236/236 down
+        // changes agree, zero mismatches). The game's own bug displays
+        // ceil(float) - which is the whole "1st & 9 vs 10" story - and shows
+        // "Inches" when the float is under one yard. During a field-goal
+        // attempt the same slot holds the kick distance (55.3 / 60.1 / 65 in
+        // the probe game's three attempts).
+        internal static int DistanceFromPreciseYards(double preciseYards)
+        {
+            return (int)Math.Ceiling(preciseYards - 0.0005);
+        }
+
+        internal static bool PreciseYardsAreInches(double preciseYards)
+        {
+            return preciseYards > 0 && preciseYards < 1;
+        }
+
+        internal static bool PreciseYardsPairAgrees(double primary, double copy)
+        {
+            return Math.Abs(primary - copy) < 0.01;
+        }
+
         internal static RamReadResult SelectVerifiedTimeouts(RamReadResult hud, RamReadResult clone)
         {
             // The HUD object is what the in-game bug draws; the clone slots
@@ -7068,6 +7139,7 @@ namespace CollegeFootballRamDiagnostic
         private readonly HashSet<string> statBannerSeen = new HashSet<string>(StringComparer.Ordinal);
         private int statBannerEntries;
         private int fgSpotEntries;
+        private DateTime lastFieldGoalTextUtc = DateTime.MinValue;
 
         private void WriteStatBannerProbe(string screenJsonPath, int quarterValue, int clockValue,
             int downValue, int distanceValue)
@@ -7138,6 +7210,7 @@ namespace CollegeFootballRamDiagnostic
                     { fieldGoalSeen = true; fieldGoalText = text; }
                 }
             }
+            if (fieldGoalSeen) lastFieldGoalTextUtc = DateTime.UtcNow;
             if (fieldGoalSeen && fgSpotEntries < 200)
             {
                 List<long> quarterAddresses = CopyConfiguredAddresses("quarter");

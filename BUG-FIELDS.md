@@ -40,6 +40,11 @@ GAME  (game.*)
                   side 'offense'|'defense', team 'away'|'home' (from
                   possession) or null, text "ENCROACHMENT - DEFENSE"
   penaltyType, penaltySide, penaltyTeam, penaltyText   (flat copies)
+  distancePrecise exact yards to go as a decimal (e.g. 6.574) - the game's
+                  bug shows the ceiling of this; two in-memory copies must
+                  agree or it is absent
+  fieldGoalDistance  kick length in yards (e.g. 55) while the game's own
+                  FIELD GOAL presentation is up; absent otherwise
   playCallOpen    true while the play-call menu is open (experimental)
   teamStatLine    Madden only: the game's own team summary line, e.g.
                   "S.Sanders 3-8, 31 Yds [3 Rush - 28 Pass]"  (away./home.)
