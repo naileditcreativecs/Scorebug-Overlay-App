@@ -7305,6 +7305,8 @@ namespace CollegeFootballRamDiagnostic
         private long lastFgBannerAddress;
         private DateTime fgBannerFirstSeenUtc = DateTime.MinValue;
         private double lastPreciseSlotSample = double.NaN;
+        private int fgDivergenceStreak;
+        private int lastDistanceForStreak = -1;
 
         private void RefreshPlayCallFieldGoalText(int downValue)
         {
@@ -7918,29 +7920,36 @@ namespace CollegeFootballRamDiagnostic
             }
             bool bannerFresh = lastFgBannerAddress != 0
                 && now - fgBannerFirstSeenUtc <= TimeSpan.FromSeconds(5);
-            // MISSED kicks have no FIELD GOAL banner at all (proven 21:10,
-            // score unchanged, zero banners) - so the slot itself is the
-            // trigger: it mirrors yards-to-go every cycle, and a SUSTAINED
-            // value in kick range that clearly is not the yards-to-go is the
-            // kick being loaded. Two consecutive agreeing cycles (500 ms)
-            // filter transients; the scrimmage-kind gate keeps kickoff
-            // leftovers out, with the fresh-banner exception for makes.
+            // The full-trace rule (2026-08-20 kick-trace.jsonl, complete
+            // recordings of a made 43 and a missed long attempt):
+            // - Lining up a kick loads the KICK LENGTH into the yards-to-go
+            //   slot 15+ seconds pre-snap (65 held from play-pick to snap).
+            // - The one fake ("18" after the miss) was the NEXT series' real
+            //   yards-to-go (18.358 = 2nd & 19) arriving ~1.4 s before the
+            //   down marker caught up - a transition race, never a kick.
+            // So: latch when the divergence SUSTAINS (10 export cycles =
+            // 2.5 s with an unchanged distance int - lineups hold for many
+            // seconds, races die in under two) or a FIELD GOAL banner is
+            // fresh (makes show instantly); and RETRACT a young latch whose
+            // value turns out to be the new yards-to-go.
             bool slotStable = !double.IsNaN(preciseYards)
                 && Math.Abs(preciseYards - lastPreciseSlotSample) < 0.05;
             bool slotHoldsKick = !double.IsNaN(preciseYards)
                 && preciseYards >= 18 && preciseYards <= 120
                 && Math.Abs(preciseYards - distanceYards) > 3;
+            if (slotHoldsKick && slotStable && distanceYards == lastDistanceForStreak)
+                fgDivergenceStreak++;
+            else
+                fgDivergenceStreak = slotHoldsKick ? 1 : 0;
+            lastDistanceForStreak = distanceYards;
             if (!double.IsNaN(preciseYards)) lastPreciseSlotSample = preciseYards;
-            // The plate BLANKS during the kick presentation itself (a missed
-            // attempt on 21:16's game never latched because the scrimmage-
-            // kind requirement saw ''), so the gate is now only the EXPLICIT
-            // kickoff/conversion presentations - the stability + strict-text
-            // rules already block the leftover-value fakes on their own.
+            bool sustained = fgDivergenceStreak >= 10;
             bool kickoffLike = String.Equals(downDistanceKind, "kickoff", StringComparison.Ordinal)
                 || String.Equals(downDistanceKind, "conversion", StringComparison.Ordinal)
                 || String.Equals(downDistanceKind, "twoPointConversion", StringComparison.Ordinal);
-            if ((!kickoffLike || bannerFresh) && slotHoldsKick
-                && (slotStable || down == 4 || textRecent || bannerFresh))
+            if ((!kickoffLike || bannerFresh) && slotHoldsKick && (sustained || bannerFresh)
+                && LooksLikeFieldGoalKick(preciseYards, distanceYards, down,
+                    textRecent || bannerFresh || sustained))
             {
                 int rounded = (int)Math.Round(preciseYards);
                 // A NEW latch is the research moment: the kick length is known
@@ -7949,6 +7958,18 @@ namespace CollegeFootballRamDiagnostic
                 if (rounded != latchedFieldGoalDistance) pendingKickPairScanDistance = rounded;
                 latchedFieldGoalDistance = rounded;
                 latchedFieldGoalUtc = now;
+            }
+            // Retraction: a young latch whose value matches the now-settled
+            // yards-to-go was the transition race, not a kick - pull it
+            // before anyone reads it as one.
+            if (latchedFieldGoalDistance > 0
+                && now - latchedFieldGoalUtc <= TimeSpan.FromSeconds(6)
+                && !double.IsNaN(preciseYards)
+                && Math.Abs(preciseYards - distanceYards) <= 1
+                && Math.Abs(distanceYards - latchedFieldGoalDistance) <= 1)
+            {
+                latchedFieldGoalDistance = 0;
+                latchedFieldGoalUtc = DateTime.MinValue;
             }
             if (latchedFieldGoalDistance > 0 && now - latchedFieldGoalUtc <= FieldGoalLatchWindow)
                 return latchedFieldGoalDistance;
