@@ -7351,7 +7351,9 @@ namespace CollegeFootballRamDiagnostic
             }
             if (playCallFgScanRunning) return;
             pendingKickPairScanDistance = 0;
-            nextPlayCallFgScanUtc = DateTime.UtcNow.AddSeconds(2);
+            // 5 s, not 2: the scan now covers all sub-4GB private memory
+            // (the pool region moves per match), which is a heavier sweep.
+            nextPlayCallFgScanUtc = DateTime.UtcNow.AddSeconds(5);
             if (scanner.Process == null || scanner.Process.HasExited) return;
             int processId = scanner.Process.Id;
             int scanDown = downValue;

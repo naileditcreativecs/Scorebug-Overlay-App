@@ -2445,8 +2445,12 @@ namespace CollegeFootballRamDiagnostic
             EnsureAttached();
             List<string> found = new List<string>();
             Dictionary<int, int> perValue = new Dictionary<int, int>();
-            const long windowLow = 0x2C000000L;
-            const long windowHigh = 0x40000000L;
+            // The whole sub-4GB private space, not a fixed window: the pool
+            // moved outside 0x2C-0x40000000 when a new match started
+            // (2026-08-20 21:33, collector went silent) - the region is per
+            // game session, so a hard window is a time bomb.
+            const long windowLow = 0x10000L;
+            const long windowHigh = 0x100000000L;
             List<MemoryRegion> regions = EnumerateRegions();
             byte[] buffer = new byte[ChunkSize];
             for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
