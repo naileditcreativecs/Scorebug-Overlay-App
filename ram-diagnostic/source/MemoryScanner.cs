@@ -31,6 +31,9 @@ namespace CollegeFootballRamDiagnostic
         // right next to the stat banners (probe 2026-08-18) - the likely
         // source of the missing passing/rushing player names.
         public static long ScoreHudIdentityVtableOffset = 0xB0F31A8L;
+        // Madden only: the scoreboard ticker object that carries per-team
+        // records and Madden's own team stat lines (capture round 7).
+        public static long MaddenTickerVtableOffset = 0;
         public static long ScoreHudDownDistanceTypeInfoOffset = 0xE158810L;
 
         // Reads "--game <key>" from anywhere in the argument list. Unknown
@@ -53,6 +56,7 @@ namespace CollegeFootballRamDiagnostic
                     ScoreHudStatSummaryVtableOffset = 0;
                     ScoreHudIdentityVtableOffset = 0;
                     ScoreHudDownDistanceTypeInfoOffset = 0;
+                    MaddenTickerVtableOffset = 0xCAE8DC4L;
                 }
                 return;
             }

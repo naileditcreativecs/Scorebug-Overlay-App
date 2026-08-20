@@ -1021,6 +1021,35 @@ function ramScoreboardPayload(document) {
     apply(state.game, 'playerStats', parsedStats, parsedStats.length > 0, 'game.playerStats');
     apply(state.game, 'playerStat', parsedStats[0] || null, parsedStats.length > 0, 'game.playerStat');
   }
+  // Madden: records + the game's own per-team stat lines from the ticker
+  // object, matched to sides by the NFL catalog abbreviation; timeouts from
+  // the burn-watcher once it is confident (exactly two legal slots).
+  if (Array.isArray(document.ram?.maddenTicker) && document.ram.maddenTicker.length) {
+    for (const side of ['away', 'home']) {
+      const name = state[side]?.name || document[side]?.name;
+      if (!name || !teamAssetResolver) continue;
+      let asset = null;
+      try { asset = teamAssetResolver.resolve(name) || teamAssetResolver.resolveIdentity?.(name)?.asset || null; } catch { asset = null; }
+      const abbr = String(asset?.abbreviation || '').toUpperCase();
+      if (!abbr) continue;
+      const entry = document.ram.maddenTicker.find((e) => String(e?.abbreviation || '').toUpperCase() === abbr) || null;
+      if (!entry) continue;
+      const record = typeof entry.record === 'string' && /^\d{1,2}-\d{1,2}(?:-\d{1,2})?$/.test(entry.record) ? entry.record : null;
+      if (record && (state[side].record === null || state[side].record === undefined)) {
+        apply(state[side], 'record', record, true, `${side}.record`);
+        state[side].recordSource = 'ram-ticker';
+      }
+      if (entry.statLine) apply(state[side], 'teamStatLine', String(entry.statLine), true, `${side}.teamStatLine`);
+    }
+  }
+  if (document.ram?.maddenTimeouts?.confident === true) {
+    for (const side of ['away', 'home']) {
+      const value = normalizeRamInteger(document.ram.maddenTimeouts[`${side}Timeouts`], { min: 0, max: 3 });
+      if (value !== null && (state[side].timeouts === null || state[side].timeouts === undefined)) {
+        apply(state[side], 'timeouts', value, true, `${side}.timeouts`);
+      }
+    }
+  }
   // Play-call menu state (experimental byte published by the reader).
   if (typeof document.ram?.playCallOpen === 'boolean') {
     apply(state.game, 'playCallOpen', document.ram.playCallOpen, true, 'game.playCallOpen');

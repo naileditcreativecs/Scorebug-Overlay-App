@@ -41,6 +41,8 @@ GAME  (game.*)
                   possession) or null, text "ENCROACHMENT - DEFENSE"
   penaltyType, penaltySide, penaltyTeam, penaltyText   (flat copies)
   playCallOpen    true while the play-call menu is open (experimental)
+  teamStatLine    Madden only: the game's own team summary line, e.g.
+                  "S.Sanders 3-8, 31 Yds [3 Rush - 28 Pass]"  (away./home.)
   playerStats     [ { kind, player, teamSide, ...numbers, text } ]  parsed
                   from the game's own stat lower-thirds while they are up:
                   kind 'receiving' (receptions/yards/tds), 'rushing'

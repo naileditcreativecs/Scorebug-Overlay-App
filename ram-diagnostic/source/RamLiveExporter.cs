@@ -943,6 +943,16 @@ namespace CollegeFootballRamDiagnostic
             // is the yards-to-goal ground truth that identifies the ball-spot
             // slot after a couple of attempts.
             try { WriteStatBannerProbe(screenJsonPath, quarterValue, clockValue, downValue, distanceValue); } catch { }
+            if (GameProfile.Key == "madden27")
+            {
+                // Madden: records + the game's own per-team stat lines come
+                // from the scoreboard ticker object (round 7), and timeouts
+                // are found by watching the scoreboard block for a legal
+                // 3->2->1->0 burn (Madden has no ScoreHud team objects).
+                try { ram["maddenTicker"] = MaddenTickerEntries(); } catch { }
+                try { MaddenWatchTimeoutSlots(screenJsonPath, quarterValue, clockValue); } catch { }
+                try { ram["maddenTimeouts"] = MaddenTimeoutDictionary(); } catch { }
+            }
             root["game"] = new Dictionary<string, object>
             {
                 { "quarter", quarterValue },
@@ -7130,6 +7140,170 @@ namespace CollegeFootballRamDiagnostic
                     catch { }
                 }
             }
+        }
+
+        // ---------- Madden ticker (records + team stat lines) ----------
+        private List<long> maddenTickerAddresses = new List<long>();
+        private DateTime nextMaddenTickerScanUtc = DateTime.MinValue;
+
+        private List<Dictionary<string, object>> MaddenTickerEntries()
+        {
+            List<Dictionary<string, object>> result = new List<Dictionary<string, object>>();
+            if (GameProfile.MaddenTickerVtableOffset == 0) return result;
+            long moduleBase = scanner.Process.MainModule.BaseAddress.ToInt64();
+            long vtable = moduleBase + GameProfile.MaddenTickerVtableOffset;
+            // Locating the instances is a full sweep; do it rarely and re-read
+            // the addresses every publish (cheap) so records stay current.
+            if (maddenTickerAddresses.Count == 0 && DateTime.UtcNow >= nextMaddenTickerScanUtc)
+            {
+                nextMaddenTickerScanUtc = DateTime.UtcNow.AddSeconds(45);
+                try
+                {
+                    Dictionary<long, List<long>> refs = scanner.FindPrivateInt64ReferencesBelow4G(new long[] { vtable }, 24);
+                    List<long> found;
+                    if (refs.TryGetValue(vtable, out found) && found != null) maddenTickerAddresses = found;
+                }
+                catch { }
+            }
+            foreach (long address in maddenTickerAddresses)
+            {
+                List<string> strings = new List<string>();
+                try
+                {
+                    byte[] bytes = scanner.ReadBytes(address, 0x140);
+                    if (BitConverter.ToInt64(bytes, 0) != vtable) continue;
+                    for (int offset = 0; offset + 8 <= bytes.Length; offset += 8)
+                    {
+                        long pointer = BitConverter.ToInt64(bytes, offset);
+                        if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
+                        string text = null;
+                        try { text = scanner.ReadAsciiString(pointer, 64); } catch { }
+                        if (String.IsNullOrWhiteSpace(text)) continue;
+                        text = text.Trim();
+                        if (text.Length < 2) continue;
+                        strings.Add(text);
+                    }
+                }
+                catch { continue; }
+                if (strings.Count == 0) continue;
+                // A stat line names its own team ("CLE:  S.Sanders 3-8, ...");
+                // the record that follows it belongs to that team.
+                for (int index = 0; index < strings.Count; index++)
+                {
+                    System.Text.RegularExpressions.Match stat =
+                        System.Text.RegularExpressions.Regex.Match(strings[index], "^([A-Z]{2,4}):\\s+(.+)$");
+                    if (!stat.Success) continue;
+                    string record = null;
+                    for (int next = index + 1; next < strings.Count && next <= index + 3; next++)
+                    {
+                        if (System.Text.RegularExpressions.Regex.IsMatch(strings[next], "^\\(\\d{1,2}-\\d{1,2}(?:-\\d{1,2})?\\)$"))
+                        { record = strings[next].Trim('(', ')'); break; }
+                    }
+                    result.Add(new Dictionary<string, object>
+                    {
+                        { "abbreviation", stat.Groups[1].Value },
+                        { "statLine", stat.Groups[2].Value.Trim() },
+                        { "record", record }
+                    });
+                }
+                if (result.Count >= 8) break;
+            }
+            return result;
+        }
+
+        // ---------- Madden timeout discovery ----------
+        // Madden has no ScoreHud team objects, so timeouts are found by
+        // watching the live scoreboard block for slots that only ever step
+        // DOWN by one within 0..3 - what a burned timeout looks like. Every
+        // transition is logged (madden-timeout-probe.jsonl) and, once exactly
+        // two slots have shown a legal burn, they publish. Fail closed: no
+        // pair, no timeouts.
+        private readonly Dictionary<int, int> maddenSlotValues = new Dictionary<int, int>();
+        private readonly Dictionary<int, int> maddenSlotBurns = new Dictionary<int, int>();
+        private readonly Dictionary<int, int> maddenSlotIllegal = new Dictionary<int, int>();
+        private DateTime nextMaddenSlotSampleUtc = DateTime.MinValue;
+        private const int MaddenWindowBefore = 0x400;
+        private const int MaddenWindowSize = 0xC00;
+
+        private void MaddenWatchTimeoutSlots(string screenJsonPath, int quarterValue, int clockValue)
+        {
+            if (DateTime.UtcNow < nextMaddenSlotSampleUtc) return;
+            nextMaddenSlotSampleUtc = DateTime.UtcNow.AddMilliseconds(400);
+            List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
+            if (quarterAddresses.Count != 1) return;
+            long windowBase = quarterAddresses[0] - 0xC8 - MaddenWindowBefore;
+            byte[] bytes;
+            try { bytes = scanner.ReadBytes(windowBase, MaddenWindowSize); } catch { return; }
+            string folder = Path.GetDirectoryName(OutputPath(screenJsonPath));
+            for (int offset = 0; offset + 4 <= bytes.Length; offset += 4)
+            {
+                int value = BitConverter.ToInt32(bytes, offset);
+                int previous;
+                if (!maddenSlotValues.TryGetValue(offset, out previous)) { maddenSlotValues[offset] = value; continue; }
+                if (value == previous) continue;
+                maddenSlotValues[offset] = value;
+                if (previous < 0 || previous > 3 || value < 0 || value > 3) { maddenSlotIllegal[offset] = 1; continue; }
+                if (value == previous - 1)
+                {
+                    int burns;
+                    maddenSlotBurns[offset] = maddenSlotBurns.TryGetValue(offset, out burns) ? burns + 1 : 1;
+                    try
+                    {
+                        File.AppendAllText(Path.Combine(folder, "madden-timeout-probe.jsonl"),
+                            new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object>
+                            {
+                                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                                { "offset", "0x" + offset.ToString("X", CultureInfo.InvariantCulture) },
+                                { "from", previous }, { "to", value },
+                                { "quarter", quarterValue }, { "clock", clockValue },
+                                { "burns", maddenSlotBurns[offset] }
+                            }) + Environment.NewLine);
+                    }
+                    catch { }
+                }
+                // A reset to 3 (half start) is legal and expected; anything
+                // else that is not a single step down disqualifies the slot.
+                else if (!(value == 3 && previous <= 3)) maddenSlotIllegal[offset] = 1;
+            }
+        }
+
+        private Dictionary<string, object> MaddenTimeoutDictionary()
+        {
+            List<int> candidates = new List<int>();
+            foreach (KeyValuePair<int, int> pair in maddenSlotBurns)
+            {
+                if (maddenSlotIllegal.ContainsKey(pair.Key)) continue;
+                int current;
+                if (!maddenSlotValues.TryGetValue(pair.Key, out current) || current < 0 || current > 3) continue;
+                candidates.Add(pair.Key);
+            }
+            candidates.Sort();
+            Dictionary<string, object> result = new Dictionary<string, object>
+            {
+                { "candidateCount", candidates.Count },
+                { "confident", candidates.Count == 2 }
+            };
+            List<Dictionary<string, object>> list = new List<Dictionary<string, object>>();
+            for (int index = 0; index < candidates.Count && index < 8; index++)
+            {
+                int offset = candidates[index];
+                list.Add(new Dictionary<string, object>
+                {
+                    { "offset", "0x" + offset.ToString("X", CultureInfo.InvariantCulture) },
+                    { "value", maddenSlotValues[offset] },
+                    { "burns", maddenSlotBurns[offset] }
+                });
+            }
+            result["slots"] = list;
+            if (candidates.Count == 2)
+            {
+                // Side assignment is provisional until a tester confirms.
+                // CFB27's clone slots put HOME at the lower offset (+0x44
+                // home, +0x48 away) - assume the same family layout here.
+                result["homeTimeouts"] = maddenSlotValues[candidates[0]];
+                result["awayTimeouts"] = maddenSlotValues[candidates[1]];
+            }
+            return result;
         }
 
         private static string OutputPath(string screenJsonPath)
