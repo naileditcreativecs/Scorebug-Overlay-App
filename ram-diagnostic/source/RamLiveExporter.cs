@@ -5999,6 +5999,17 @@ namespace CollegeFootballRamDiagnostic
             return Math.Abs(primary - copy) < 0.01;
         }
 
+        // Every REAL kick ever captured carries a fractional spot (43.003,
+        // 39.814, 52.53, 60.078) because the ball never sits dead on a line.
+        // The kickoff/PAT staging constant is a perfectly round 65.000 (the
+        // kickoff spot: 35-yard line = 65 to the far goal - user-identified
+        // 2026-08-20 after a PAT displayed as a "65-yard field goal"), so a
+        // round integer in the slot is presentation staging, not a kick.
+        internal static bool PreciseLooksLikeRealSpot(double preciseYards)
+        {
+            return Math.Abs(preciseYards - Math.Round(preciseYards)) > 0.001;
+        }
+
         internal static RamReadResult SelectVerifiedTimeouts(RamReadResult hud, RamReadResult clone)
         {
             // The HUD object is what the in-game bug draws; the clone slots
@@ -7976,7 +7987,8 @@ namespace CollegeFootballRamDiagnostic
                 }
                 catch { }
             }
-            if ((!kickoffLike || bannerFresh) && slotHoldsKick && (sustained || bannerFresh)
+            if ((!kickoffLike || bannerFresh) && slotHoldsKick
+                && ((sustained && PreciseLooksLikeRealSpot(preciseYards)) || bannerFresh)
                 && LooksLikeFieldGoalKick(preciseYards, distanceYards, down,
                     textRecent || bannerFresh || sustained))
             {

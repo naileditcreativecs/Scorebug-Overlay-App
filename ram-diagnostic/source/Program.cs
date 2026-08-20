@@ -4133,6 +4133,13 @@ namespace CollegeFootballRamDiagnostic
                 if (!RamLiveExporter.PreciseYardsPairAgrees(55.301, 55.301)
                     || RamLiveExporter.PreciseYardsPairAgrees(55.301, 55.4))
                     throw new Exception("Precise-yardage copy agreement rule is wrong.");
+                // Real spots are fractional; the round 65.000 is the kickoff
+                // staging constant (user-identified via a PAT shown as 65).
+                if (!RamLiveExporter.PreciseLooksLikeRealSpot(43.003)
+                    || !RamLiveExporter.PreciseLooksLikeRealSpot(39.814)
+                    || RamLiveExporter.PreciseLooksLikeRealSpot(65.0)
+                    || RamLiveExporter.PreciseLooksLikeRealSpot(20.0))
+                    throw new Exception("Real-spot fraction rule is wrong.");
                 // Restore for the rest of the self-test.
                 GameProfile.Key = "cfb27"; GameProfile.ProcessName = "CollegeFB27";
                 GameProfile.ScoreHudTeamVtableOffset = 0xB0F3168L;
