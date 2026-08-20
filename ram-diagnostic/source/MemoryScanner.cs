@@ -753,8 +753,14 @@ namespace CollegeFootballRamDiagnostic
                         for (int x = 32; x <= 120; x += 4)
                         {
                             if (start + x + 12 > read) break;
-                            bool away = HuntPatternMatches(buffer, start + x, awayScore, awayTimeouts);
-                            bool home = !away && HuntPatternMatches(buffer, start + x, homeScore, homeTimeouts);
+                            // A zero score matches half of memory (round-3 data:
+                            // the 0-score side produced 300k+ coincidences per key
+                            // and crowded every real hit out of the kept top-N).
+                            // Only a side with points on the board can identify
+                            // the team object; the other side rides along once
+                            // the vtable is known.
+                            bool away = awayScore > 0 && HuntPatternMatches(buffer, start + x, awayScore, awayTimeouts);
+                            bool home = !away && homeScore > 0 && HuntPatternMatches(buffer, start + x, homeScore, homeTimeouts);
                             if (!away && !home) continue;
                             string key = "0x" + (vtable - moduleBase).ToString("X", CultureInfo.InvariantCulture)
                                 + "@+" + x.ToString(CultureInfo.InvariantCulture)

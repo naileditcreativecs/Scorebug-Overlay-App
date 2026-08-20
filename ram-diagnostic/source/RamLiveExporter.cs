@@ -6828,7 +6828,17 @@ namespace CollegeFootballRamDiagnostic
             "Texans", "Colts", "Jaguars", "Chiefs", "Raiders", "Chargers",
             "Rams", "Dolphins", "Vikings", "Patriots", "Saints", "Giants",
             "Jets", "Eagles", "Steelers", "49ers", "Seahawks", "Buccaneers",
-            "Titans", "Commanders" };
+            "Titans", "Commanders",
+            // Cities/regions: the scorebug-facing catalog likely stores the
+            // display name ("Arizona") separately from the nickname row that
+            // round 3 found (the stadium table at stride 0xD4).
+            "Arizona", "Atlanta", "Baltimore", "Buffalo", "Carolina",
+            "Chicago", "Cincinnati", "Cleveland", "Dallas", "Denver",
+            "Detroit", "Green Bay", "Houston", "Indianapolis", "Jacksonville",
+            "Kansas City", "Las Vegas", "Los Angeles", "Miami", "Minnesota",
+            "New England", "New Orleans", "New York", "Philadelphia",
+            "Pittsburgh", "San Francisco", "Seattle", "Tampa Bay",
+            "Tennessee", "Washington" };
 
         private void MaybeStartMaddenResearch(string screenJsonPath)
         {
@@ -6878,7 +6888,7 @@ namespace CollegeFootballRamDiagnostic
                         List<KeyValuePair<string, int>> ranked = new List<KeyValuePair<string, int>>(histogram);
                         ranked.Sort(delegate (KeyValuePair<string, int> left, KeyValuePair<string, int> right) { return right.Value.CompareTo(left.Value); });
                         Dictionary<string, int> top = new Dictionary<string, int>(StringComparer.Ordinal);
-                        for (int index = 0; index < ranked.Count && index < 120; index++) top[ranked[index].Key] = ranked[index].Value;
+                        for (int index = 0; index < ranked.Count && index < 200; index++) top[ranked[index].Key] = ranked[index].Value;
                         entry["teamObjectCandidates"] = top;
                         entry["samples"] = samples;
                         if (!maddenNicknameScanDone)
