@@ -7847,6 +7847,18 @@ function createOverlayWindow() {
       try { guestWebContents.setBackgroundColor('#00000000'); } catch { }
     });
   });
+  // The overlay HOST renderer crashing leaves Windows displaying its last
+  // painted frame - a frozen bug that looks alive (observed live 2026-08-20:
+  // clock stuck at 3:06 while the reader kept publishing). Reload on crash
+  // or hang; the overlay re-bootstraps its theme and state on load.
+  overlayWindow.webContents.on('render-process-gone', (_event, details) => {
+    logMessage(`Overlay renderer stopped (${details?.reason || 'unknown'}); reloading the overlay window.`);
+    try { overlayWindow.webContents.reload(); } catch { /* recreated on next start */ }
+  });
+  overlayWindow.on('unresponsive', () => {
+    logMessage('Overlay window is unresponsive; reloading it.');
+    try { overlayWindow.webContents.reload(); } catch { }
+  });
   installLocalNavigationGuard(overlayWindow, [OVERLAY_DOCUMENT]);
   overlayWindow.loadFile(OVERLAY_DOCUMENT);
   overlayWindow.once('ready-to-show', () => applyVisibility('ready'));
