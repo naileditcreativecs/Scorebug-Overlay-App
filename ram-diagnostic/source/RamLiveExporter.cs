@@ -7150,7 +7150,7 @@ namespace CollegeFootballRamDiagnostic
         {
             if (GameProfile.Key != "cfb27") return;
             List<ScoreHudTextCandidate> texts = scanner.LastScoreHudTexts;
-            if (texts == null || texts.Count == 0) return;
+            if (texts == null) texts = new List<ScoreHudTextCandidate>();
             string folder = Path.GetDirectoryName(OutputPath(screenJsonPath));
             System.Web.Script.Serialization.JavaScriptSerializer serializer =
                 new System.Web.Script.Serialization.JavaScriptSerializer { MaxJsonLength = 16 * 1024 * 1024 };
