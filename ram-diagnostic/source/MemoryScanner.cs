@@ -732,9 +732,25 @@ namespace CollegeFootballRamDiagnostic
         public Dictionary<string, int> HuntScoreHudTeamObjects(int awayScore, int homeScore,
             int awayTimeouts, int homeTimeouts, int maximumSamples, List<string> samples)
         {
+            return HuntScoreHudTeamObjects(awayScore, homeScore, awayTimeouts, homeTimeouts,
+                maximumSamples, samples, null, null);
+        }
+
+        // matchDumpVtableOffsets/matchDumps: full 0x140-byte dumps (with any
+        // pointed-at strings) of instances of the named types AT THE MOMENT
+        // they match the live score - round-5 data showed that dumping "the
+        // first N references" instead captures pools and vtable directories,
+        // never the ~26 instances actually holding the score.
+        public Dictionary<string, int> HuntScoreHudTeamObjects(int awayScore, int homeScore,
+            int awayTimeouts, int homeTimeouts, int maximumSamples, List<string> samples,
+            long[] matchDumpVtableOffsets, List<string> matchDumps)
+        {
             EnsureAttached();
             long moduleBase = process.MainModule.BaseAddress.ToInt64();
             long moduleEnd = moduleBase + process.MainModule.ModuleMemorySize;
+            HashSet<long> dumpVtables = new HashSet<long>();
+            if (matchDumpVtableOffsets != null)
+                foreach (long offset in matchDumpVtableOffsets) dumpVtables.Add(moduleBase + offset);
             Dictionary<string, int> histogram = new Dictionary<string, int>(StringComparer.Ordinal);
             List<MemoryRegion> regions = EnumerateRegions();
             byte[] buffer = new byte[1 << 20];
@@ -767,6 +783,33 @@ namespace CollegeFootballRamDiagnostic
                                 + (away ? " away" : " home");
                             int count;
                             histogram[key] = histogram.TryGetValue(key, out count) ? count + 1 : 1;
+                            if (matchDumps != null && matchDumps.Count < 24 && dumpVtables.Contains(vtable))
+                            {
+                                try
+                                {
+                                    byte[] full = ReadBytes(chunk + start, 0x140);
+                                    StringBuilder line = new StringBuilder();
+                                    line.Append(key).Append(" @0x").Append((chunk + start).ToString("X", CultureInfo.InvariantCulture)).Append(" ints=");
+                                    for (int o = 0; o + 4 <= full.Length; o += 4)
+                                    {
+                                        if (o > 0) line.Append(",");
+                                        line.Append(BitConverter.ToInt32(full, o));
+                                    }
+                                    line.Append(" strings=");
+                                    for (int o = 0; o + 8 <= full.Length; o += 8)
+                                    {
+                                        long pointer = BitConverter.ToInt64(full, o);
+                                        if (pointer < 0x10000 || pointer >= 0x100000000L) continue;
+                                        string text = null;
+                                        try { text = ReadAsciiString(pointer, 48); } catch { }
+                                        if (String.IsNullOrWhiteSpace(text) || text.Trim().Length < 3) continue;
+                                        line.Append("+").Append(o.ToString(CultureInfo.InvariantCulture))
+                                            .Append("='").Append(text.Trim()).Append("' ");
+                                    }
+                                    matchDumps.Add(line.ToString());
+                                }
+                                catch { }
+                            }
                             if (samples != null && samples.Count < maximumSamples)
                             {
                                 StringBuilder ints = new StringBuilder();

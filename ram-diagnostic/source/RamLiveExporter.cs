@@ -6883,14 +6883,17 @@ namespace CollegeFootballRamDiagnostic
                     {
                         research.Attach(Process.GetProcessById(processId));
                         List<string> samples = new List<string>();
+                        List<string> matchDumps = new List<string>();
                         Dictionary<string, int> histogram = research.HuntScoreHudTeamObjects(
-                            awayScore, homeScore, -1, -1, 24, samples);
+                            awayScore, homeScore, -1, -1, 24, samples,
+                            new long[] { 0xE88ACD8L, 0xAB58298L, 0xA9CD6B0L, 0xAA14580L }, matchDumps);
                         List<KeyValuePair<string, int>> ranked = new List<KeyValuePair<string, int>>(histogram);
                         ranked.Sort(delegate (KeyValuePair<string, int> left, KeyValuePair<string, int> right) { return right.Value.CompareTo(left.Value); });
                         Dictionary<string, int> top = new Dictionary<string, int>(StringComparer.Ordinal);
                         for (int index = 0; index < ranked.Count && index < 200; index++) top[ranked[index].Key] = ranked[index].Value;
                         entry["teamObjectCandidates"] = top;
                         entry["samples"] = samples;
+                        entry["matchDumps"] = matchDumps;
                         // Round-4 result: these vtable offsets tracked the away
                         // score through six rounds (7->35) - the prime team-
                         // object candidates. Dump their live instances in full,
