@@ -994,6 +994,7 @@ namespace CollegeFootballRamDiagnostic
             try { RefreshScoreHudTextsFast(); } catch { }
             try { MaybeRebaseScoreHudOffsets(downValue, distanceValue, downDistanceKind); } catch { }
             try { RefreshPlayCallFieldGoalText(downValue); } catch { }
+            try { ProcessManualStatHunt(); } catch { }
             try { WriteStatBannerProbe(screenJsonPath, quarterValue, clockValue, downValue, distanceValue); } catch { }
             if (GameProfile.Key == "madden27")
             {
@@ -7532,6 +7533,16 @@ namespace CollegeFootballRamDiagnostic
             int second = Int32.Parse(numbers[1].Value, CultureInfo.InvariantCulture);
             int third = numbers.Count >= 3 ? Int32.Parse(numbers[2].Value, CultureInfo.InvariantCulture) : -1;
             if (first > 999 || second > 999) return;
+            QueueStatTupleHunt(text, playerId, first, second, third);
+        }
+
+        // Shared by the banner path above and the MANUAL trigger below (the
+        // user reads a box-score line aloud, the numbers land here through
+        // manual-stat-hunt.json). Same throttles, same gentle paced scan.
+        // Returns true when handled (confirmed or scan queued) so the manual
+        // trigger knows to keep retrying a throttled request next cycle.
+        private bool QueueStatTupleHunt(string text, int playerId, int first, int second, int third)
+        {
             // First: does an already-watched row for this player now hold the
             // new numbers? Then the live row is CONFIRMED and no scan is
             // needed at all - the steady state costs nothing.
@@ -7549,10 +7560,12 @@ namespace CollegeFootballRamDiagnostic
                         });
                 }
                 catch { }
-                return;
+                return true;
             }
+            if (statTupleHuntRunning || statTupleHuntCount >= 60) return false;
+            if (DateTime.UtcNow < nextStatTupleHuntUtc) return false;
             nextStatTupleHuntUtc = DateTime.UtcNow.AddSeconds(12);
-            if (scanner.Process == null || scanner.Process.HasExited) return;
+            if (scanner.Process == null || scanner.Process.HasExited) return false;
             int processId = scanner.Process.Id;
             string huntText = text;
             statTupleHuntRunning = true;
@@ -7612,18 +7625,58 @@ namespace CollegeFootballRamDiagnostic
                 catch { }
                 statTupleHuntRunning = false;
             });
+            return true;
+        }
+
+        // MANUAL ground-truth trigger: drop manual-stat-hunt.json into the
+        // data-export folder ({"label":"pitt-qb","playerId":900001,
+        // "first":9,"second":20,"third":112}) and the reader hunts those
+        // numbers with its own paced scan - the safe replacement for the
+        // external ad-hoc scans that destabilized the game (2026-08-21).
+        // The file is renamed .done once the hunt is queued or confirmed.
+        private DateTime nextManualHuntCheckUtc = DateTime.MinValue;
+
+        private void ProcessManualStatHunt()
+        {
+            if (GameProfile.Key != "cfb27") return;
+            if (DateTime.UtcNow < nextManualHuntCheckUtc) return;
+            nextManualHuntCheckUtc = DateTime.UtcNow.AddSeconds(2);
+            try
+            {
+                string folder = Path.GetDirectoryName(OutputPath(probeOutputSeedPath));
+                string path = Path.Combine(folder, "manual-stat-hunt.json");
+                if (!File.Exists(path)) return;
+                System.Web.Script.Serialization.JavaScriptSerializer serializer =
+                    new System.Web.Script.Serialization.JavaScriptSerializer();
+                Dictionary<string, object> request =
+                    serializer.Deserialize<Dictionary<string, object>>(File.ReadAllText(path));
+                int first = Convert.ToInt32(request["first"], CultureInfo.InvariantCulture);
+                int second = Convert.ToInt32(request["second"], CultureInfo.InvariantCulture);
+                int third = request.ContainsKey("third")
+                    ? Convert.ToInt32(request["third"], CultureInfo.InvariantCulture) : -1;
+                int playerId = request.ContainsKey("playerId")
+                    ? Convert.ToInt32(request["playerId"], CultureInfo.InvariantCulture) : 900000;
+                string label = request.ContainsKey("label") ? (string)request["label"] : "manual";
+                if (QueueStatTupleHunt("MANUAL " + label, playerId, first, second, third))
+                {
+                    try { File.Delete(path + ".done"); } catch { }
+                    File.Move(path, path + ".done");
+                }
+            }
+            catch { }
         }
 
         private void MaybeRebaseScoreHudOffsets(int downValue, int distanceValue, string downDistanceKind)
         {
             if (GameProfile.Key != "cfb27") return;
             if (!scoreHudRebaseCacheChecked) LoadScoreHudRebaseCache();
-            // A cache-applied rebase that never produces a live object is
-            // wrong (a newer patch with the same module size, or corruption):
-            // revert it and fall through to the normal hunts.
-            if (scoreHudRebaseFromCache && !scoreHudRebaseVerifiedLogged
-                && consecutiveEmptyScoreHudSweeps >= 10)
-                InvalidateScoreHudRebaseCache();
+            // NO invalidation on empty sweeps: menus and halftime produce
+            // long legitimately-empty stretches, and on 2026-08-21 that rule
+            // threw away a good cached rebase mid-session, silently killing
+            // every ScoreHud read (no stat banner could be captured for an
+            // entire game). The cache is keyed to the exe's write time and
+            // module size, so a new patch invalidates it by key - emptiness
+            // proves nothing and never will.
             if (scoreHudRebaseDone) return;
             List<ScoreHudRebaseCandidate> completed = null;
             lock (scoreHudRebaseSync)
