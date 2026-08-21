@@ -7890,7 +7890,11 @@ namespace CollegeFootballRamDiagnostic
         private void MaddenWatchTimeoutSlots(string screenJsonPath, int quarterValue, int clockValue)
         {
             if (DateTime.UtcNow < nextMaddenSlotSampleUtc) return;
-            nextMaddenSlotSampleUtc = DateTime.UtcNow.AddMilliseconds(400);
+            // 150 ms, not 400: tester game 2 showed per-team candidate slots
+            // burning at the exact moments of all-calls ticks with their
+            // intermediate steps missed - the counters step faster than the
+            // old cadence.
+            nextMaddenSlotSampleUtc = DateTime.UtcNow.AddMilliseconds(150);
             List<long> quarterAddresses = CopyConfiguredAddresses("quarter");
             if (quarterAddresses.Count != 1) return;
             long windowBase = quarterAddresses[0] - 0xC8 - MaddenWindowBefore;
@@ -7909,17 +7913,21 @@ namespace CollegeFootballRamDiagnostic
                 {
                     int burns;
                     maddenSlotBurns[offset] = maddenSlotBurns.TryGetValue(offset, out burns) ? burns + 1 : 1;
-                    // Context bytes: the first tester game (2026-08-20) found
-                    // ONE synchronized counter trio that ticks for EITHER
-                    // team's timeout - the team identity must live beside it.
-                    // Dump the surrounding ints so the companion team-id slot
-                    // identifies itself across burns.
+                    // Tester game 2 proved the burned slot sits inside a
+                    // scoreboard struct (home score at -16, away at -8) and
+                    // that the ±0x40 nonzero dump was too narrow to catch the
+                    // per-team pair. Snapshot EVERY timeout-sized value
+                    // (0..3) across ±0x300 instead - the pair's state at
+                    // every single call identifies it in one half of play.
                     Dictionary<string, object> around = new Dictionary<string, object>();
-                    for (int nearby = Math.Max(0, offset - 0x40);
-                        nearby + 4 <= bytes.Length && nearby <= offset + 0x40; nearby += 4)
+                    for (int nearby = Math.Max(0, offset - 0x300);
+                        nearby + 4 <= bytes.Length && nearby <= offset + 0x300; nearby += 4)
                     {
                         int neighbor = BitConverter.ToInt32(bytes, nearby);
-                        if (neighbor != 0)
+                        if (neighbor >= 0 && neighbor <= 3 && nearby != offset)
+                            around[(nearby - offset).ToString(CultureInfo.InvariantCulture)] = neighbor;
+                        // Keep the score anchors too - they orient the struct.
+                        else if (neighbor > 3 && neighbor <= 99 && nearby >= offset - 0x20 && nearby <= offset + 0x20)
                             around[(nearby - offset).ToString(CultureInfo.InvariantCulture)] = neighbor;
                     }
                     try
