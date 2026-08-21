@@ -2571,13 +2571,13 @@ namespace CollegeFootballRamDiagnostic
         {
             EnsureAttached();
             List<string> found = new List<string>();
-            // Full sub-4GB: the live accumulator's region is unknown (the low
-            // fixed window only held the postgame box-score snapshot). This
-            // runs on the reader's own paced background thread - the same
-            // read pattern as the routine full sweeps, which never disturb
-            // the game. External ad-hoc scans are retired (2026-08-21).
-            const long windowLow = 0x10000L;
-            const long windowHigh = 0x100000000L;
+            // NARROW + PACED (2026-08-21): three crashes tonight correlate
+            // with big sweeps of this process. The stat records proved to
+            // live in low memory (0x40Axxxx / 0x477xxxx snapshot; pooled
+            // copies higher), so scan ONLY the low region, and sleep between
+            // chunks so the read pressure stays negligible.
+            const long windowLow = 0x2000000L;
+            const long windowHigh = 0x18000000L;
             List<MemoryRegion> regions = EnumerateRegions();
             byte[] buffer = new byte[ChunkSize];
             for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
@@ -2605,6 +2605,9 @@ namespace CollegeFootballRamDiagnostic
                         }
                         if (found.Count >= 12) return found;
                     }
+                    // Pacing: a short breather per 1MB chunk keeps this hunt
+                    // invisible to the game's own memory streaming.
+                    System.Threading.Thread.Sleep(3);
                     if (requested <= 0x80) break;
                     offset += requested - 0x40;
                 }

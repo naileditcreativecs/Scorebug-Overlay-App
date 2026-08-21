@@ -304,13 +304,22 @@
   function tableLines() {
     var rows = value('game.statTable');
     if (!Array.isArray(rows) || !rows.length) return [];
-    return rows.map(function (row) {
-      if (!row || !row.address) return '';
-      var vals = (row.values || []).filter(function (v) { return v >= -1 && v <= 500; });
-      var who = row.player || (row.playerId ? '#' + row.playerId : '?');
-      var mark = row.confirmed > 0 ? 'CONFIRMED LIVE ROW  ' : 'candidate  ';
-      return mark + who + '  ' + row.address + ':  ' + vals.join(', ');
-    }).filter(Boolean);
+    var confirmed = rows.filter(function (r) { return r && r.confirmed > 0; });
+    var candidates = rows.filter(function (r) { return r && !(r.confirmed > 0); });
+    var out = [];
+    confirmed.forEach(function (row) {
+      var who = row.player || row.label || ('#' + row.playerId);
+      out.push('CONFIRMED - ' + who + ': ' + row.liveA + ' / ' + row.liveB + ' (live, updates as they play)');
+    });
+    if (candidates.length) {
+      var sample = candidates.slice(0, 4).map(function (row) {
+        var who = row.player || row.label || ('#' + row.playerId);
+        return who + ' ' + row.liveA + '/' + row.liveB;
+      });
+      out.push(candidates.length + ' candidate row(s) being tested: ' + sample.join('; ')
+        + (candidates.length > 4 ? '; +' + (candidates.length - 4) + ' more' : ''));
+    }
+    return out;
   }
 
   function rawBanners() {

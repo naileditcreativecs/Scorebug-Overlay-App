@@ -7189,6 +7189,7 @@ namespace CollegeFootballRamDiagnostic
         private bool scoreHudRebaseApplied;
         private bool scoreHudRebaseVerifiedLogged;
         private bool scoreHudRebaseRunning;
+        private int scoreHudRebaseHuntCount;
         private DateTime nextScoreHudRebaseAttemptUtc = DateTime.MinValue;
         private readonly object scoreHudRebaseSync = new object();
         private List<ScoreHudRebaseCandidate> pendingScoreHudRebase;
@@ -7354,18 +7355,12 @@ namespace CollegeFootballRamDiagnostic
                 }
                 catch { }
             }
-            // A fresh latch means the kick length is KNOWN right now - jump
-            // the 2 s throttle and scan for that exact value. Any hit is a
-            // real (kick, field-position) object; a couple of kicks' worth
-            // identifies the template to read pre-snap. Otherwise, the
-            // generic every-down sampler (test mode, user request) runs on
-            // its 2 s cadence.
+            // TARGETED-ONLY (2026-08-21): the generic every-down full-memory
+            // sampler is RETIRED - a multi-GB sweep every few seconds during
+            // play correlates with three game crashes tonight. Only a fresh
+            // kick latch (rare, once per kick) triggers a scan now.
             int targeted = pendingKickPairScanDistance;
-            if (targeted <= 0)
-            {
-                if (downValue < 1 || downValue > 4) return;
-                if (DateTime.UtcNow < nextPlayCallFgScanUtc) return;
-            }
+            if (targeted <= 0) return;
             if (playCallFgScanRunning) return;
             pendingKickPairScanDistance = 0;
             // 5 s, not 2: the scan now covers all sub-4GB private memory
@@ -7416,6 +7411,7 @@ namespace CollegeFootballRamDiagnostic
             public int PlayerId;
             public int Confirmed;
             public int Failed;
+            public string Label;
         }
 
         private readonly object statTableWatchSync = new object();
@@ -7473,12 +7469,16 @@ namespace CollegeFootballRamDiagnostic
                         values.Add(BitConverter.ToInt16(bytes, offset));
                     string name;
                     identityNames.TryGetValue(candidate.PlayerId, out name);
+                    int liveA = values.Count > 0 ? values[0] : 0;
+                    int liveB = candidate.DeltaB / 2 < values.Count ? values[candidate.DeltaB / 2] : 0;
                     rows.Add(new Dictionary<string, object>
                     {
                         { "address", "0x" + candidate.Address.ToString("X", CultureInfo.InvariantCulture) },
                         { "playerId", candidate.PlayerId },
                         { "player", name },
+                        { "label", candidate.Label },
                         { "confirmed", candidate.Confirmed },
+                        { "liveA", liveA }, { "liveB", liveB },
                         { "values", values }
                     });
                 }
@@ -7572,7 +7572,7 @@ namespace CollegeFootballRamDiagnostic
             statTupleHuntCount++;
             ThreadPool.QueueUserWorkItem(delegate
             {
-                List<string> hits = null;
+                List<string> hits = new List<string>();
                 List<string> tableHits = null;
                 try
                 {
@@ -7580,9 +7580,10 @@ namespace CollegeFootballRamDiagnostic
                     using (MemoryScanner backgroundScanner = new MemoryScanner())
                     {
                         backgroundScanner.Attach(game);
-                        hits = backgroundScanner.HuntStatTuples(first, second, third, playerId, CancellationToken.None);
-                        // The REAL table is int16 in low memory - these hits
-                        // become live-watched rows on the bug.
+                        // int32 full-memory pass RETIRED (2026-08-21): it only
+                        // ever found UI copies, and big sweeps correlate with
+                        // game crashes. The narrow paced int16 hunt is the
+                        // one that finds real table rows.
                         tableHits = backgroundScanner.HuntStatTuplesInt16(first, second, CancellationToken.None);
                     }
                 }
@@ -7605,7 +7606,8 @@ namespace CollegeFootballRamDiagnostic
                                 {
                                     Address = address,
                                     DeltaB = Int32.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture),
-                                    PlayerId = playerId
+                                    PlayerId = playerId,
+                                    Label = huntText
                                 });
                         }
                     }
@@ -7657,6 +7659,8 @@ namespace CollegeFootballRamDiagnostic
                 int playerId = request.ContainsKey("playerId")
                     ? Convert.ToInt32(request["playerId"], CultureInfo.InvariantCulture) : 900000;
                 string label = request.ContainsKey("label") ? (string)request["label"] : "manual";
+                if (identityNames.Count < 300 && !identityNames.ContainsKey(playerId))
+                    identityNames[playerId] = label;
                 if (QueueStatTupleHunt("MANUAL " + label, playerId, first, second, third))
                 {
                     try { File.Delete(path + ".done"); } catch { }
@@ -7693,6 +7697,10 @@ namespace CollegeFootballRamDiagnostic
                 return;
             }
             if (scoreHudRebaseRunning) return;
+            // Full-memory hunts are expensive for the game - cap them per
+            // session (the persisted cache makes them unnecessary anyway
+            // except right after a brand-new EA patch).
+            if (scoreHudRebaseHuntCount >= 8) return;
             if (consecutiveEmptyScoreHudSweeps < 3) return;
             if (!String.Equals(downDistanceKind, "numeric", StringComparison.Ordinal)) return;
             if (downValue < 1 || downValue > 4 || distanceValue < 1 || distanceValue > 99) return;
@@ -7702,6 +7710,7 @@ namespace CollegeFootballRamDiagnostic
             int processId = scanner.Process.Id;
             int huntDown = downValue;
             int huntDistance = distanceValue;
+            scoreHudRebaseHuntCount++;
             scoreHudRebaseRunning = true;
             LogScoreHudRebase("hunt", "Sweeps empty " + consecutiveEmptyScoreHudSweeps.ToString(CultureInfo.InvariantCulture)
                 + "x during live play; hunting the down-distance object for " + huntDown.ToString(CultureInfo.InvariantCulture)

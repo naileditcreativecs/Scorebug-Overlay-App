@@ -1016,7 +1016,10 @@ function ramScoreboardPayload(document) {
       address: String(row?.address || ''),
       player: row?.player ? String(row.player) : null,
       playerId: Number.isInteger(row?.playerId) ? row.playerId : null,
+      label: row?.label ? String(row.label) : null,
       confirmed: Number.isInteger(row?.confirmed) ? row.confirmed : 0,
+      liveA: Number.isFinite(row?.liveA) ? row.liveA : null,
+      liveB: Number.isFinite(row?.liveB) ? row.liveB : null,
       values: Array.isArray(row?.values) ? row.values.slice(0, 24).map(Number) : [],
     })).filter((row) => row.address && row.values.length), true, 'game.statTable');
   }
