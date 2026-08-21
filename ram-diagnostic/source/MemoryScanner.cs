@@ -2603,7 +2603,7 @@ namespace CollegeFootballRamDiagnostic
                                 + " +s" + delta.ToString(CultureInfo.InvariantCulture));
                             break;
                         }
-                        if (found.Count >= 12) return found;
+                        if (found.Count >= 20) return found;
                     }
                     // Pacing: a short breather per 1MB chunk keeps this hunt
                     // invisible to the game's own memory streaming.

@@ -212,7 +212,7 @@ const { applyRamFieldHold, clearRamFieldHold, createRamFieldHoldCache,
   forgetRamFieldHold,
 } = require('./ram-field-hold');
 const { flagStateFromMessages } = require('./flag-detector');
-const { parseHudTexts } = require('./stat-line-parser');
+const { parseHudTexts, parseStatLine } = require('./stat-line-parser');
 const { createStatBoard, updateStatBoard } = require('./stat-board');
 const liveStatBoard = createStatBoard();
 let lastRamQuarter = null;
@@ -1043,6 +1043,40 @@ function ramScoreboardPayload(document) {
     const matchupKey = `${state.away?.name ?? ''}@${state.home?.name ?? ''}`;
     const boardOut = updateStatBoard(liveStatBoard, matchupKey, parsedStats, Date.now());
     apply(state.game, 'statBoard', boardOut, boardOut.length > 0, 'game.statBoard');
+  }
+  // CONFIRMED live table rows feed the board continuously: once a player's
+  // accumulator row is confirmed, his line ticks in real time between
+  // pop-ups (the reader sorts confirmed rows first; first per player wins).
+  {
+    const confirmedRows = Array.isArray(state.game.statTable)
+      ? state.game.statTable.filter((row) => row.confirmed > 0) : [];
+    const liveEntries = [];
+    const seenPlayers = new Set();
+    for (const row of confirmedRows) {
+      const playerKey = row.playerId || row.player || row.label;
+      if (!playerKey || seenPlayers.has(playerKey)) continue;
+      seenPlayers.add(playerKey);
+      const label = row.label || '';
+      const parsedLabel = parseStatLine(label);
+      const kind = parsedLabel?.kind
+        || (/rush|car/i.test(label) ? 'rushing'
+          : /catch|rec/i.test(label) ? 'receiving'
+            : /pass|comp/i.test(label) ? 'passing' : null);
+      if (!kind || !Number.isFinite(row.liveA) || !Number.isFinite(row.liveB)) continue;
+      const entry = {
+        kind, player: row.player || null, playerId: row.playerId,
+        teamSide: null, yards: row.liveB, tds: null, live: true, text: label,
+      };
+      if (kind === 'rushing') entry.carries = row.liveA;
+      else if (kind === 'receiving') entry.receptions = row.liveA;
+      else if (kind === 'passing') { entry.completions = row.liveA; entry.attempts = null; entry.ints = null; }
+      liveEntries.push(entry);
+    }
+    if (liveEntries.length) {
+      const matchupKey = `${state.away?.name ?? ''}@${state.home?.name ?? ''}`;
+      const boardOut = updateStatBoard(liveStatBoard, matchupKey, liveEntries, Date.now());
+      apply(state.game, 'statBoard', boardOut, boardOut.length > 0, 'game.statBoard');
+    }
   }
   // Precise yardage (float, two verified copies in the scoreboard block)
   // and field-goal distance (same slot while the FG presentation is up).

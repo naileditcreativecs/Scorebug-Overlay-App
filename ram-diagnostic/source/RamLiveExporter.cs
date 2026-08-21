@@ -7422,9 +7422,12 @@ namespace CollegeFootballRamDiagnostic
         // holds the new banner's numbers - the live row is confirmed and the
         // scan is unnecessary. Stale copies (old numbers) are dropped after
         // two misses so the watch list stays honest.
+        private readonly HashSet<long> confirmedNeighborhoodDumped = new HashSet<long>();
+
         private bool CheckStatRowCandidates(int playerId, int first, int second)
         {
             bool confirmedAny = false;
+            List<long> newlyConfirmed = new List<long>();
             lock (statTableWatchSync)
             {
                 for (int index = statTableWatch.Count - 1; index >= 0; index--)
@@ -7441,6 +7444,7 @@ namespace CollegeFootballRamDiagnostic
                     catch { statTableWatch.RemoveAt(index); continue; }
                     if (a == first && b == second)
                     {
+                        if (candidate.Confirmed == 0) newlyConfirmed.Add(candidate.Address);
                         candidate.Confirmed++;
                         candidate.Failed = 0;
                         confirmedAny = true;
@@ -7450,6 +7454,31 @@ namespace CollegeFootballRamDiagnostic
                         statTableWatch.RemoveAt(index);
                     }
                 }
+            }
+            // A first confirmation is the map to the FULL roster table: dump
+            // the row's neighborhood once so the record stride (and with it
+            // every other player's row) can be derived offline.
+            foreach (long address in newlyConfirmed)
+            {
+                if (!confirmedNeighborhoodDumped.Add(address)) continue;
+                if (confirmedNeighborhoodDumped.Count > 24) break;
+                try
+                {
+                    byte[] around = scanner.ReadBytes(address - 0x480, 0x900);
+                    List<int> values = new List<int>();
+                    for (int offset = 0; offset + 2 <= around.Length; offset += 2)
+                        values.Add(BitConverter.ToInt16(around, offset));
+                    AppendProbeLine(probeOutputSeedPath, "stattable-probe.jsonl",
+                        new Dictionary<string, object>
+                        {
+                            { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                            { "stage", "confirmed-neighborhood" },
+                            { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                            { "playerId", playerId }, { "first", first }, { "second", second },
+                            { "int16s", values }
+                        });
+                }
+                catch { }
             }
             return confirmedAny;
         }
@@ -7601,7 +7630,7 @@ namespace CollegeFootballRamDiagnostic
                             bool known = false;
                             foreach (StatRowCandidate existing in statTableWatch)
                                 if (existing.Address == address) { known = true; break; }
-                            if (!known && statTableWatch.Count < 40)
+                            if (!known && statTableWatch.Count < 64)
                                 statTableWatch.Add(new StatRowCandidate
                                 {
                                     Address = address,
