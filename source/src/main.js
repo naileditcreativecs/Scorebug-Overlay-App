@@ -1008,6 +1008,15 @@ function ramScoreboardPayload(document) {
     apply(state.game, 'penaltyTeam', team, Boolean(team), 'game.penaltyTeam');
     apply(state.game, 'penaltyText', sideWord ? `${String(penalty.type).toUpperCase()} - ${sideWord}` : String(penalty.type).toUpperCase(), true, 'game.penaltyText');
   }
+  // Stat-table experiment: live-watched int16 rows from the reader's
+  // banner-anchored hunt - raw pass-through so the Field Inspector can show
+  // whether the values tick during play (the accumulator-confirmation test).
+  if (Array.isArray(document.ram?.statTable) && document.ram.statTable.length) {
+    apply(state.game, 'statTable', document.ram.statTable.map((row) => ({
+      address: String(row?.address || ''),
+      values: Array.isArray(row?.values) ? row.values.slice(0, 24).map(Number) : [],
+    })).filter((row) => row.address && row.values.length), true, 'game.statTable');
+  }
   // Stat lower-thirds and other ScoreHud text objects (raw pass-through).
   if (Array.isArray(document.ram?.hudTexts) && document.ram.hudTexts.length) {
     apply(state.game, 'hudTexts', document.ram.hudTexts.map((item) => ({

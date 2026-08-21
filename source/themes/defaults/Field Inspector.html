@@ -257,6 +257,16 @@
     }).filter(Boolean);
   }
 
+  function tableLines() {
+    var rows = value('game.statTable');
+    if (!Array.isArray(rows) || !rows.length) return [];
+    return rows.map(function (row) {
+      if (!row || !row.address) return '';
+      var vals = (row.values || []).filter(function (v) { return v >= -1 && v <= 500; });
+      return row.address + ':  ' + vals.join(', ');
+    }).filter(Boolean);
+  }
+
   function rawBanners() {
     var texts = value('game.hudTexts');
     if (!Array.isArray(texts) || !texts.length) return [];
@@ -326,6 +336,7 @@
     if (setting('showStats')) {
       html += listSection('Live player stats', statLines(), 'No stat banner on screen right now');
       html += listSection('Stat board (all seen this game)', boardLines(), 'No stat lines captured yet this game');
+      html += listSection('Stat table experiment (live memory rows)', tableLines(), 'No table rows tracked yet - a stat banner arms this');
       html += listSection('Raw banner text', rawBanners(), 'game.hudTexts is empty');
     }
     // Rebuilding a large DOM every second for identical content is free

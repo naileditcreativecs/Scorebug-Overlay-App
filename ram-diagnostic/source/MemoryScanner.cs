@@ -2561,6 +2561,52 @@ namespace CollegeFootballRamDiagnostic
         // be found by scanning for the ordered tuple near the player's id.
         // Each hit logs the layout (offsets between fields, id offset); the
         // recurring layout across banners IS the table row shape.
+        // The real per-player table stores int16 fields in low memory
+        // (~0x40Axxxx with a ~0x477xxxx mirror; proven 2026-08-21 against a
+        // spoken box score) - the int32-only first version could only ever
+        // find UI copies. This pass scans the low region for the tuple as
+        // int16 with no id requirement (ids exceed int16 range); entries are
+        // prefixed "i16:" so the exporter can watch them live.
+        public List<string> HuntStatTuplesInt16(int first, int second, CancellationToken token)
+        {
+            EnsureAttached();
+            List<string> found = new List<string>();
+            const long windowLow = 0x2000000L;
+            const long windowHigh = 0x10000000L;
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize];
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                token.ThrowIfCancellationRequested();
+                MemoryRegion region = regions[regionIndex];
+                long start = Math.Max(region.BaseAddress, windowLow);
+                long end = Math.Min(region.BaseAddress + region.Size, windowHigh);
+                if (start >= end) continue;
+                long offset = 0;
+                long size = end - start;
+                while (offset < size)
+                {
+                    int requested = (int)Math.Min(buffer.Length, size - offset);
+                    int bytesRead = Read(start + offset, buffer, requested);
+                    for (int index = 0; index + 2 <= bytesRead - 0x40; index += 2)
+                    {
+                        if (BitConverter.ToInt16(buffer, index) != first) continue;
+                        for (int delta = 2; delta <= 0x40; delta += 2)
+                        {
+                            if (BitConverter.ToInt16(buffer, index + delta) != second) continue;
+                            found.Add("i16:0x" + (start + offset + index).ToString("X", CultureInfo.InvariantCulture)
+                                + " +s" + delta.ToString(CultureInfo.InvariantCulture));
+                            break;
+                        }
+                        if (found.Count >= 12) return found;
+                    }
+                    if (requested <= 0x80) break;
+                    offset += requested - 0x40;
+                }
+            }
+            return found;
+        }
+
         public List<string> HuntStatTuples(int first, int second, int third, int playerId,
             CancellationToken token)
         {

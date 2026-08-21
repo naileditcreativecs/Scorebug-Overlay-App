@@ -759,6 +759,11 @@ namespace CollegeFootballRamDiagnostic
             // Post-patch offset re-derivation, when it has happened - so a
             // tester zip shows at a glance that this session self-repaired.
             if (scoreHudRebaseSummary != null) ram["scoreHudRebase"] = scoreHudRebaseSummary;
+            if (GameProfile.Key == "cfb27")
+            {
+                List<Dictionary<string, object>> tableRows = StatTableWatchRows();
+                if (tableRows.Count > 0) ram["statTable"] = tableRows;
+            }
             string publishedAwayName = matchupTransitionPending ? null : lastAwayTeamName;
             string publishedHomeName = matchupTransitionPending ? null : lastHomeTeamName;
             ram["awayTeamName"] = TeamNameDictionary(publishedAwayName, publishedAwayRead);
@@ -7396,6 +7401,36 @@ namespace CollegeFootballRamDiagnostic
         private bool statTupleHuntRunning;
         private DateTime nextStatTupleHuntUtc = DateTime.MinValue;
         private int statTupleHuntCount;
+        // Live experiment: int16 table-row candidates found by banner hunts,
+        // re-read every export cycle and published raw so the Field
+        // Inspector shows whether they tick during play (the decisive test
+        // that they are the game's real accumulator rows).
+        private readonly object statTableWatchSync = new object();
+        private readonly List<long> statTableWatch = new List<long>();
+
+        private List<Dictionary<string, object>> StatTableWatchRows()
+        {
+            List<long> watched;
+            lock (statTableWatchSync) watched = new List<long>(statTableWatch);
+            List<Dictionary<string, object>> rows = new List<Dictionary<string, object>>();
+            foreach (long address in watched)
+            {
+                try
+                {
+                    byte[] bytes = scanner.ReadBytes(address, 0x30);
+                    List<int> values = new List<int>();
+                    for (int offset = 0; offset + 2 <= bytes.Length; offset += 2)
+                        values.Add(BitConverter.ToInt16(bytes, offset));
+                    rows.Add(new Dictionary<string, object>
+                    {
+                        { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                        { "values", values }
+                    });
+                }
+                catch { }
+            }
+            return rows;
+        }
         // The stat objects' own PlayerId field is useless (reads 0/1 live,
         // 2026-08-20) - the real roster id rides in the identity tokens
         // ("GlassKourdey_28851") the game shows alongside the stat banner.
@@ -7446,6 +7481,7 @@ namespace CollegeFootballRamDiagnostic
             ThreadPool.QueueUserWorkItem(delegate
             {
                 List<string> hits = null;
+                List<string> tableHits = null;
                 try
                 {
                     Process game = Process.GetProcessById(processId);
@@ -7453,9 +7489,27 @@ namespace CollegeFootballRamDiagnostic
                     {
                         backgroundScanner.Attach(game);
                         hits = backgroundScanner.HuntStatTuples(first, second, third, playerId, CancellationToken.None);
+                        // The REAL table is int16 in low memory - these hits
+                        // become live-watched rows on the bug.
+                        tableHits = backgroundScanner.HuntStatTuplesInt16(first, second, CancellationToken.None);
                     }
                 }
                 catch { }
+                if (tableHits != null)
+                {
+                    lock (statTableWatchSync)
+                    {
+                        foreach (string hit in tableHits)
+                        {
+                            System.Text.RegularExpressions.Match match =
+                                System.Text.RegularExpressions.Regex.Match(hit, "^i16:0x([0-9A-F]+) ");
+                            if (!match.Success) continue;
+                            long address = Convert.ToInt64(match.Groups[1].Value, 16);
+                            if (!statTableWatch.Contains(address) && statTableWatch.Count < 24)
+                                statTableWatch.Add(address);
+                        }
+                    }
+                }
                 try
                 {
                     AppendProbeLine(probeOutputSeedPath, "stattable-probe.jsonl",
@@ -7464,7 +7518,8 @@ namespace CollegeFootballRamDiagnostic
                             { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
                             { "text", huntText }, { "playerId", playerId },
                             { "numbers", new int[] { first, second, third } },
-                            { "hits", hits != null ? hits : new List<string>() }
+                            { "hits", hits != null ? hits : new List<string>() },
+                            { "tableHits", tableHits != null ? tableHits : new List<string>() }
                         });
                 }
                 catch { }
