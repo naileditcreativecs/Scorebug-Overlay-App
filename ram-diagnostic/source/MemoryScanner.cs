@@ -2675,6 +2675,70 @@ namespace CollegeFootballRamDiagnostic
             return found;
         }
 
+        // Value-hunt: the Cheat-Engine loop, in-reader and chat-driven. The
+        // first scan finds every 2-byte cell holding the value (paced, sub
+        // 4GB); "next" filters survivors by re-reading them in page groups.
+        public List<long> ScanInt16Exact(short value, int cap, CancellationToken token)
+        {
+            EnsureAttached();
+            List<long> hits = new List<long>();
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize];
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                token.ThrowIfCancellationRequested();
+                MemoryRegion region = regions[regionIndex];
+                if (region.BaseAddress < 0x10000L || region.BaseAddress >= 0x100000000L) continue;
+                long readableSize = Math.Min(region.Size, 0x100000000L - region.BaseAddress);
+                long offset = 0;
+                while (offset < readableSize)
+                {
+                    int requested = (int)Math.Min(buffer.Length, readableSize - offset);
+                    int bytesRead = Read(region.BaseAddress + offset, buffer, requested);
+                    for (int index = 0; index + 2 <= bytesRead; index += 2)
+                    {
+                        if (BitConverter.ToInt16(buffer, index) != value) continue;
+                        hits.Add(region.BaseAddress + offset + index);
+                        if (hits.Count >= cap) return hits;
+                    }
+                    // Same pacing that keeps every other hunt invisible to
+                    // the game's own streaming.
+                    System.Threading.Thread.Sleep(3);
+                    if (requested <= 4) break;
+                    offset += requested;
+                }
+            }
+            return hits;
+        }
+
+        // Filter survivors by current value, reading each 64KB page once
+        // instead of one syscall per address.
+        public List<long> FilterInt16Survivors(List<long> survivors, short value)
+        {
+            EnsureAttached();
+            List<long> kept = new List<long>();
+            if (survivors == null || survivors.Count == 0) return kept;
+            List<long> sorted = new List<long>(survivors);
+            sorted.Sort();
+            byte[] page = new byte[0x10000];
+            long pageBase = -1;
+            int pageRead = 0;
+            foreach (long address in sorted)
+            {
+                long wantedPage = address & ~0xFFFFL;
+                if (wantedPage != pageBase)
+                {
+                    pageBase = wantedPage;
+                    try { pageRead = Read(pageBase, page, page.Length); }
+                    catch { pageRead = 0; }
+                }
+                int offset = (int)(address - pageBase);
+                if (offset + 2 > pageRead) continue;
+                if (BitConverter.ToInt16(page, offset) == value) kept.Add(address);
+            }
+            return kept;
+        }
+
         private static ulong HashRankContext(byte[] buffer, int start, int length, int awayIndex, int homeIndex,
             long chunkAddress, bool normalizePointers, bool shapeOnly)
         {

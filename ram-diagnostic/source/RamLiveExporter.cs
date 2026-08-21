@@ -995,6 +995,7 @@ namespace CollegeFootballRamDiagnostic
             try { MaybeRebaseScoreHudOffsets(downValue, distanceValue, downDistanceKind); } catch { }
             try { RefreshPlayCallFieldGoalText(downValue); } catch { }
             try { ProcessManualStatHunt(); } catch { }
+            try { ProcessValueHunt(); } catch { }
             try { WriteStatBannerProbe(screenJsonPath, quarterValue, clockValue, downValue, distanceValue); } catch { }
             if (GameProfile.Key == "madden27")
             {
@@ -7743,6 +7744,137 @@ namespace CollegeFootballRamDiagnostic
                 }
             }
             catch { }
+        }
+
+        // --- Value hunt: chat-driven Cheat-Engine loop -------------------
+        // Claude writes value-hunt.json ({"action":"first"|"next"|"reset",
+        // "value":N,"label":"turner-yards"}); the reader scans/filters and
+        // writes value-hunt-status.json. At <=24 survivors it dumps each
+        // one's neighborhood automatically (the "jackpot" step). Read-only,
+        // paced, single burst per command - same footprint as one CE scan.
+        private readonly object valueHuntSync = new object();
+        private List<long> valueHuntSurvivors = new List<long>();
+        private string valueHuntLabel = "";
+        private bool valueHuntRunning;
+        private string lastValueHuntSignature = "";
+        private DateTime nextValueHuntCheckUtc = DateTime.MinValue;
+
+        private void WriteValueHuntStatus(string state, int survivorCount, List<long> sample)
+        {
+            try
+            {
+                string folder = Path.GetDirectoryName(OutputPath(probeOutputSeedPath));
+                List<string> sampleHex = new List<string>();
+                if (sample != null)
+                    foreach (long address in sample)
+                        sampleHex.Add("0x" + address.ToString("X", CultureInfo.InvariantCulture));
+                File.WriteAllText(Path.Combine(folder, "value-hunt-status.json"),
+                    new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(
+                        new Dictionary<string, object>
+                        {
+                            { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                            { "label", valueHuntLabel }, { "state", state },
+                            { "survivors", survivorCount }, { "sample", sampleHex }
+                        }));
+            }
+            catch { }
+        }
+
+        private void ProcessValueHunt()
+        {
+            if (DateTime.UtcNow < nextValueHuntCheckUtc || valueHuntRunning) return;
+            nextValueHuntCheckUtc = DateTime.UtcNow.AddSeconds(1);
+            string folder;
+            string path;
+            string content;
+            try
+            {
+                folder = Path.GetDirectoryName(OutputPath(probeOutputSeedPath));
+                path = Path.Combine(folder, "value-hunt.json");
+                if (!File.Exists(path)) return;
+                content = File.ReadAllText(path);
+            }
+            catch { return; }
+            if (content == lastValueHuntSignature) return;
+            lastValueHuntSignature = content;
+            string action = "";
+            int value = 0;
+            try
+            {
+                Dictionary<string, object> request =
+                    new System.Web.Script.Serialization.JavaScriptSerializer()
+                        .Deserialize<Dictionary<string, object>>(content);
+                action = ((string)request["action"] ?? "").ToLowerInvariant();
+                if (request.ContainsKey("value"))
+                    value = Convert.ToInt32(request["value"], CultureInfo.InvariantCulture);
+                if (request.ContainsKey("label")) valueHuntLabel = (string)request["label"];
+            }
+            catch { return; }
+            if (action == "reset")
+            {
+                lock (valueHuntSync) valueHuntSurvivors = new List<long>();
+                WriteValueHuntStatus("reset", 0, null);
+                return;
+            }
+            if (value < -30000 || value > 30000) return;
+            if (scanner.Process == null || scanner.Process.HasExited) return;
+            int processId = scanner.Process.Id;
+            bool isFirst = action == "first";
+            if (!isFirst && action != "next") return;
+            valueHuntRunning = true;
+            WriteValueHuntStatus(isFirst ? "scanning" : "filtering", -1, null);
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                try
+                {
+                    Process game = Process.GetProcessById(processId);
+                    using (MemoryScanner backgroundScanner = new MemoryScanner())
+                    {
+                        backgroundScanner.Attach(game);
+                        List<long> result;
+                        if (isFirst)
+                        {
+                            result = backgroundScanner.ScanInt16Exact((short)value, 4000000, CancellationToken.None);
+                        }
+                        else
+                        {
+                            List<long> current;
+                            lock (valueHuntSync) current = new List<long>(valueHuntSurvivors);
+                            result = backgroundScanner.FilterInt16Survivors(current, (short)value);
+                        }
+                        lock (valueHuntSync) valueHuntSurvivors = result;
+                        List<long> sample = result.Count <= 24 ? result : result.GetRange(0, 24);
+                        WriteValueHuntStatus("done", result.Count, sample);
+                        // Jackpot: few enough survivors = dump each row's
+                        // neighborhood for offline layout derivation.
+                        if (result.Count > 0 && result.Count <= 24)
+                        {
+                            foreach (long address in result)
+                            {
+                                try
+                                {
+                                    byte[] around = backgroundScanner.ReadBytes(address - 0x480, 0x900);
+                                    List<int> values = new List<int>();
+                                    for (int offset = 0; offset + 2 <= around.Length; offset += 2)
+                                        values.Add(BitConverter.ToInt16(around, offset));
+                                    AppendProbeLine(probeOutputSeedPath, "valuehunt-dumps.jsonl",
+                                        new Dictionary<string, object>
+                                        {
+                                            { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                                            { "label", valueHuntLabel },
+                                            { "value", value },
+                                            { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                                            { "int16s", values }
+                                        });
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+                catch { WriteValueHuntStatus("error", -1, null); }
+                valueHuntRunning = false;
+            });
         }
 
         private void MaybeRebaseScoreHudOffsets(int downValue, int distanceValue, string downDistanceKind)
