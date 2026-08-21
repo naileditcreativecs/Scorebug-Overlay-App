@@ -7401,34 +7401,93 @@ namespace CollegeFootballRamDiagnostic
         private bool statTupleHuntRunning;
         private DateTime nextStatTupleHuntUtc = DateTime.MinValue;
         private int statTupleHuntCount;
-        // Live experiment: int16 table-row candidates found by banner hunts,
-        // re-read every export cycle and published raw so the Field
-        // Inspector shows whether they tick during play (the decisive test
-        // that they are the game's real accumulator rows).
+        // Banner-confirmed live-row tracking (the safe, self-contained path
+        // to always-on player stats). Every stat banner is ground truth: the
+        // first banner for a player scatters candidates (int16 tuple hits);
+        // each LATER banner for the same player re-reads the candidates -
+        // only the real accumulator row shows the NEW numbers at the same
+        // spot. Confirmed rows are live per-player stats, no pausing, no
+        // external scans, no user involvement.
+        private sealed class StatRowCandidate
+        {
+            public long Address;
+            public int DeltaB;
+            public int PlayerId;
+            public int Confirmed;
+            public int Failed;
+        }
+
         private readonly object statTableWatchSync = new object();
-        private readonly List<long> statTableWatch = new List<long>();
+        private readonly List<StatRowCandidate> statTableWatch = new List<StatRowCandidate>();
+        private readonly Dictionary<int, string> identityNames = new Dictionary<int, string>();
+
+        // Returns true when an existing candidate for this player already
+        // holds the new banner's numbers - the live row is confirmed and the
+        // scan is unnecessary. Stale copies (old numbers) are dropped after
+        // two misses so the watch list stays honest.
+        private bool CheckStatRowCandidates(int playerId, int first, int second)
+        {
+            bool confirmedAny = false;
+            lock (statTableWatchSync)
+            {
+                for (int index = statTableWatch.Count - 1; index >= 0; index--)
+                {
+                    StatRowCandidate candidate = statTableWatch[index];
+                    if (candidate.PlayerId != playerId) continue;
+                    int a, b;
+                    try
+                    {
+                        byte[] bytes = scanner.ReadBytes(candidate.Address, candidate.DeltaB + 2);
+                        a = BitConverter.ToInt16(bytes, 0);
+                        b = BitConverter.ToInt16(bytes, candidate.DeltaB);
+                    }
+                    catch { statTableWatch.RemoveAt(index); continue; }
+                    if (a == first && b == second)
+                    {
+                        candidate.Confirmed++;
+                        candidate.Failed = 0;
+                        confirmedAny = true;
+                    }
+                    else if (candidate.Confirmed == 0 && ++candidate.Failed >= 2)
+                    {
+                        statTableWatch.RemoveAt(index);
+                    }
+                }
+            }
+            return confirmedAny;
+        }
 
         private List<Dictionary<string, object>> StatTableWatchRows()
         {
-            List<long> watched;
-            lock (statTableWatchSync) watched = new List<long>(statTableWatch);
+            List<StatRowCandidate> watched;
+            lock (statTableWatchSync) watched = new List<StatRowCandidate>(statTableWatch);
             List<Dictionary<string, object>> rows = new List<Dictionary<string, object>>();
-            foreach (long address in watched)
+            foreach (StatRowCandidate candidate in watched)
             {
                 try
                 {
-                    byte[] bytes = scanner.ReadBytes(address, 0x30);
+                    byte[] bytes = scanner.ReadBytes(candidate.Address, 0x30);
                     List<int> values = new List<int>();
                     for (int offset = 0; offset + 2 <= bytes.Length; offset += 2)
                         values.Add(BitConverter.ToInt16(bytes, offset));
+                    string name;
+                    identityNames.TryGetValue(candidate.PlayerId, out name);
                     rows.Add(new Dictionary<string, object>
                     {
-                        { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                        { "address", "0x" + candidate.Address.ToString("X", CultureInfo.InvariantCulture) },
+                        { "playerId", candidate.PlayerId },
+                        { "player", name },
+                        { "confirmed", candidate.Confirmed },
                         { "values", values }
                     });
                 }
                 catch { }
             }
+            // Confirmed rows first - they are the real ones.
+            rows.Sort(delegate(Dictionary<string, object> left, Dictionary<string, object> right)
+            {
+                return ((int)right["confirmed"]).CompareTo((int)left["confirmed"]);
+            });
             return rows;
         }
         // The stat objects' own PlayerId field is useless (reads 0/1 live,
@@ -7440,10 +7499,11 @@ namespace CollegeFootballRamDiagnostic
         private void NoteIdentityToken(string text)
         {
             System.Text.RegularExpressions.Match match =
-                System.Text.RegularExpressions.Regex.Match(text ?? "", "^[A-Za-z.'-]+_([0-9]{3,7})$");
+                System.Text.RegularExpressions.Regex.Match(text ?? "", "^([A-Za-z.'-]+)_([0-9]{3,7})$");
             if (!match.Success) return;
-            lastIdentityTokenId = Int32.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            lastIdentityTokenId = Int32.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
             lastIdentityTokenUtc = DateTime.UtcNow;
+            if (identityNames.Count < 300) identityNames[lastIdentityTokenId] = match.Groups[1].Value;
         }
 
         private void MaybeHuntStatTuple(string text, int playerId)
@@ -7472,6 +7532,25 @@ namespace CollegeFootballRamDiagnostic
             int second = Int32.Parse(numbers[1].Value, CultureInfo.InvariantCulture);
             int third = numbers.Count >= 3 ? Int32.Parse(numbers[2].Value, CultureInfo.InvariantCulture) : -1;
             if (first > 999 || second > 999) return;
+            // First: does an already-watched row for this player now hold the
+            // new numbers? Then the live row is CONFIRMED and no scan is
+            // needed at all - the steady state costs nothing.
+            bool rowConfirmed = false;
+            try { rowConfirmed = CheckStatRowCandidates(playerId, first, second); } catch { }
+            if (rowConfirmed)
+            {
+                try
+                {
+                    AppendProbeLine(probeOutputSeedPath, "stattable-probe.jsonl",
+                        new Dictionary<string, object>
+                        {
+                            { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                            { "stage", "row-confirmed" }, { "text", text }, { "playerId", playerId }
+                        });
+                }
+                catch { }
+                return;
+            }
             nextStatTupleHuntUtc = DateTime.UtcNow.AddSeconds(12);
             if (scanner.Process == null || scanner.Process.HasExited) return;
             int processId = scanner.Process.Id;
@@ -7502,11 +7581,19 @@ namespace CollegeFootballRamDiagnostic
                         foreach (string hit in tableHits)
                         {
                             System.Text.RegularExpressions.Match match =
-                                System.Text.RegularExpressions.Regex.Match(hit, "^i16:0x([0-9A-F]+) ");
+                                System.Text.RegularExpressions.Regex.Match(hit, "^i16:0x([0-9A-F]+) \\+s([0-9]+)");
                             if (!match.Success) continue;
                             long address = Convert.ToInt64(match.Groups[1].Value, 16);
-                            if (!statTableWatch.Contains(address) && statTableWatch.Count < 24)
-                                statTableWatch.Add(address);
+                            bool known = false;
+                            foreach (StatRowCandidate existing in statTableWatch)
+                                if (existing.Address == address) { known = true; break; }
+                            if (!known && statTableWatch.Count < 40)
+                                statTableWatch.Add(new StatRowCandidate
+                                {
+                                    Address = address,
+                                    DeltaB = Int32.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture),
+                                    PlayerId = playerId
+                                });
                         }
                     }
                 }

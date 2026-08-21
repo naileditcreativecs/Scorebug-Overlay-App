@@ -1014,6 +1014,9 @@ function ramScoreboardPayload(document) {
   if (Array.isArray(document.ram?.statTable) && document.ram.statTable.length) {
     apply(state.game, 'statTable', document.ram.statTable.map((row) => ({
       address: String(row?.address || ''),
+      player: row?.player ? String(row.player) : null,
+      playerId: Number.isInteger(row?.playerId) ? row.playerId : null,
+      confirmed: Number.isInteger(row?.confirmed) ? row.confirmed : 0,
       values: Array.isArray(row?.values) ? row.values.slice(0, 24).map(Number) : [],
     })).filter((row) => row.address && row.values.length), true, 'game.statTable');
   }

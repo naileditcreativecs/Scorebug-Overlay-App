@@ -297,7 +297,9 @@
     return rows.map(function (row) {
       if (!row || !row.address) return '';
       var vals = (row.values || []).filter(function (v) { return v >= -1 && v <= 500; });
-      return row.address + ':  ' + vals.join(', ');
+      var who = row.player || (row.playerId ? '#' + row.playerId : '?');
+      var mark = row.confirmed > 0 ? 'CONFIRMED LIVE ROW  ' : 'candidate  ';
+      return mark + who + '  ' + row.address + ':  ' + vals.join(', ');
     }).filter(Boolean);
   }
 

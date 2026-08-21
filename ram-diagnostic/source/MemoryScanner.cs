@@ -2571,8 +2571,13 @@ namespace CollegeFootballRamDiagnostic
         {
             EnsureAttached();
             List<string> found = new List<string>();
-            const long windowLow = 0x2000000L;
-            const long windowHigh = 0x10000000L;
+            // Full sub-4GB: the live accumulator's region is unknown (the low
+            // fixed window only held the postgame box-score snapshot). This
+            // runs on the reader's own paced background thread - the same
+            // read pattern as the routine full sweeps, which never disturb
+            // the game. External ad-hoc scans are retired (2026-08-21).
+            const long windowLow = 0x10000L;
+            const long windowHigh = 0x100000000L;
             List<MemoryRegion> regions = EnumerateRegions();
             byte[] buffer = new byte[ChunkSize];
             for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
