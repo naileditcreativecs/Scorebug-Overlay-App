@@ -95,6 +95,16 @@
   .list { margin: 4px 0 0; padding-left: 16px; }
   .list li { margin: 2px 0; font-size: calc(12.5px * var(--scale)); }
   .note { color: var(--muted); font-size: calc(11.5px * var(--scale)); margin-top: 9px; }
+  section.spotlight {
+    border: 2px solid #f5c518; background: rgba(245,197,24,0.09);
+    box-shadow: 0 0 0 3px rgba(245,197,24,0.18);
+  }
+  section.spotlight h2 { color: #f5c518; }
+  .spotlight-tag {
+    display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+    background: #f5c518; color: #1a1500; font-size: calc(9.5px * var(--scale));
+    font-weight: 800; letter-spacing: 0.08em; vertical-align: 1px;
+  }
   @media (prefers-reduced-motion: reduce) { .v.changed { animation: none; } }
 </style>
 
@@ -346,12 +356,14 @@
     });
   }
 
-  function listSection(title, items, emptyNote) {
+  function listSection(title, items, emptyNote, spotlight) {
     var body = items.length
       ? '<ul class="list">' + items.map(function (i) { return '<li>' + escapeHtml(i) + '</li>'; }).join('') + '</ul>'
-      : (setting('hideEmpty') ? '' : '<div class="row"><span class="k">' + escapeHtml(emptyNote) + '</span><span class="v empty">&mdash;</span></div>');
+      : (setting('hideEmpty') && !spotlight ? '' : '<div class="row"><span class="k">' + escapeHtml(emptyNote) + '</span><span class="v empty">&mdash;</span></div>');
     if (!body) return '';
-    return '<section><h2>' + escapeHtml(title) + '</h2>' + body + '</section>';
+    var cls = spotlight ? ' class="spotlight"' : '';
+    var tag = spotlight ? '<span class="spotlight-tag">PLAYER STATS</span>' : '';
+    return '<section' + cls + '><h2>' + escapeHtml(title) + tag + '</h2>' + body + '</section>';
   }
 
   function render() {
@@ -370,10 +382,10 @@
       html += '<section><h2>' + escapeHtml(section[1]) + '</h2>' + rows + '</section>';
     });
     if (setting('showStats')) {
-      html += listSection('Game leaders (top passer / rusher / receiver seen)', leaderLines(), 'No stat banners captured yet this game');
+      html += listSection('Game leaders (top passer / rusher / receiver seen)', leaderLines(), 'Waiting for the first stat pop-up of the game', true);
+      html += listSection('Stat table experiment (live memory rows)', tableLines(), 'Waiting for the first stat pop-up of the game', true);
+      html += listSection('Stat board (all seen this game)', boardLines(), 'Waiting for the first stat pop-up of the game', true);
       html += listSection('Live player stats', statLines(), 'No stat banner on screen right now');
-      html += listSection('Stat board (all seen this game)', boardLines(), 'No stat lines captured yet this game');
-      html += listSection('Stat table experiment (live memory rows)', tableLines(), 'No table rows tracked yet - a stat banner arms this');
       html += listSection('Raw banner text', rawBanners(), 'game.hudTexts is empty');
     }
     // Rebuilding a large DOM every second for identical content is free
