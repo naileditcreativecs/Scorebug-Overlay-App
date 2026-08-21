@@ -257,6 +257,40 @@
     }).filter(Boolean);
   }
 
+  function describeStat(item) {
+    var who = item.player || (item.playerId ? '#' + item.playerId : 'unnamed');
+    var bits = [];
+    if (item.kind === 'receiving') bits = [item.receptions + ' rec', item.yards + ' yds', item.tds + ' td'];
+    else if (item.kind === 'rushing') bits = [item.carries + ' car', item.yards + ' yds', item.tds + ' td'];
+    else if (item.kind === 'passing') bits = [(item.completions !== null && item.completions !== undefined ? item.completions + '/' + item.attempts : ''), item.yards + ' yds', item.tds + ' td', item.ints + ' int'];
+    bits = bits.filter(function (n) { return n && n.indexOf('null') === -1 && n.indexOf('undefined') === -1; });
+    return who + ' - ' + bits.join(', ');
+  }
+
+  function leaderLines() {
+    var board = value('game.statBoard');
+    if (!Array.isArray(board) || !board.length) return [];
+    var kinds = ['passing', 'rushing', 'receiving'];
+    var sides = ['away', 'home', null];
+    var out = [];
+    kinds.forEach(function (kind) {
+      sides.forEach(function (side) {
+        var best = null;
+        board.forEach(function (item) {
+          if (!item || item.kind !== kind) return;
+          if ((item.teamSide || null) !== side) return;
+          if (!best || (Number(item.yards) || 0) > (Number(best.yards) || 0)) best = item;
+        });
+        if (best) {
+          var label = kind.charAt(0).toUpperCase() + kind.slice(1)
+            + (side ? ' (' + side + ')' : '');
+          out.push(label + ': ' + describeStat(best));
+        }
+      });
+    });
+    return out;
+  }
+
   function tableLines() {
     var rows = value('game.statTable');
     if (!Array.isArray(rows) || !rows.length) return [];
@@ -334,6 +368,7 @@
       html += '<section><h2>' + escapeHtml(section[1]) + '</h2>' + rows + '</section>';
     });
     if (setting('showStats')) {
+      html += listSection('Game leaders (top passer / rusher / receiver seen)', leaderLines(), 'No stat banners captured yet this game');
       html += listSection('Live player stats', statLines(), 'No stat banner on screen right now');
       html += listSection('Stat board (all seen this game)', boardLines(), 'No stat lines captured yet this game');
       html += listSection('Stat table experiment (live memory rows)', tableLines(), 'No table rows tracked yet - a stat banner arms this');
