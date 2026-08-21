@@ -7412,6 +7412,9 @@ namespace CollegeFootballRamDiagnostic
             public int Confirmed;
             public int Failed;
             public string Label;
+            public int LastA;
+            public int LastB;
+            public int DriftEvents;
         }
 
         private readonly object statTableWatchSync = new object();
@@ -7483,6 +7486,20 @@ namespace CollegeFootballRamDiagnostic
             return confirmedAny;
         }
 
+        // DRIFT CONFIRMATION (2026-08-21): no second pop-up needed. The live
+        // accumulator row is the one whose values MOVE LIKE A STAT while the
+        // player plays - a carry adds 0-4 to the count and a sane yardage
+        // step; frozen copies never move, and junk moves implausibly. Two
+        // plausible steps confirm; one implausible step disqualifies.
+        internal static bool StatStepIsPlausible(int fromA, int toA, int fromB, int toB)
+        {
+            int da = toA - fromA;
+            int db = toB - fromB;
+            if (da < 0 || da > 4) return false;
+            if (da == 0) return db == 0;
+            return db >= -20 && db <= 99;
+        }
+
         private List<Dictionary<string, object>> StatTableWatchRows()
         {
             List<StatRowCandidate> watched;
@@ -7500,6 +7517,22 @@ namespace CollegeFootballRamDiagnostic
                     identityNames.TryGetValue(candidate.PlayerId, out name);
                     int liveA = values.Count > 0 ? values[0] : 0;
                     int liveB = candidate.DeltaB / 2 < values.Count ? values[candidate.DeltaB / 2] : 0;
+                    if (liveA != candidate.LastA || liveB != candidate.LastB)
+                    {
+                        if (StatStepIsPlausible(candidate.LastA, liveA, candidate.LastB, liveB))
+                        {
+                            candidate.DriftEvents++;
+                            if (candidate.DriftEvents >= 2 && candidate.Confirmed == 0)
+                                candidate.Confirmed = 1;
+                        }
+                        else if (candidate.Confirmed == 0)
+                        {
+                            lock (statTableWatchSync) statTableWatch.Remove(candidate);
+                            continue;
+                        }
+                        candidate.LastA = liveA;
+                        candidate.LastB = liveB;
+                    }
                     rows.Add(new Dictionary<string, object>
                     {
                         { "address", "0x" + candidate.Address.ToString("X", CultureInfo.InvariantCulture) },
@@ -7636,7 +7669,9 @@ namespace CollegeFootballRamDiagnostic
                                     Address = address,
                                     DeltaB = Int32.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture),
                                     PlayerId = playerId,
-                                    Label = huntText
+                                    Label = huntText,
+                                    LastA = first,
+                                    LastB = second
                                 });
                         }
                     }

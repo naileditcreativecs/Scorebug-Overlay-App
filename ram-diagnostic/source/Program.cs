@@ -4145,6 +4145,16 @@ namespace CollegeFootballRamDiagnostic
                 if (!RamLiveExporter.PreciseYardsPairAgrees(55.301, 55.301)
                     || RamLiveExporter.PreciseYardsPairAgrees(55.301, 55.4))
                     throw new Exception("Precise-yardage copy agreement rule is wrong.");
+                // Drift confirmation: a stat step is 0-4 attempts with sane
+                // yardage; unchanged attempts must mean unchanged yards.
+                if (!RamLiveExporter.StatStepIsPlausible(2, 3, 3, 12)
+                    || !RamLiveExporter.StatStepIsPlausible(11, 12, 102, 99)
+                    || !RamLiveExporter.StatStepIsPlausible(5, 5, 37, 37)
+                    || RamLiveExporter.StatStepIsPlausible(5, 4, 37, 40)
+                    || RamLiveExporter.StatStepIsPlausible(5, 11, 37, 60)
+                    || RamLiveExporter.StatStepIsPlausible(5, 5, 37, 44)
+                    || RamLiveExporter.StatStepIsPlausible(5, 6, 37, 200))
+                    throw new Exception("Stat drift plausibility rule is wrong.");
                 // Real spots are fractional; the round 65.000 is the kickoff
                 // staging constant (user-identified via a PAT shown as 65).
                 if (!RamLiveExporter.PreciseLooksLikeRealSpot(43.003)
