@@ -7463,28 +7463,31 @@ namespace CollegeFootballRamDiagnostic
             // the row's neighborhood once so the record stride (and with it
             // every other player's row) can be derived offline.
             foreach (long address in newlyConfirmed)
-            {
-                if (!confirmedNeighborhoodDumped.Add(address)) continue;
-                if (confirmedNeighborhoodDumped.Count > 24) break;
-                try
-                {
-                    byte[] around = scanner.ReadBytes(address - 0x480, 0x900);
-                    List<int> values = new List<int>();
-                    for (int offset = 0; offset + 2 <= around.Length; offset += 2)
-                        values.Add(BitConverter.ToInt16(around, offset));
-                    AppendProbeLine(probeOutputSeedPath, "stattable-probe.jsonl",
-                        new Dictionary<string, object>
-                        {
-                            { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
-                            { "stage", "confirmed-neighborhood" },
-                            { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
-                            { "playerId", playerId }, { "first", first }, { "second", second },
-                            { "int16s", values }
-                        });
-                }
-                catch { }
-            }
+                DumpConfirmedNeighborhood(address, playerId, first, second);
             return confirmedAny;
+        }
+
+        private void DumpConfirmedNeighborhood(long address, int playerId, int first, int second)
+        {
+            if (!confirmedNeighborhoodDumped.Add(address)) return;
+            if (confirmedNeighborhoodDumped.Count > 24) return;
+            try
+            {
+                byte[] around = scanner.ReadBytes(address - 0x480, 0x900);
+                List<int> values = new List<int>();
+                for (int offset = 0; offset + 2 <= around.Length; offset += 2)
+                    values.Add(BitConverter.ToInt16(around, offset));
+                AppendProbeLine(probeOutputSeedPath, "stattable-probe.jsonl",
+                    new Dictionary<string, object>
+                    {
+                        { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                        { "stage", "confirmed-neighborhood" },
+                        { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                        { "playerId", playerId }, { "first", first }, { "second", second },
+                        { "int16s", values }
+                    });
+            }
+            catch { }
         }
 
         // DRIFT CONFIRMATION (2026-08-21): no second pop-up needed. The live
@@ -7524,7 +7527,14 @@ namespace CollegeFootballRamDiagnostic
                         {
                             candidate.DriftEvents++;
                             if (candidate.DriftEvents >= 2 && candidate.Confirmed == 0)
+                            {
                                 candidate.Confirmed = 1;
+                                // Drift confirmations must feed the roster
+                                // research too (they bypassed the dump,
+                                // 2026-08-21 - a whole game's confirmations
+                                // produced zero neighborhood captures).
+                                try { DumpConfirmedNeighborhood(candidate.Address, candidate.PlayerId, liveA, liveB); } catch { }
+                            }
                         }
                         else if (candidate.Confirmed == 0)
                         {
