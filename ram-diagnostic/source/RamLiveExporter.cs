@@ -7190,6 +7190,7 @@ namespace CollegeFootballRamDiagnostic
         private bool scoreHudRebaseVerifiedLogged;
         private bool scoreHudRebaseRunning;
         private int scoreHudRebaseHuntCount;
+        private DateTime nextOffsetsHeartbeatUtc = DateTime.MinValue;
         private DateTime nextScoreHudRebaseAttemptUtc = DateTime.MinValue;
         private readonly object scoreHudRebaseSync = new object();
         private List<ScoreHudRebaseCandidate> pendingScoreHudRebase;
@@ -7738,6 +7739,26 @@ namespace CollegeFootballRamDiagnostic
         {
             if (GameProfile.Key != "cfb27") return;
             if (!scoreHudRebaseCacheChecked) LoadScoreHudRebaseCache();
+            // SELF-HEAL (2026-08-21 morning): a session showed offsets back
+            // at base values by 07:04 despite cache-applied+verified at
+            // 06:56 - source of the revert unknown, so detect and re-apply
+            // every cycle, and log the moment it happens for diagnosis.
+            if (scoreHudRebaseDone && appliedRebaseVtableDelta != 0
+                && GameProfile.ScoreHudIdentityVtableOffset == 0xB0F31A8L)
+            {
+                LogScoreHudRebase("revert-detected",
+                    "Offsets found at BASE values while a rebase is active - re-applying "
+                    + "+0x" + appliedRebaseVtableDelta.ToString("X", CultureInfo.InvariantCulture) + ".");
+                GameProfile.ApplyScoreHudRebase(appliedRebaseVtableDelta, appliedRebaseTypeInfoDelta);
+            }
+            if (DateTime.UtcNow >= nextOffsetsHeartbeatUtc)
+            {
+                nextOffsetsHeartbeatUtc = DateTime.UtcNow.AddSeconds(60);
+                LogScoreHudRebase("offsets", "identity=0x"
+                    + GameProfile.ScoreHudIdentityVtableOffset.ToString("X", CultureInfo.InvariantCulture)
+                    + " statSummary=0x"
+                    + GameProfile.ScoreHudStatSummaryVtableOffset.ToString("X", CultureInfo.InvariantCulture));
+            }
             // NO invalidation on empty sweeps: menus and halftime produce
             // long legitimately-empty stretches, and on 2026-08-21 that rule
             // threw away a good cached rebase mid-session, silently killing
