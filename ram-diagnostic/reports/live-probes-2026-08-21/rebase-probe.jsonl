@@ -1,0 +1,172 @@
+{"t":"2026-08-20T18:59:25.6521442Z","stage":"hunt","detail":"Sweeps empty 5x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T18:59:29.4915110Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:00:25.7600178Z","stage":"hunt","detail":"Sweeps empty 11x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T19:00:28.7767293Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:01:28.3794337Z","stage":"hunt","detail":"Sweeps empty 19x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T19:01:31.2867547Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:02:28.4562110Z","stage":"hunt","detail":"Sweeps empty 26x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T19:02:31.5201300Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:12:19.5289890Z","stage":"hunt","detail":"Sweeps empty 3x during live play; hunting the down-distance object for 2 \u0026 1."}
+{"t":"2026-08-20T19:12:23.1917840Z","stage":"weak","detail":"Best candidate has only 1 instance(s); refusing to rebase on thin evidence."}
+{"t":"2026-08-20T19:12:49.6140411Z","stage":"hunt","detail":"Sweeps empty 6x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T19:12:52.6314945Z","stage":"weak","detail":"Best candidate has only 1 instance(s); refusing to rebase on thin evidence."}
+{"t":"2026-08-20T19:13:19.6270204Z","stage":"hunt","detail":"Sweeps empty 11x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T19:13:22.4343866Z","stage":"weak","detail":"Best candidate has only 1 instance(s); refusing to rebase on thin evidence."}
+{"t":"2026-08-20T19:13:49.7128403Z","stage":"hunt","detail":"Sweeps empty 15x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T19:13:52.5297857Z","stage":"weak","detail":"Best candidate has only 1 instance(s); refusing to rebase on thin evidence."}
+{"t":"2026-08-20T19:23:43.9159361Z","stage":"hunt","detail":"Sweeps empty 3x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T19:23:47.5169937Z","stage":"weak","detail":"Single-instance candidate vtable 0xB0F4128, typeinfo 0xE159810 (\"1st \u0026 10\", 1 instance(s)); waiting for a second hunt to corroborate."}
+{"t":"2026-08-20T19:24:14.0776809Z","stage":"hunt","detail":"Sweeps empty 6x during live play; hunting the down-distance object for 3 \u0026 1."}
+{"t":"2026-08-20T19:24:17.6896660Z","stage":"corroborated","detail":"Two consecutive hunts agree on vtable 0xB0F4128, typeinfo 0xE159810 (\"3rd \u0026 2\", 1 instance(s))."}
+{"t":"2026-08-20T19:24:17.6908305Z","stage":"applied","detail":"Game patch detected. ScoreHud offsets re-derived from the live \"3rd \u0026 2\" object (1 instance(s)): vtables +0x1000, typeinfo +0x1000."}
+{"t":"2026-08-20T19:24:26.2566131Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 0 message objects."}
+{"t":"2026-08-20T19:36:08.0262113Z","stage":"hunt","detail":"Sweeps empty 3x during live play; hunting the down-distance object for 3 \u0026 3."}
+{"t":"2026-08-20T19:36:11.7365389Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:36:38.1678403Z","stage":"hunt","detail":"Sweeps empty 6x during live play; hunting the down-distance object for 3 \u0026 3."}
+{"t":"2026-08-20T19:36:41.3683183Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:37:08.2122152Z","stage":"hunt","detail":"Sweeps empty 10x during live play; hunting the down-distance object for 3 \u0026 8."}
+{"t":"2026-08-20T19:37:11.3172334Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:37:38.3208335Z","stage":"hunt","detail":"Sweeps empty 14x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-20T19:37:41.3111793Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:38:08.3465354Z","stage":"hunt","detail":"Sweeps empty 18x during live play; hunting the down-distance object for 1 \u0026 15."}
+{"t":"2026-08-20T19:38:11.3715677Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:38:38.4115634Z","stage":"hunt","detail":"Sweeps empty 22x during live play; hunting the down-distance object for 1 \u0026 15."}
+{"t":"2026-08-20T19:38:41.3702678Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:39:08.4331506Z","stage":"hunt","detail":"Sweeps empty 26x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:39:11.4561975Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:39:38.5364840Z","stage":"hunt","detail":"Sweeps empty 31x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:39:41.3540353Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:40:08.6542732Z","stage":"hunt","detail":"Sweeps empty 35x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:40:11.5640750Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:40:38.7510045Z","stage":"hunt","detail":"Sweeps empty 41x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:40:41.5891507Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:41:08.8513535Z","stage":"hunt","detail":"Sweeps empty 44x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:41:11.6865701Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:41:38.9071104Z","stage":"hunt","detail":"Sweeps empty 50x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:41:41.6570499Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:42:08.9196853Z","stage":"hunt","detail":"Sweeps empty 52x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:42:11.6526587Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:42:39.0322196Z","stage":"hunt","detail":"Sweeps empty 57x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:42:41.8271949Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:43:09.0496342Z","stage":"hunt","detail":"Sweeps empty 61x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:43:11.8703054Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:43:39.0830640Z","stage":"hunt","detail":"Sweeps empty 67x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:43:41.7797497Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:44:09.2009907Z","stage":"hunt","detail":"Sweeps empty 71x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:44:12.0611435Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:44:39.3195556Z","stage":"hunt","detail":"Sweeps empty 77x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:44:42.0855955Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:45:09.3444567Z","stage":"hunt","detail":"Sweeps empty 81x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:45:12.1276940Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:45:39.3795309Z","stage":"hunt","detail":"Sweeps empty 85x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:45:42.2444998Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:46:09.4566552Z","stage":"hunt","detail":"Sweeps empty 91x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:46:12.1682856Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:46:39.5102892Z","stage":"hunt","detail":"Sweeps empty 94x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T19:46:42.2672138Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-20T19:47:09.5865905Z","stage":"hunt","detail":"Sweeps empty 99x during live play; hunting the down-distance object for 1 \u0026 20."}
+{"t":"2026-08-20T20:35:42.7324584Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T20:36:30.1984054Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T20:36:44.7769753Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 1 message objects."}
+{"t":"2026-08-20T20:51:44.9516601Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T20:51:58.9630112Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 0 message objects."}
+{"t":"2026-08-20T20:53:06.1524765Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T20:53:19.4939412Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 1 message objects."}
+{"t":"2026-08-20T20:59:46.4535562Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T20:59:51.4426410Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 0 message objects."}
+{"t":"2026-08-20T21:14:55.4558659Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T21:15:08.7192826Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 0 message objects."}
+{"t":"2026-08-20T21:17:01.6368306Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T21:17:15.4118565Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 0 message objects."}
+{"t":"2026-08-20T21:20:02.4746714Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T21:20:07.1016603Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 0 message objects."}
+{"t":"2026-08-20T21:34:30.4104897Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T21:34:44.2408553Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 1 message objects."}
+{"t":"2026-08-20T21:44:55.1661560Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T21:45:08.5301880Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 0 message objects."}
+{"t":"2026-08-20T21:54:55.5489949Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T21:55:09.4483962Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 1 message objects."}
+{"t":"2026-08-20T22:35:21.8453968Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-20T22:35:32.3976168Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 1 message objects."}
+{"t":"2026-08-21T03:06:04.9969428Z","stage":"cache-stale","detail":"Cached rebase is for a different game build; deleted."}
+{"t":"2026-08-21T03:06:19.8168937Z","stage":"hunt","detail":"Sweeps empty 3x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T03:06:23.5810258Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T03:06:49.8856703Z","stage":"hunt","detail":"Sweeps empty 6x during live play; hunting the down-distance object for 2 \u0026 9."}
+{"t":"2026-08-21T03:06:53.6933679Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T03:07:19.8931352Z","stage":"hunt","detail":"Sweeps empty 9x during live play; hunting the down-distance object for 2 \u0026 3."}
+{"t":"2026-08-21T03:07:23.6068127Z","stage":"weak","detail":"Single-instance candidate vtable 0xB0F4128, typeinfo 0xE159810 (\"2nd \u0026 3\", 1 instance(s)); waiting for a second hunt to corroborate."}
+{"t":"2026-08-21T03:07:49.9218690Z","stage":"hunt","detail":"Sweeps empty 12x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T03:07:53.7175169Z","stage":"corroborated","detail":"Two consecutive hunts agree on vtable 0xB0F4128, typeinfo 0xE159810 (\"1st \u0026 10\", 1 instance(s))."}
+{"t":"2026-08-21T03:07:53.7210382Z","stage":"applied","detail":"Game patch detected. ScoreHud offsets re-derived from the live \"1st \u0026 10\" object (1 instance(s)): vtables +0x1000, typeinfo +0x1000."}
+{"t":"2026-08-21T03:07:56.3545808Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 0 message objects."}
+{"t":"2026-08-21T03:33:33.6949358Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-21T03:33:48.2170295Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 0 message objects."}
+{"t":"2026-08-21T03:44:53.7133631Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-21T03:45:07.5317505Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 0 message objects."}
+{"t":"2026-08-21T04:24:12.2753001Z","stage":"cache-stale","detail":"Cached rebase is for a different game build; deleted."}
+{"t":"2026-08-21T04:24:53.6038930Z","stage":"hunt","detail":"Sweeps empty 11x during live play; hunting the down-distance object for 2 \u0026 11."}
+{"t":"2026-08-21T04:24:56.3324487Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:25:23.6849390Z","stage":"hunt","detail":"Sweeps empty 15x during live play; hunting the down-distance object for 2 \u0026 11."}
+{"t":"2026-08-21T04:25:26.5813505Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:25:53.8017125Z","stage":"hunt","detail":"Sweeps empty 19x during live play; hunting the down-distance object for 4 \u0026 15."}
+{"t":"2026-08-21T04:25:56.7244091Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:26:23.8449648Z","stage":"hunt","detail":"Sweeps empty 24x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T04:26:26.6153254Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:26:53.8740255Z","stage":"hunt","detail":"Sweeps empty 28x during live play; hunting the down-distance object for 3 \u0026 15."}
+{"t":"2026-08-21T04:26:56.8323122Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:27:23.8796752Z","stage":"hunt","detail":"Sweeps empty 33x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T04:27:26.4429166Z","stage":"weak","detail":"Single-instance candidate vtable 0xB0F4128, typeinfo 0xE159810 (\"1st \u0026 10\", 1 instance(s)); waiting for a second hunt to corroborate."}
+{"t":"2026-08-21T04:27:54.0231742Z","stage":"hunt","detail":"Sweeps empty 40x during live play; hunting the down-distance object for 2 \u0026 10."}
+{"t":"2026-08-21T04:27:56.9059330Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:28:24.1464160Z","stage":"hunt","detail":"Sweeps empty 49x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T04:28:26.9118598Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:28:54.1571439Z","stage":"hunt","detail":"Sweeps empty 59x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T04:28:57.0628546Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:29:24.1873061Z","stage":"hunt","detail":"Sweeps empty 64x during live play; hunting the down-distance object for 3 \u0026 6."}
+{"t":"2026-08-21T04:29:27.2647880Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:29:54.2591893Z","stage":"hunt","detail":"Sweeps empty 67x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T04:29:57.0140731Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:40:16.1529147Z","stage":"cache-stale","detail":"Cached rebase is for a different game build; deleted."}
+{"t":"2026-08-21T04:40:40.9413506Z","stage":"hunt","detail":"Sweeps empty 7x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T04:40:44.0277511Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:41:11.0513711Z","stage":"hunt","detail":"Sweeps empty 10x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T04:41:14.4883140Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:41:41.1815990Z","stage":"hunt","detail":"Sweeps empty 13x during live play; hunting the down-distance object for 2 \u0026 8."}
+{"t":"2026-08-21T04:41:44.6320382Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T04:42:11.3165519Z","stage":"hunt","detail":"Sweeps empty 16x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T04:42:14.8002616Z","stage":"weak","detail":"Single-instance candidate vtable 0xB0F4128, typeinfo 0xE159810 (\"1st \u0026 10\", 1 instance(s)); waiting for a second hunt to corroborate."}
+{"t":"2026-08-21T04:42:41.3930112Z","stage":"hunt","detail":"Sweeps empty 19x during live play; hunting the down-distance object for 2 \u0026 20."}
+{"t":"2026-08-21T04:42:44.9602788Z","stage":"corroborated","detail":"Two consecutive hunts agree on vtable 0xB0F4128, typeinfo 0xE159810 (\"2nd \u0026 20\", 1 instance(s))."}
+{"t":"2026-08-21T04:42:44.9628153Z","stage":"applied","detail":"Game patch detected. ScoreHud offsets re-derived from the live \"2nd \u0026 20\" object (1 instance(s)): vtables +0x1000, typeinfo +0x1000."}
+{"t":"2026-08-21T04:42:48.3798951Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 1 message objects."}
+{"t":"2026-08-21T05:04:45.2289662Z","stage":"cache-stale","detail":"Cached rebase is for a different game build; deleted."}
+{"t":"2026-08-21T05:05:04.4736370Z","stage":"hunt","detail":"Sweeps empty 3x during live play; hunting the down-distance object for 2 \u0026 5."}
+{"t":"2026-08-21T05:05:07.4782446Z","stage":"weak","detail":"Single-instance candidate vtable 0xB0F4128, typeinfo 0xE159810 (\"2nd \u0026 6\", 1 instance(s)); waiting for a second hunt to corroborate."}
+{"t":"2026-08-21T05:05:34.6365773Z","stage":"hunt","detail":"Sweeps empty 7x during live play; hunting the down-distance object for 3 \u0026 5."}
+{"t":"2026-08-21T05:05:37.6270797Z","stage":"corroborated","detail":"Two consecutive hunts agree on vtable 0xB0F4128, typeinfo 0xE159810 (\"3rd \u0026 6\", 1 instance(s))."}
+{"t":"2026-08-21T05:05:37.6305222Z","stage":"applied","detail":"Game patch detected. ScoreHud offsets re-derived from the live \"3rd \u0026 6\" object (1 instance(s)): vtables +0x1000, typeinfo +0x1000."}
+{"t":"2026-08-21T05:05:44.8669353Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 0 message objects."}
+{"t":"2026-08-21T05:12:45.6737595Z","stage":"cache-stale","detail":"Cached rebase is for a different game build; deleted."}
+{"t":"2026-08-21T05:12:59.9277051Z","stage":"hunt","detail":"Sweeps empty 3x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T05:13:02.9506623Z","stage":"miss","detail":"Hunt found no down-distance object; will retry."}
+{"t":"2026-08-21T05:13:29.9334492Z","stage":"hunt","detail":"Sweeps empty 7x during live play; hunting the down-distance object for 1 \u0026 10."}
+{"t":"2026-08-21T05:13:32.8413993Z","stage":"weak","detail":"Single-instance candidate vtable 0xB0F4128, typeinfo 0xE159810 (\"1st \u0026 10\", 1 instance(s)); waiting for a second hunt to corroborate."}
+{"t":"2026-08-21T05:13:59.9765561Z","stage":"hunt","detail":"Sweeps empty 11x during live play; hunting the down-distance object for 3 \u0026 2."}
+{"t":"2026-08-21T05:14:02.9404898Z","stage":"corroborated","detail":"Two consecutive hunts agree on vtable 0xB0F4128, typeinfo 0xE159810 (\"3rd \u0026 3\", 1 instance(s))."}
+{"t":"2026-08-21T05:14:02.9420857Z","stage":"applied","detail":"Game patch detected. ScoreHud offsets re-derived from the live \"3rd \u0026 3\" object (1 instance(s)): vtables +0x1000, typeinfo +0x1000."}
+{"t":"2026-08-21T05:14:05.1461852Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 1 down-distance, 0 message objects."}
+{"t":"2026-08-21T06:43:45.8736070Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-21T06:43:49.5431502Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 0 message objects."}
+{"t":"2026-08-21T06:51:43.7315563Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-21T06:51:47.9146597Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 1 message objects."}
+{"t":"2026-08-21T06:56:25.9324704Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-21T06:56:39.6923168Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 0 message objects."}
+{"t":"2026-08-21T07:03:22.6167008Z","stage":"cache-applied","detail":"Cached rebase applied at startup: vtables +0x1000, typeinfo +0x1000 (cached)."}
+{"t":"2026-08-21T07:03:22.6167008Z","stage":"offsets","detail":"identity=0xB0F41A8 statSummary=0xB0F4388"}
+{"t":"2026-08-21T07:03:26.2317667Z","stage":"verified","detail":"Rebased offsets confirmed by a live sweep: 2 team, 0 down-distance, 1 message objects."}
+{"t":"2026-08-21T07:04:22.6468580Z","stage":"offsets","detail":"identity=0xB0F41A8 statSummary=0xB0F4388"}
+{"t":"2026-08-21T07:05:22.8050306Z","stage":"offsets","detail":"identity=0xB0F41A8 statSummary=0xB0F4388"}
+{"t":"2026-08-21T07:06:23.0353111Z","stage":"offsets","detail":"identity=0xB0F41A8 statSummary=0xB0F4388"}
+{"t":"2026-08-21T07:07:23.0923737Z","stage":"offsets","detail":"identity=0xB0F41A8 statSummary=0xB0F4388"}
+{"t":"2026-08-21T07:08:23.1820526Z","stage":"offsets","detail":"identity=0xB0F41A8 statSummary=0xB0F4388"}
+{"t":"2026-08-21T07:09:23.3254655Z","stage":"offsets","detail":"identity=0xB0F41A8 statSummary=0xB0F4388"}
