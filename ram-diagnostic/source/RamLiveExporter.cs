@@ -7624,11 +7624,16 @@ namespace CollegeFootballRamDiagnostic
             // (4, 60, 1) from matching half the heap. The object's own field
             // is dead, so borrow the freshest identity token - the name plate
             // the game shows with the stat line.
-            if (playerId <= 100
+            // 2026-08-23 game: the object's id field carries REAL small ids
+            // now (featured RB = 53, passer = 137) - only 0/1/2 are the dead
+            // values. The old <=100 gate silently discarded every banner for
+            // low-numbered players, which cost a perfect confirmation pair
+            // ("3 RUSH, 60 YDS" then "5 RUSH, 65 YDS", same id, 3 min apart).
+            if (playerId <= 2
                 && lastIdentityTokenId > 100
                 && DateTime.UtcNow - lastIdentityTokenUtc <= TimeSpan.FromSeconds(15))
                 playerId = lastIdentityTokenId;
-            if (playerId <= 100) return;
+            if (playerId <= 2) return;
             if (statTupleHuntRunning || statTupleHuntCount >= 30) return;
             if (DateTime.UtcNow < nextStatTupleHuntUtc) return;
             if (String.IsNullOrWhiteSpace(text)) return;
@@ -7671,6 +7676,9 @@ namespace CollegeFootballRamDiagnostic
                 catch { }
                 return true;
             }
+            // A zero second number ("24 YDS, 0 TDs") matches half the heap -
+            // skip the scan; the row-confirmation check above already ran.
+            if (second <= 0) return false;
             if (statTupleHuntRunning || statTupleHuntCount >= 60) return false;
             if (DateTime.UtcNow < nextStatTupleHuntUtc) return false;
             nextStatTupleHuntUtc = DateTime.UtcNow.AddSeconds(12);
