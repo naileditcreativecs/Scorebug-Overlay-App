@@ -8543,6 +8543,35 @@ namespace CollegeFootballRamDiagnostic
         private string lastTableCaptureHash = "";
         private int tableCaptureLines;
 
+        // A 64-byte span whose bytes are mostly printable ASCII is text, not
+        // a stat record - digit runs ('0'..'9' = 48..57) otherwise satisfy
+        // the equality shapes constantly (v1.4.132 first-capture lesson).
+        internal static bool RegionLooksLikeText(byte[] buffer, int index)
+        {
+            int start = Math.Max(0, index - 8);
+            int end = Math.Min(buffer.Length, index + 56);
+            if (end - start < 32) return false;
+            int printable = 0;
+            for (int i = start; i < end; i++)
+            {
+                byte b = buffer[i];
+                if (b >= 0x20 && b <= 0x7A) printable++;
+            }
+            if (printable * 100 >= (end - start) * 85) return true;
+            // UTF-16 text: printable low byte + zero high byte pair-wise.
+            // Real stat rows also carry zero high bytes, but their low bytes
+            // are mostly small counts (<0x20); text low bytes are >=0x20.
+            int pairs = 0, textPairs = 0;
+            for (int i = start & ~1; i + 2 <= end; i += 2)
+            {
+                byte low = buffer[i], high = buffer[i + 1];
+                if (low == 0 && high == 0) continue;
+                pairs++;
+                if (high == 0 && low >= 0x20 && low <= 0x7A) textPairs++;
+            }
+            return pairs >= 8 && textPairs * 100 >= pairs * 75;
+        }
+
         // QB row: comp@+0, att duplicated @+12/+16, yards TRIPLED @+38/+46/+54.
         internal static bool LooksLikeQbStatRow(int comp, int att12, int att16, int y38, int y46, int y54)
         {
@@ -8565,12 +8594,16 @@ namespace CollegeFootballRamDiagnostic
         {
             if (GameProfile.Key != "cfb27") return;
             if (DateTime.UtcNow < nextTableCaptureUtc) return;
-            nextTableCaptureUtc = DateTime.UtcNow.AddSeconds(10);
+            nextTableCaptureUtc = DateTime.UtcNow.AddSeconds(20);
             if (tableCaptureLines >= 3000) return;
+            // v1.4.134: fixed pool windows kept missing the fresh rows - the
+            // allocator places each box-score build somewhere new. Sweep the
+            // whole low region (same range and pacing the tuple hunt has
+            // always used safely); text rejection + shape rules + caps keep
+            // the log sane.
             long[][] windows = new long[][]
             {
-                new long[] { 0x2A00000L, 0x2C80000L },
-                new long[] { 0x4000000L, 0x4300000L }
+                new long[] { 0x2000000L, 0x18000000L }
             };
             List<Dictionary<string, object>> qbRows = new List<Dictionary<string, object>>();
             List<Dictionary<string, object>> rbRows = new List<Dictionary<string, object>>();
@@ -8592,8 +8625,16 @@ namespace CollegeFootballRamDiagnostic
                         int y38 = BitConverter.ToInt16(buffer, i + 38);
                         int y46 = BitConverter.ToInt16(buffer, i + 46);
                         int y54 = BitConverter.ToInt16(buffer, i + 54);
-                        if (qbRows.Count < 24 && LooksLikeQbStatRow(comp, att12, att16, y38, y46, y54)
-                            && (att12 > 1 || y38 > 0))
+                        // ASCII text trivially satisfies equality shapes
+                        // (digit runs read as 48-57); skip text-like spans.
+                        if (RegionLooksLikeText(buffer, i)) continue;
+                        // Digit-only sextet = a numeric string, not a record;
+                        // and a row worth logging carries actual production
+                        // with yards >= completions (validation wants stats).
+                        bool allDigits = comp >= 48 && comp <= 57 && att12 >= 48 && att12 <= 57
+                            && y38 >= 48 && y38 <= 57;
+                        if (qbRows.Count < 96 && !allDigits && LooksLikeQbStatRow(comp, att12, att16, y38, y46, y54)
+                            && comp + y38 > 0 && y38 >= comp)
                         {
                             long address = start + i;
                             List<int> context = new List<int>();
@@ -8610,7 +8651,7 @@ namespace CollegeFootballRamDiagnostic
                         int car = comp;
                         int lng = BitConverter.ToInt16(buffer, i + 6);
                         int yds = BitConverter.ToInt16(buffer, i + 12);
-                        if (rbRows.Count < 24 && LooksLikeRbStatRow(car, lng, yds) && lng > 0 && yds >= lng)
+                        if (rbRows.Count < 96 && LooksLikeRbStatRow(car, lng, yds) && lng > 0 && yds >= lng)
                         {
                             long address = start + i;
                             rbRows.Add(new Dictionary<string, object>

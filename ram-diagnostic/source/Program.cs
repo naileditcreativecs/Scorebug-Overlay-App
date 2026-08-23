@@ -4162,6 +4162,18 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.PreciseLooksLikeRealSpot(65.0)
                     || RamLiveExporter.PreciseLooksLikeRealSpot(20.0))
                     throw new Exception("Real-spot fraction rule is wrong.");
+                // Text spans must be rejected before shape checks: ASCII digit
+                // runs satisfy the equality shapes trivially.
+                {
+                    byte[] textSpan = System.Text.Encoding.ASCII.GetBytes(
+                        "characters/referee/common/referee_hat_color_referee_body_material_0123456789");
+                    byte[] statSpan = new byte[80];
+                    statSpan[0] = 5; statSpan[12] = 8; statSpan[16] = 8;
+                    statSpan[38] = 67; statSpan[46] = 67; statSpan[54] = 67;
+                    if (!RamLiveExporter.RegionLooksLikeText(textSpan, 16)
+                        || RamLiveExporter.RegionLooksLikeText(statSpan, 16))
+                        throw new Exception("Text-span rejection rule is wrong.");
+                }
                 // Materialized-table shapes: QB rows need att duplicated and
                 // yards tripled with sane ranges; RB rows need car/long/yds
                 // to cohere (long can exceed yds only when yds went negative).
