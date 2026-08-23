@@ -1023,6 +1023,17 @@ function ramScoreboardPayload(document) {
       values: Array.isArray(row?.values) ? row.values.slice(0, 24).map(Number) : [],
     })).filter((row) => row.address && row.values.length), true, 'game.statTable');
   }
+  // Chat-driven value-hunt status (label/state/survivor count) so the Field
+  // Inspector shows scan progress on screen during a discovery session.
+  if (document.ram?.valueHunt && typeof document.ram.valueHunt === 'object') {
+    const hunt = document.ram.valueHunt;
+    apply(state.game, 'valueHunt', {
+      label: hunt.label ? String(hunt.label) : null,
+      state: hunt.state ? String(hunt.state) : null,
+      survivors: Number.isFinite(hunt.survivors) ? hunt.survivors : null,
+      at: hunt.at ? String(hunt.at) : null,
+    }, Boolean(hunt.state), 'game.valueHunt');
+  }
   // Stat lower-thirds and other ScoreHud text objects (raw pass-through).
   if (Array.isArray(document.ram?.hudTexts) && document.ram.hudTexts.length) {
     apply(state.game, 'hudTexts', document.ram.hudTexts.map((item) => ({

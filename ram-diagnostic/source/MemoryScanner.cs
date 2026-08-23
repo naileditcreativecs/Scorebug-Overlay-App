@@ -2680,6 +2680,14 @@ namespace CollegeFootballRamDiagnostic
         // 4GB); "next" filters survivors by re-reading them in page groups.
         public List<long> ScanInt16Exact(short value, int cap, CancellationToken token)
         {
+            return ScanInt16Exact(value, cap, false, token);
+        }
+
+        // highRange scans ONLY above 4GB - the 2026-08-23 value-hunt session
+        // proved the live per-player stat accumulators are not sub-4GB (every
+        // sub-4GB hit froze at stale values while the box score moved on).
+        public List<long> ScanInt16Exact(short value, int cap, bool highRange, CancellationToken token)
+        {
             EnsureAttached();
             List<long> hits = new List<long>();
             List<MemoryRegion> regions = EnumerateRegions();
@@ -2688,8 +2696,14 @@ namespace CollegeFootballRamDiagnostic
             {
                 token.ThrowIfCancellationRequested();
                 MemoryRegion region = regions[regionIndex];
-                if (region.BaseAddress < 0x10000L || region.BaseAddress >= 0x100000000L) continue;
-                long readableSize = Math.Min(region.Size, 0x100000000L - region.BaseAddress);
+                if (highRange)
+                {
+                    if (region.BaseAddress < 0x100000000L) continue;
+                }
+                else if (region.BaseAddress < 0x10000L || region.BaseAddress >= 0x100000000L) continue;
+                long readableSize = highRange
+                    ? region.Size
+                    : Math.Min(region.Size, 0x100000000L - region.BaseAddress);
                 long offset = 0;
                 while (offset < readableSize)
                 {
@@ -2709,6 +2723,75 @@ namespace CollegeFootballRamDiagnostic
                 }
             }
             return hits;
+        }
+
+        // Float32 exact-value scan (2026-08-23): every integer encoding of
+        // per-player stats proved to be a stale copy or play-log entry; the
+        // box score's fractional averages point at float storage for the
+        // real accumulators. 4-byte aligned, same pacing and range split.
+        public List<long> ScanFloat32Exact(float value, int cap, bool highRange, CancellationToken token)
+        {
+            EnsureAttached();
+            List<long> hits = new List<long>();
+            List<MemoryRegion> regions = EnumerateRegions();
+            byte[] buffer = new byte[ChunkSize];
+            for (int regionIndex = 0; regionIndex < regions.Count; regionIndex++)
+            {
+                token.ThrowIfCancellationRequested();
+                MemoryRegion region = regions[regionIndex];
+                if (highRange)
+                {
+                    if (region.BaseAddress < 0x100000000L) continue;
+                }
+                else if (region.BaseAddress < 0x10000L || region.BaseAddress >= 0x100000000L) continue;
+                long readableSize = highRange
+                    ? region.Size
+                    : Math.Min(region.Size, 0x100000000L - region.BaseAddress);
+                long offset = 0;
+                while (offset < readableSize)
+                {
+                    int requested = (int)Math.Min(buffer.Length, readableSize - offset);
+                    int bytesRead = Read(region.BaseAddress + offset, buffer, requested);
+                    for (int index = 0; index + 4 <= bytesRead; index += 4)
+                    {
+                        float sample = BitConverter.ToSingle(buffer, index);
+                        if (sample < value - 0.005f || sample > value + 0.005f) continue;
+                        hits.Add(region.BaseAddress + offset + index);
+                        if (hits.Count >= cap) return hits;
+                    }
+                    System.Threading.Thread.Sleep(3);
+                    if (requested <= 4) break;
+                    offset += requested;
+                }
+            }
+            return hits;
+        }
+
+        public List<long> FilterFloat32Survivors(List<long> survivors, float value)
+        {
+            EnsureAttached();
+            List<long> kept = new List<long>();
+            if (survivors == null || survivors.Count == 0) return kept;
+            List<long> sorted = new List<long>(survivors);
+            sorted.Sort();
+            byte[] page = new byte[0x10000];
+            long pageBase = -1;
+            int pageRead = 0;
+            foreach (long address in sorted)
+            {
+                long wantedPage = address & ~0xFFFFL;
+                if (wantedPage != pageBase)
+                {
+                    pageBase = wantedPage;
+                    try { pageRead = Read(pageBase, page, page.Length); }
+                    catch { pageRead = 0; }
+                }
+                int offset = (int)(address - pageBase);
+                if (offset + 4 > pageRead) continue;
+                float sample = BitConverter.ToSingle(page, offset);
+                if (sample >= value - 0.005f && sample <= value + 0.005f) kept.Add(address);
+            }
+            return kept;
         }
 
         // Filter survivors by current value, reading each 64KB page once

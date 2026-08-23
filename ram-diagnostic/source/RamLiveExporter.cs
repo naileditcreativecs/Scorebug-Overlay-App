@@ -763,6 +763,14 @@ namespace CollegeFootballRamDiagnostic
             {
                 List<Dictionary<string, object>> tableRows = StatTableWatchRows();
                 if (tableRows.Count > 0) ram["statTable"] = tableRows;
+                if (lastValueHuntState.Length > 0)
+                    ram["valueHunt"] = new Dictionary<string, object>
+                    {
+                        { "label", valueHuntLabel },
+                        { "state", lastValueHuntState },
+                        { "survivors", lastValueHuntSurvivors },
+                        { "at", lastValueHuntStamp }
+                    };
             }
             string publishedAwayName = matchupTransitionPending ? null : lastAwayTeamName;
             string publishedHomeName = matchupTransitionPending ? null : lastHomeTeamName;
@@ -7776,8 +7784,17 @@ namespace CollegeFootballRamDiagnostic
         private string lastValueHuntSignature = "";
         private DateTime nextValueHuntCheckUtc = DateTime.MinValue;
 
+        // Mirrored into the live export (ram["valueHunt"]) so the Field
+        // Inspector can show the hunt's progress on screen during a session.
+        private volatile string lastValueHuntState = "";
+        private volatile int lastValueHuntSurvivors = -1;
+        private volatile string lastValueHuntStamp = "";
+
         private void WriteValueHuntStatus(string state, int survivorCount, List<long> sample)
         {
+            lastValueHuntState = state;
+            lastValueHuntSurvivors = survivorCount;
+            lastValueHuntStamp = DateTime.UtcNow.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
             try
             {
                 string folder = Path.GetDirectoryName(OutputPath(probeOutputSeedPath));
@@ -7816,6 +7833,8 @@ namespace CollegeFootballRamDiagnostic
             lastValueHuntSignature = content;
             string action = "";
             int value = 0;
+            bool highRange = false;
+            bool floatMode = false;
             try
             {
                 Dictionary<string, object> request =
@@ -7825,6 +7844,15 @@ namespace CollegeFootballRamDiagnostic
                 if (request.ContainsKey("value"))
                     value = Convert.ToInt32(request["value"], CultureInfo.InvariantCulture);
                 if (request.ContainsKey("label")) valueHuntLabel = (string)request["label"];
+                // "range":"high" scans ONLY above 4GB - where the live stat
+                // accumulators must live (2026-08-23: every sub-4GB hit went
+                // stale while the box score kept counting).
+                if (request.ContainsKey("range"))
+                    highRange = "high" == ((string)request["range"] ?? "").ToLowerInvariant();
+                // "type":"float" hunts float32 values instead of int16 -
+                // integer encodings all proved stale copies or play logs.
+                if (request.ContainsKey("type"))
+                    floatMode = "float" == ((string)request["type"] ?? "").ToLowerInvariant();
             }
             catch { return; }
             if (action == "reset")
@@ -7851,13 +7879,17 @@ namespace CollegeFootballRamDiagnostic
                         List<long> result;
                         if (isFirst)
                         {
-                            result = backgroundScanner.ScanInt16Exact((short)value, 4000000, CancellationToken.None);
+                            result = floatMode
+                                ? backgroundScanner.ScanFloat32Exact(value, 4000000, highRange, CancellationToken.None)
+                                : backgroundScanner.ScanInt16Exact((short)value, 4000000, highRange, CancellationToken.None);
                         }
                         else
                         {
                             List<long> current;
                             lock (valueHuntSync) current = new List<long>(valueHuntSurvivors);
-                            result = backgroundScanner.FilterInt16Survivors(current, (short)value);
+                            result = floatMode
+                                ? backgroundScanner.FilterFloat32Survivors(current, value)
+                                : backgroundScanner.FilterInt16Survivors(current, (short)value);
                         }
                         lock (valueHuntSync) valueHuntSurvivors = result;
                         List<long> sample = result.Count <= 24 ? result : result.GetRange(0, 24);

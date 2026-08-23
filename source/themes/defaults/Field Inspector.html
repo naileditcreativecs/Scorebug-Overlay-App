@@ -303,10 +303,25 @@
 
   function tableLines() {
     var rows = value('game.statTable');
-    if (!Array.isArray(rows) || !rows.length) return [];
+    var out0 = [];
+    var hunt = value('game.valueHunt');
+    if (hunt && hunt.state) {
+      var stateWord = hunt.state === 'scanning' || hunt.state === 'filtering'
+        ? 'SCANNING NOW...'
+        : hunt.state === 'done'
+          ? (hunt.survivors === 0
+            ? 'trail went cold - fresh scan needed'
+            : (hunt.survivors > 0 && hunt.survivors <= 24
+              ? 'JACKPOT - ' + hunt.survivors + ' spots, neighborhoods saved'
+              : hunt.survivors + ' spots left, keep playing then report the new number'))
+          : hunt.state;
+      out0.push('Value hunt [' + (hunt.label || '?') + '] ' + stateWord
+        + (hunt.at ? ' (at ' + hunt.at + ')' : ''));
+    }
+    if (!Array.isArray(rows) || !rows.length) return out0;
     var confirmed = rows.filter(function (r) { return r && r.confirmed > 0; });
     var candidates = rows.filter(function (r) { return r && !(r.confirmed > 0); });
-    var out = [];
+    var out = out0;
     confirmed.forEach(function (row) {
       var who = row.player || row.label || ('#' + row.playerId);
       out.push('CONFIRMED - ' + who + ': ' + row.liveA + ' / ' + row.liveB + ' (live, updates as they play)');
