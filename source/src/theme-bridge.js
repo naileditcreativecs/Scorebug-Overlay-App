@@ -403,6 +403,24 @@ class ThemeBridge {
     this.updateTeamColor('home', state.home?.color);
     this.updateLogo('away', state.away?.logo, state.meta?.teamLogoLayouts?.away);
     this.updateLogo('home', state.home?.logo, state.meta?.teamLogoLayouts?.home);
+    // An empty record means "show no record": also hide any record-looking
+    // element the binding pass doesn't own (baked-in demo text like "2-0").
+    for (const side of ['away', 'home']) {
+      const record = state?.[side]?.record;
+      const hidden = record === null || record === undefined || String(record).trim() === '';
+      const matched = new Set();
+      const bound = this.bindings.get(`${side}.record`);
+      if (bound) matched.add(bound);
+      this.root?.querySelectorAll('[id*="record" i],[class*="record" i]').forEach((element) => {
+        const className = typeof element.className === 'string'
+          ? element.className : String(element.className?.baseVal || '');
+        if (`${element.id} ${className}`.toLowerCase().includes(side)) matched.add(element);
+      });
+      matched.forEach((element) => {
+        if (hidden) element.style.setProperty('visibility', 'hidden', 'important');
+        else element.style.removeProperty('visibility');
+      });
+    }
   }
 
   updateTimeouts(side, count) {

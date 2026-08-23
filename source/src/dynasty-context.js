@@ -232,6 +232,17 @@ function oppositeSide(side) {
   return side === 'away' ? 'home' : (side === 'home' ? 'away' : side);
 }
 
+// The reversed orientation has only ever been PROVEN at postseason
+// neutral-site kickoffs (playoffs/bowls/championships); regular-season games
+// read the live pair correctly, and there a schedule "flip" means the save's
+// own home/away bookkeeping differs from the game - correcting would swap a
+// correct scoreboard. So the correction is postseason-only.
+function isPostseasonGame(game, season) {
+  const type = String(game?.weekType || season?.currentWeekType || '');
+  if (/Playoff|Bowl|NationalChampionship/i.test(type)) return true;
+  return Boolean(game?.bowl?.name || game?.bowl?.isPlayoff);
+}
+
 // A freshly-created ScoreHud pair can occasionally be oriented backwards at
 // a tied neutral-site/playoff kickoff. The selected Dynasty save is allowed to
 // correct that only with the strongest proof we have: two unique live ids,
@@ -241,6 +252,7 @@ function oppositeSide(side) {
 function applyDynastySideCorrection(payload, dynasty) {
   const proof = exactDynastyIdentityMatch(payload, dynasty);
   if (!proof?.match.flipped) return payload;
+  if (!isPostseasonGame(proof.match.game, dynasty?.context?.season)) return payload;
 
   const originalAway = payload.away || {};
   const originalHome = payload.home || {};

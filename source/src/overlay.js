@@ -1354,6 +1354,30 @@ function guestBootstrapSource(state, layout = {}) {
           transform: state?.meta?.teamLogoLayouts?.[side],
         });
       }
+      // A null/empty record means "show no record" (the Hide button, or no
+      // data). Many bug HTMLs carry their own record elements with baked-in
+      // demo text (e.g. a "2-0" span) that the binding pass doesn't own, so
+      // blanking the bound element alone leaves the demo text visible. Hide
+      // every record-looking element for a side whenever its record is empty;
+      // when a record returns, remove the override so the theme's own styling
+      // rules apply again.
+      for (const side of ['away', 'home']) {
+        const record = state?.[side]?.record;
+        const hidden = record === null || record === undefined || String(record).trim() === '';
+        const matched = new Set();
+        document.querySelectorAll(
+          `[data-cfb27-bind="${side}.record"],[data-cfb27-field="${side}Record" i],[data-field="${side}-record" i]`,
+        ).forEach((element) => matched.add(element));
+        document.querySelectorAll('[id*="record" i],[class*="record" i]').forEach((element) => {
+          const className = typeof element.className === 'string'
+            ? element.className : String(element.className?.baseVal || '');
+          if (`${element.id} ${className}`.toLowerCase().includes(side)) matched.add(element);
+        });
+        matched.forEach((element) => {
+          if (hidden) element.style.setProperty('visibility', 'hidden', 'important');
+          else element.style.removeProperty('visibility');
+        });
+      }
       window.dispatchEvent(new CustomEvent('cfb27-scoreboard-state', { detail: state }));
       document.dispatchEvent(new CustomEvent('cfb27-scoreboard-state', { detail: state }));
       return dcReport;

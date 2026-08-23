@@ -261,6 +261,22 @@ test('dynasty context: a reversed playoff identity pair is corrected before publ
     home: { presentationId: 1120, isTeamBuilder: false }, game: {}, meta: {},
   };
   assert.equal(applyDynastySideCorrection(alreadyCorrect, dynasty), alreadyCorrect, 'correct orientation is untouched');
+
+  // Regular season: the live pair is authoritative even when the save's
+  // schedule stores the matchup the other way round - never swap.
+  const regularCtx = JSON.parse(JSON.stringify(context));
+  registerUnmatchedSaveTeams(regularCtx, local);
+  const regularDynasty = {
+    context: regularCtx,
+    byAsset: indexSaveTeams(regularCtx, local),
+    byPresentationId: indexSaveTeamsByPresentationId(regularCtx),
+  };
+  const regularReversed = JSON.parse(JSON.stringify(reversed));
+  assert.deepEqual(
+    applyDynastySideCorrection(JSON.parse(JSON.stringify(regularReversed)), regularDynasty),
+    regularReversed,
+    'a regular-season schedule flip never swaps the live sides',
+  );
   const wrongFlag = {
     away: { presentationId: 1120, isTeamBuilder: true },
     home: { presentationId: 1186, isTeamBuilder: false }, game: {}, meta: {},
