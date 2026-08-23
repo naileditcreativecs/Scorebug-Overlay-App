@@ -4162,6 +4162,24 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.PreciseLooksLikeRealSpot(65.0)
                     || RamLiveExporter.PreciseLooksLikeRealSpot(20.0))
                     throw new Exception("Real-spot fraction rule is wrong.");
+                // Materialized-table shapes: QB rows need att duplicated and
+                // yards tripled with sane ranges; RB rows need car/long/yds
+                // to cohere (long can exceed yds only when yds went negative).
+                if (!RamLiveExporter.LooksLikeQbStatRow(4, 8, 8, 67, 67, 67)
+                    || !RamLiveExporter.LooksLikeQbStatRow(0, 1, 1, 0, 0, 0)
+                    || RamLiveExporter.LooksLikeQbStatRow(4, 8, 9, 67, 67, 67)
+                    || RamLiveExporter.LooksLikeQbStatRow(4, 8, 8, 67, 67, 66)
+                    || RamLiveExporter.LooksLikeQbStatRow(9, 8, 8, 67, 67, 67)
+                    || RamLiveExporter.LooksLikeQbStatRow(4, 8, 8, 800, 800, 800)
+                    || RamLiveExporter.LooksLikeQbStatRow(4, 0, 0, 67, 67, 67))
+                    throw new Exception("QB materialized-row shape rule is wrong.");
+                if (!RamLiveExporter.LooksLikeRbStatRow(5, 13, 34)
+                    || !RamLiveExporter.LooksLikeRbStatRow(1, 2, -4)
+                    || RamLiveExporter.LooksLikeRbStatRow(0, 13, 34)
+                    || RamLiveExporter.LooksLikeRbStatRow(5, 40, 34)
+                    || RamLiveExporter.LooksLikeRbStatRow(5, 120, 200)
+                    || RamLiveExporter.LooksLikeRbStatRow(70, 13, 34))
+                    throw new Exception("RB materialized-row shape rule is wrong.");
                 // Madden team-object timeout fields: only a single step down
                 // or a reset to 3 (half start) is legal.
                 if (!RamLiveExporter.MaddenTimeoutStepLegal(3, 2)

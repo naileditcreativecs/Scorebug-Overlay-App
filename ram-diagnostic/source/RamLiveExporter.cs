@@ -1003,6 +1003,7 @@ namespace CollegeFootballRamDiagnostic
             try { MaybeRebaseScoreHudOffsets(downValue, distanceValue, downDistanceKind); } catch { }
             try { RefreshPlayCallFieldGoalText(downValue); } catch { }
             try { ProcessManualStatHunt(); } catch { }
+            try { ProbeMaterializedStatTable(probeOutputSeedPath); } catch { }
             try { ProcessValueHunt(); } catch { }
             try { WriteStatBannerProbe(screenJsonPath, quarterValue, clockValue, downValue, distanceValue); } catch { }
             if (GameProfile.Key == "madden27")
@@ -8529,6 +8530,111 @@ namespace CollegeFootballRamDiagnostic
             }
             catch { }
             return result;
+        }
+
+        // ---------- On-demand stat-table capture probe (v1.4.131) ----------
+        // 2026-08-23 proved per-player totals persist nowhere as plain
+        // numbers: the box score MATERIALIZES the full table on open, at
+        // fresh addresses, in the decoded postgame layout, then freezes it.
+        // So capture on materialization: sweep the two small pools where the
+        // rows appeared (0x2A0-0x2C8, 0x400-0x430 ranges), recognize rows by
+        // SHAPE, and log them with context. Research-only: publishes nothing.
+        private DateTime nextTableCaptureUtc = DateTime.MinValue;
+        private string lastTableCaptureHash = "";
+        private int tableCaptureLines;
+
+        // QB row: comp@+0, att duplicated @+12/+16, yards TRIPLED @+38/+46/+54.
+        internal static bool LooksLikeQbStatRow(int comp, int att12, int att16, int y38, int y46, int y54)
+        {
+            if (att12 != att16 || y38 != y46 || y46 != y54) return false;
+            if (att12 < 1 || att12 > 80) return false;
+            if (comp < 0 || comp > att12) return false;
+            return y38 >= 0 && y38 <= 750;
+        }
+
+        // RB row: car@+0, long@+6, yds@+12 (weak shape - corroborate offline).
+        internal static bool LooksLikeRbStatRow(int car, int lng, int yds)
+        {
+            if (car < 1 || car > 60) return false;
+            if (lng < 0 || lng > 99 || yds < -20 || yds > 500) return false;
+            if (lng > Math.Max(0, yds) && yds >= 0) return false;
+            return lng > 0 || yds != 0 || car > 0;
+        }
+
+        private void ProbeMaterializedStatTable(string screenJsonPath)
+        {
+            if (GameProfile.Key != "cfb27") return;
+            if (DateTime.UtcNow < nextTableCaptureUtc) return;
+            nextTableCaptureUtc = DateTime.UtcNow.AddSeconds(10);
+            if (tableCaptureLines >= 3000) return;
+            long[][] windows = new long[][]
+            {
+                new long[] { 0x2A00000L, 0x2C80000L },
+                new long[] { 0x4000000L, 0x4300000L }
+            };
+            List<Dictionary<string, object>> qbRows = new List<Dictionary<string, object>>();
+            List<Dictionary<string, object>> rbRows = new List<Dictionary<string, object>>();
+            System.Text.StringBuilder hash = new System.Text.StringBuilder();
+            foreach (long[] window in windows)
+            {
+                long start = window[0];
+                while (start < window[1])
+                {
+                    int chunk = (int)Math.Min(0x100000L, window[1] - start);
+                    byte[] buffer;
+                    try { buffer = scanner.ReadBytes(start, chunk); } catch { start += chunk; continue; }
+                    if (buffer == null || buffer.Length < 0x60) { start += chunk; continue; }
+                    for (int i = 0; i + 0x60 <= buffer.Length; i += 2)
+                    {
+                        int comp = BitConverter.ToInt16(buffer, i);
+                        int att12 = BitConverter.ToInt16(buffer, i + 12);
+                        int att16 = BitConverter.ToInt16(buffer, i + 16);
+                        int y38 = BitConverter.ToInt16(buffer, i + 38);
+                        int y46 = BitConverter.ToInt16(buffer, i + 46);
+                        int y54 = BitConverter.ToInt16(buffer, i + 54);
+                        if (qbRows.Count < 24 && LooksLikeQbStatRow(comp, att12, att16, y38, y46, y54)
+                            && (att12 > 1 || y38 > 0))
+                        {
+                            long address = start + i;
+                            List<int> context = new List<int>();
+                            for (int o = -0x40; o + 2 <= 0x120 && i + o >= 0 && i + o + 2 <= buffer.Length; o += 2)
+                                context.Add(BitConverter.ToInt16(buffer, i + o));
+                            qbRows.Add(new Dictionary<string, object>
+                            {
+                                { "addr", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                                { "comp", comp }, { "att", att12 }, { "yds", y38 },
+                                { "ctx", context }
+                            });
+                            hash.Append(address).Append(':').Append(comp).Append('/').Append(att12).Append('/').Append(y38).Append(';');
+                        }
+                        int car = comp;
+                        int lng = BitConverter.ToInt16(buffer, i + 6);
+                        int yds = BitConverter.ToInt16(buffer, i + 12);
+                        if (rbRows.Count < 24 && LooksLikeRbStatRow(car, lng, yds) && lng > 0 && yds >= lng)
+                        {
+                            long address = start + i;
+                            rbRows.Add(new Dictionary<string, object>
+                            {
+                                { "addr", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                                { "car", car }, { "long", lng }, { "yds", yds }
+                            });
+                        }
+                    }
+                    System.Threading.Thread.Sleep(3);
+                    start += chunk;
+                }
+            }
+            if (qbRows.Count == 0 && rbRows.Count == 0) return;
+            string digest = hash.ToString();
+            if (digest == lastTableCaptureHash) return;
+            lastTableCaptureHash = digest;
+            tableCaptureLines++;
+            AppendProbeLine(screenJsonPath, "tablecapture-probe.jsonl", new Dictionary<string, object>
+            {
+                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                { "qbRows", qbRows },
+                { "rbRows", rbRows }
+            });
         }
 
         // ---------- Madden team-object timeout watcher (v1.4.127) ----------
