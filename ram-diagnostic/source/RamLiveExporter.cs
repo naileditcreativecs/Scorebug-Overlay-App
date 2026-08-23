@@ -7690,6 +7690,34 @@ namespace CollegeFootballRamDiagnostic
                 catch { }
                 if (tableHits != null)
                 {
+                    // v1.4.135: dump each hit's neighborhood IMMEDIATELY.
+                    // The hunts kept finding the freshly materialized rows,
+                    // but their surroundings (name/id pointers) were never
+                    // saved before the pool froze and moved.
+                    foreach (string hit in tableHits)
+                    {
+                        try
+                        {
+                            System.Text.RegularExpressions.Match match =
+                                System.Text.RegularExpressions.Regex.Match(hit, "^i16:0x([0-9A-F]+)");
+                            if (!match.Success) continue;
+                            long address = Convert.ToInt64(match.Groups[1].Value, 16);
+                            byte[] around = scanner.ReadBytes(address - 0x480, 0x900);
+                            List<int> dumpValues = new List<int>();
+                            for (int offset = 0; offset + 2 <= around.Length; offset += 2)
+                                dumpValues.Add(BitConverter.ToInt16(around, offset));
+                            AppendProbeLine(probeOutputSeedPath, "valuehunt-dumps.jsonl",
+                                new Dictionary<string, object>
+                                {
+                                    { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                                    { "label", "tuple:" + huntText },
+                                    { "value", second },
+                                    { "address", "0x" + address.ToString("X", CultureInfo.InvariantCulture) },
+                                    { "int16s", dumpValues }
+                                });
+                        }
+                        catch { }
+                    }
                     lock (statTableWatchSync)
                     {
                         foreach (string hit in tableHits)

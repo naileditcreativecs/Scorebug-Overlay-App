@@ -25,3 +25,22 @@ just before the record (likely identity/name).
    (next reader build follows them for name strings).
 4. Output: shape+layout spec for the on-demand capturer to publish
    game.playerTable.
+
+## First-pass decode notes (2026-08-23 ~21:30Z, gaming-PC session)
+
+- BEWARE ascending-integer ramps: the 0x2D0xxxxx "Turner family" (8 identical
+  copies, car@0 yds@+40 lng@-2) is a counting sequence 0,1,2,...,36 — tuple
+  hunts match inside ramps trivially. Any analyzer must reject
+  a[i+k]==a[i]+k runs FIRST.
+- Mohamed row 0x2B4F6A8: car 6@+0, 255@+4, 128@+8, yds 80@+12, 64@+16,
+  48@+20, lng 40@+24, then pointer-looking int64s at +32 and +52. The
+  255/128/64/48 fields are suspicious (powers of two) — verify against
+  another player before trusting this layout.
+- PittQB layout family A (0x557D794 = 0x61EAC04 identical): att@+0,
+  comp@+14, yds@+60. Family B (0x5F49272/0x61EF192): att@+0, comp@+64,
+  yds@±32. Multiple UI contexts coexist.
+- NO cross-player rows within ±0x480 of any dump — table sections are
+  farther apart. Next capture build should dump ±0x2000 around confirmed
+  rows, and dereference the leading pointer trio for name strings.
+- Analysis scripts from tonight: ../madden-timeout-2026-08-22/*.js pattern
+  (timeline reconstruction) + the inline node passes in session history.
