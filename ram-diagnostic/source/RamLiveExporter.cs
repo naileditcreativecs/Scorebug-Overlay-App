@@ -1005,6 +1005,7 @@ namespace CollegeFootballRamDiagnostic
                 // 3->2->1->0 burn (Madden has no ScoreHud team objects).
                 try { ram["maddenTicker"] = MaddenTickerEntries(); } catch { }
                 try { MaddenWatchTimeoutSlots(screenJsonPath, quarterValue, clockValue); } catch { }
+                try { MaddenWatchTeamObjectTimeouts(screenJsonPath, quarterValue, clockValue); } catch { }
                 try { ram["maddenTimeouts"] = MaddenTimeoutDictionary(); } catch { }
             }
             root["game"] = new Dictionary<string, object>
@@ -7073,6 +7074,22 @@ namespace CollegeFootballRamDiagnostic
                             long[] vtables = new long[candidateOffsets.Length];
                             for (int i = 0; i < candidateOffsets.Length; i++) vtables[i] = researchModuleBase + candidateOffsets[i];
                             Dictionary<long, List<long>> refs = research.FindPrivateInt64ReferencesBelow4G(vtables, 10);
+                            // v1.4.127: hand the prime team-object instances
+                            // (the score-tracking vtable pair, indices 0-1) to
+                            // the 150 ms timeout watcher on the export thread.
+                            List<long> primeInstances = new List<long>();
+                            for (int i = 0; i < 2 && i < vtables.Length; i++)
+                            {
+                                List<long> found;
+                                if (!refs.TryGetValue(vtables[i], out found) || found == null) continue;
+                                foreach (long instanceAddress in found)
+                                {
+                                    if (primeInstances.Count >= 16) break;
+                                    if (!primeInstances.Contains(instanceAddress)) primeInstances.Add(instanceAddress);
+                                }
+                            }
+                            if (primeInstances.Count > 0)
+                                lock (maddenTeamObjectLock) { maddenTeamObjectInstances = primeInstances; }
                             List<string> dumps = new List<string>();
                             for (int i = 0; i < vtables.Length; i++)
                             {
@@ -8368,6 +8385,11 @@ namespace CollegeFootballRamDiagnostic
                             {
                                 { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
                                 { "offset", "0x" + offset.ToString("X", CultureInfo.InvariantCulture) },
+                                // Absolute addresses: window offsets proved
+                                // non-transferable across sessions (anchor
+                                // lands differently every launch).
+                                { "abs", "0x" + (windowBase + offset).ToString("X", CultureInfo.InvariantCulture) },
+                                { "base", "0x" + windowBase.ToString("X", CultureInfo.InvariantCulture) },
                                 { "from", previous }, { "to", value },
                                 { "quarter", quarterValue }, { "clock", clockValue },
                                 { "burns", maddenSlotBurns[offset] },
@@ -8418,7 +8440,189 @@ namespace CollegeFootballRamDiagnostic
                 result["homeTimeouts"] = maddenSlotValues[candidates[0]];
                 result["awayTimeouts"] = maddenSlotValues[candidates[1]];
             }
+            // v1.4.127 team-object route: sides are identified by each
+            // instance containing its own live score, so when exactly one
+            // shared field offset behaves like a timeout counter in both
+            // instances, that pair IS home/away - it overrides the
+            // provisional window guess. Fail closed at every step.
+            try
+            {
+                long homeInstance = 0, awayInstance = 0;
+                int homeBestVotes = 2, awayBestVotes = -2;
+                foreach (KeyValuePair<long, int> votePair in maddenTeamSideVotes)
+                {
+                    if (votePair.Value > homeBestVotes) { homeBestVotes = votePair.Value; homeInstance = votePair.Key; }
+                    if (votePair.Value < awayBestVotes) { awayBestVotes = votePair.Value; awayInstance = votePair.Key; }
+                }
+                Dictionary<string, object> teamInfo = new Dictionary<string, object>
+                {
+                    { "instances", maddenTeamFieldValues.Count },
+                    { "homeInstance", homeInstance == 0 ? "?" : "0x" + homeInstance.ToString("X", CultureInfo.InvariantCulture) },
+                    { "awayInstance", awayInstance == 0 ? "?" : "0x" + awayInstance.ToString("X", CultureInfo.InvariantCulture) }
+                };
+                if (homeInstance != 0 && awayInstance != 0 && homeInstance != awayInstance
+                    && maddenTeamFieldValues.ContainsKey(homeInstance)
+                    && maddenTeamFieldValues.ContainsKey(awayInstance))
+                {
+                    List<int> shared = new List<int>();
+                    foreach (KeyValuePair<int, int> field in maddenTeamFieldValues[homeInstance])
+                    {
+                        int fieldOffset = field.Key;
+                        int homeValue = field.Value;
+                        int awayValue;
+                        if (!maddenTeamFieldValues[awayInstance].TryGetValue(fieldOffset, out awayValue)) continue;
+                        if (homeValue < 0 || homeValue > 3 || awayValue < 0 || awayValue > 3) continue;
+                        if (maddenTeamFieldIllegal[homeInstance].ContainsKey(fieldOffset)
+                            || maddenTeamFieldIllegal[awayInstance].ContainsKey(fieldOffset)) continue;
+                        int homeBurns, awayBurns;
+                        maddenTeamFieldBurns[homeInstance].TryGetValue(fieldOffset, out homeBurns);
+                        maddenTeamFieldBurns[awayInstance].TryGetValue(fieldOffset, out awayBurns);
+                        if (homeBurns + awayBurns < 1) continue;
+                        shared.Add(fieldOffset);
+                    }
+                    List<string> sharedHex = new List<string>();
+                    foreach (int fieldOffset in shared)
+                        sharedHex.Add("+0x" + fieldOffset.ToString("X", CultureInfo.InvariantCulture));
+                    teamInfo["candidateFields"] = sharedHex;
+                    if (shared.Count == 1)
+                    {
+                        result["homeTimeouts"] = maddenTeamFieldValues[homeInstance][shared[0]];
+                        result["awayTimeouts"] = maddenTeamFieldValues[awayInstance][shared[0]];
+                        result["confident"] = true;
+                        result["source"] = "teamObjects";
+                        teamInfo["field"] = "+0x" + shared[0].ToString("X", CultureInfo.InvariantCulture);
+                    }
+                }
+                result["teamObjects"] = teamInfo;
+            }
+            catch { }
             return result;
+        }
+
+        // ---------- Madden team-object timeout watcher (v1.4.127) ----------
+        // The 2026-08-22 tester round proved per-team timeouts-remaining does
+        // NOT live near the scoreboard anchor: full timeline reconstruction
+        // over the entire watched window found no slot holding the 3->2->1
+        // pattern at the two ground-truth timeout moments. The likeliest home
+        // is the team objects the research loop already finds (the vtable
+        // pair that tracked the away score across six hunt rounds). Watch
+        // every timeout-sized int32 field inside each live instance with tiny
+        // fixed reads - no sweeps - and log ABSOLUTE addresses, because
+        // window-relative offsets proved non-transferable across sessions.
+        // An instance votes itself home/away by containing its own team's
+        // live score (and not the other's). Publish only when both sides are
+        // identified and exactly one shared field offset behaves like a
+        // timeout counter in both instances.
+        private readonly object maddenTeamObjectLock = new object();
+        private List<long> maddenTeamObjectInstances = new List<long>();
+        private readonly Dictionary<long, Dictionary<int, int>> maddenTeamFieldValues = new Dictionary<long, Dictionary<int, int>>();
+        private readonly Dictionary<long, Dictionary<int, int>> maddenTeamFieldBurns = new Dictionary<long, Dictionary<int, int>>();
+        private readonly Dictionary<long, Dictionary<int, int>> maddenTeamFieldIllegal = new Dictionary<long, Dictionary<int, int>>();
+        private readonly Dictionary<long, int> maddenTeamSideVotes = new Dictionary<long, int>();
+        private DateTime nextMaddenTeamSampleUtc = DateTime.MinValue;
+        private DateTime nextMaddenTeamSnapshotUtc = DateTime.MinValue;
+        private int maddenTeamProbeLines;
+        private const int MaddenTeamObjectBytes = 0x140;
+
+        // A timeout counter may only step down by one, or reset to 3 at a
+        // half start. Anything else disqualifies the field.
+        internal static bool MaddenTimeoutStepLegal(int from, int to)
+        {
+            if (from < 0 || from > 3 || to < 0 || to > 3 || from == to) return false;
+            return to == from - 1 || to == 3;
+        }
+
+        private void MaddenWatchTeamObjectTimeouts(string screenJsonPath, int quarterValue, int clockValue)
+        {
+            if (DateTime.UtcNow < nextMaddenTeamSampleUtc) return;
+            nextMaddenTeamSampleUtc = DateTime.UtcNow.AddMilliseconds(150);
+            List<long> instances;
+            lock (maddenTeamObjectLock) { instances = new List<long>(maddenTeamObjectInstances); }
+            if (instances.Count == 0) return;
+            bool snapshot = DateTime.UtcNow >= nextMaddenTeamSnapshotUtc;
+            if (snapshot) nextMaddenTeamSnapshotUtc = DateTime.UtcNow.AddSeconds(30);
+            string folder = Path.GetDirectoryName(OutputPath(screenJsonPath));
+            int awayScore = maddenLiveAwayScore;
+            int homeScore = maddenLiveHomeScore;
+            foreach (long instance in instances)
+            {
+                byte[] bytes;
+                try { bytes = scanner.ReadBytes(instance, MaddenTeamObjectBytes); } catch { continue; }
+                if (bytes == null || bytes.Length < MaddenTeamObjectBytes) continue;
+                bool containsHome = false, containsAway = false;
+                for (int fieldOffset = 0; fieldOffset + 4 <= bytes.Length; fieldOffset += 4)
+                {
+                    int fieldValue = BitConverter.ToInt32(bytes, fieldOffset);
+                    if (homeScore > 0 && fieldValue == homeScore) containsHome = true;
+                    if (awayScore > 0 && fieldValue == awayScore) containsAway = true;
+                }
+                if (containsHome != containsAway && awayScore != homeScore)
+                {
+                    int votes;
+                    maddenTeamSideVotes.TryGetValue(instance, out votes);
+                    maddenTeamSideVotes[instance] = votes + (containsHome ? 1 : -1);
+                }
+                Dictionary<int, int> values;
+                if (!maddenTeamFieldValues.TryGetValue(instance, out values))
+                {
+                    values = new Dictionary<int, int>();
+                    maddenTeamFieldValues[instance] = values;
+                    maddenTeamFieldBurns[instance] = new Dictionary<int, int>();
+                    maddenTeamFieldIllegal[instance] = new Dictionary<int, int>();
+                }
+                List<string> transitions = new List<string>();
+                for (int fieldOffset = 0; fieldOffset + 4 <= bytes.Length; fieldOffset += 4)
+                {
+                    int value = BitConverter.ToInt32(bytes, fieldOffset);
+                    int previous;
+                    if (!values.TryGetValue(fieldOffset, out previous)) { values[fieldOffset] = value; continue; }
+                    if (value == previous) continue;
+                    values[fieldOffset] = value;
+                    // Already disqualified: keep tracking silently, no logs.
+                    if (maddenTeamFieldIllegal[instance].ContainsKey(fieldOffset)) continue;
+                    if (previous < 0 || previous > 3 || value < 0 || value > 3)
+                    {
+                        maddenTeamFieldIllegal[instance][fieldOffset] = 1;
+                        continue;
+                    }
+                    if (value == previous - 1)
+                    {
+                        int burns;
+                        maddenTeamFieldBurns[instance].TryGetValue(fieldOffset, out burns);
+                        maddenTeamFieldBurns[instance][fieldOffset] = burns + 1;
+                    }
+                    else if (!MaddenTimeoutStepLegal(previous, value))
+                        maddenTeamFieldIllegal[instance][fieldOffset] = 1;
+                    transitions.Add("+0x" + fieldOffset.ToString("X", CultureInfo.InvariantCulture)
+                        + ":" + previous.ToString(CultureInfo.InvariantCulture)
+                        + "->" + value.ToString(CultureInfo.InvariantCulture));
+                }
+                if ((transitions.Count > 0 || snapshot) && maddenTeamProbeLines < 5000)
+                {
+                    maddenTeamProbeLines++;
+                    List<int> ints = new List<int>();
+                    for (int fieldOffset = 0; fieldOffset + 4 <= bytes.Length; fieldOffset += 4)
+                        ints.Add(BitConverter.ToInt32(bytes, fieldOffset));
+                    int sideVotes;
+                    maddenTeamSideVotes.TryGetValue(instance, out sideVotes);
+                    try
+                    {
+                        File.AppendAllText(Path.Combine(folder, "madden-teamobj-probe.jsonl"),
+                            new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(new Dictionary<string, object>
+                            {
+                                { "t", DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture) },
+                                { "kind", transitions.Count > 0 ? "transition" : "snapshot" },
+                                { "inst", "0x" + instance.ToString("X", CultureInfo.InvariantCulture) },
+                                { "sideVotes", sideVotes },
+                                { "quarter", quarterValue }, { "clock", clockValue },
+                                { "away", awayScore }, { "home", homeScore },
+                                { "changed", transitions },
+                                { "ints", ints }
+                            }) + Environment.NewLine);
+                    }
+                    catch { }
+                }
+            }
         }
 
         // Publishes the kick length for the whole attempt: latch it the first

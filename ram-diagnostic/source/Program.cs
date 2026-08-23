@@ -4162,6 +4162,16 @@ namespace CollegeFootballRamDiagnostic
                     || RamLiveExporter.PreciseLooksLikeRealSpot(65.0)
                     || RamLiveExporter.PreciseLooksLikeRealSpot(20.0))
                     throw new Exception("Real-spot fraction rule is wrong.");
+                // Madden team-object timeout fields: only a single step down
+                // or a reset to 3 (half start) is legal.
+                if (!RamLiveExporter.MaddenTimeoutStepLegal(3, 2)
+                    || !RamLiveExporter.MaddenTimeoutStepLegal(1, 0)
+                    || !RamLiveExporter.MaddenTimeoutStepLegal(0, 3)
+                    || RamLiveExporter.MaddenTimeoutStepLegal(1, 2)
+                    || RamLiveExporter.MaddenTimeoutStepLegal(3, 1)
+                    || RamLiveExporter.MaddenTimeoutStepLegal(4, 3)
+                    || RamLiveExporter.MaddenTimeoutStepLegal(3, 3))
+                    throw new Exception("Madden timeout step rule is wrong.");
                 // Restore for the rest of the self-test.
                 GameProfile.Key = "cfb27"; GameProfile.ProcessName = "CollegeFB27";
                 GameProfile.ScoreHudTeamVtableOffset = 0xB0F3168L;
