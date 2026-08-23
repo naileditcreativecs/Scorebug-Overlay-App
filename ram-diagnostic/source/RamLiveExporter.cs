@@ -1003,7 +1003,12 @@ namespace CollegeFootballRamDiagnostic
             try { MaybeRebaseScoreHudOffsets(downValue, distanceValue, downDistanceKind); } catch { }
             try { RefreshPlayCallFieldGoalText(downValue); } catch { }
             try { ProcessManualStatHunt(); } catch { }
-            try { ProbeMaterializedStatTable(probeOutputSeedPath); } catch { }
+            // ProbeMaterializedStatTable RETIRED (2026-08-23 night): the box
+            // score renders glyph-indexed like the play-call tiles - its
+            // numbers never exist as scannable data, and every shape/tuple
+            // hit during an open menu proved to be OS junk (cert stores,
+            // driver caches). The broadcast-banner-driven pipeline is the
+            // real path: banners carry live records that drift-confirm.
             try { ProcessValueHunt(); } catch { }
             try { WriteStatBannerProbe(screenJsonPath, quarterValue, clockValue, downValue, distanceValue); } catch { }
             if (GameProfile.Key == "madden27")
@@ -7500,7 +7505,11 @@ namespace CollegeFootballRamDiagnostic
             if (confirmedNeighborhoodDumped.Count > 24) return;
             try
             {
-                byte[] around = scanner.ReadBytes(address - 0x480, 0x900);
+                // +-0x2000 (was +-0x480): a confirmed LIVE row is the one
+                // place worth a wide capture - adjacent players' rows and the
+                // table's bounds live farther out than the old radius
+                // (2026-08-23: no cross-player rows within +-0x480).
+                byte[] around = scanner.ReadBytes(address - 0x2000, 0x4000);
                 List<int> values = new List<int>();
                 for (int offset = 0; offset + 2 <= around.Length; offset += 2)
                     values.Add(BitConverter.ToInt16(around, offset));
@@ -7690,11 +7699,11 @@ namespace CollegeFootballRamDiagnostic
                 catch { }
                 if (tableHits != null)
                 {
-                    // v1.4.135: dump each hit's neighborhood IMMEDIATELY.
-                    // The hunts kept finding the freshly materialized rows,
-                    // but their surroundings (name/id pointers) were never
-                    // saved before the pool froze and moved.
-                    foreach (string hit in tableHits)
+                    // v1.4.135: dump each hit's neighborhood immediately -
+                    // but ONLY for manual (chat-driven) hunts. Auto banner
+                    // hunts fire constantly and would bloat the dump file
+                    // with unverified candidates.
+                    foreach (string hit in huntText.StartsWith("MANUAL", StringComparison.Ordinal) ? tableHits : new List<string>())
                     {
                         try
                         {
