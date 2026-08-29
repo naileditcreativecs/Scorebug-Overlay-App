@@ -2612,6 +2612,34 @@ namespace CollegeFootballRamDiagnostic
                         short rampNext = BitConverter.ToInt16(buffer, index + 2);
                         if ((rampPrev == first - 1 && rampNext == first + 1)
                             || (rampPrev == first + 1 && rampNext == first - 1)) continue;
+                        // Int32-spaced ramps too (2026-08-29 post-game hunt: a
+                        // 0..50 counter stored as int32s matched 14 with 21 at
+                        // +28 across every mirror copy - the +-2 check sees the
+                        // zero high-words and passes it).
+                        if (index >= 4)
+                        {
+                            short rampPrev4 = BitConverter.ToInt16(buffer, index - 4);
+                            short rampNext4 = BitConverter.ToInt16(buffer, index + 4);
+                            if ((rampPrev4 == first - 1 && rampNext4 == first + 1)
+                                || (rampPrev4 == first + 1 && rampNext4 == first - 1)) continue;
+                        }
+                        // Curve tables (2026-08-29 post-game hunt): monotone
+                        // sequences with irregular steps (2,4,6,9,11,14,16,...)
+                        // pass the +-1 ramp checks and still soak the hit cap.
+                        // Nine STRICTLY increasing int16s centered on the hit
+                        // is a curve, never a stat row (rows carry zeros and
+                        // duplicated fields that break strictness). Check both
+                        // int16 and int32 spacing.
+                        bool curve = index >= 8 && index + 10 <= bytesRead;
+                        if (curve)
+                            for (int o = -8; o < 8; o += 2)
+                                if (BitConverter.ToInt16(buffer, index + o) >= BitConverter.ToInt16(buffer, index + o + 2)) { curve = false; break; }
+                        if (curve) continue;
+                        curve = index >= 16 && index + 20 <= bytesRead;
+                        if (curve)
+                            for (int o = -16; o < 16; o += 4)
+                                if (BitConverter.ToInt16(buffer, index + o) >= BitConverter.ToInt16(buffer, index + o + 4)) { curve = false; break; }
+                        if (curve) continue;
                         for (int delta = 2; delta <= 0x40; delta += 2)
                         {
                             if (BitConverter.ToInt16(buffer, index + delta) != second) continue;
