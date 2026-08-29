@@ -2593,9 +2593,25 @@ namespace CollegeFootballRamDiagnostic
                 {
                     int requested = (int)Math.Min(buffer.Length, size - offset);
                     int bytesRead = Read(start + offset, buffer, requested);
-                    for (int index = 0; index + 2 <= bytesRead - 0x40; index += 2)
+                    // Start at 2 so the ramp test below can always read the
+                    // previous int16; chunks overlap by 0x40 bytes, so offset 0
+                    // was already covered by the previous chunk's tail.
+                    for (int index = 2; index + 2 <= bytesRead - 0x40; index += 2)
                     {
                         if (BitConverter.ToInt16(buffer, index) != first) continue;
+                        // Counting-ramp rejection (2026-08-29): live hunts kept
+                        // returning hits 2 bytes apart across players (3@X,
+                        // 4@X+2, 5@X+4 with 0x280-stride mirror copies) - the
+                        // ascending int16 sequences the 2026-08-23 decode notes
+                        // warned about. Those ramp cells filled the whole hit
+                        // cap before the scan reached the real accumulator
+                        // rows, so nothing watchable ever entered the list. A
+                        // cell whose immediate neighbors continue the sequence
+                        // is a ramp, not a stat field.
+                        short rampPrev = BitConverter.ToInt16(buffer, index - 2);
+                        short rampNext = BitConverter.ToInt16(buffer, index + 2);
+                        if ((rampPrev == first - 1 && rampNext == first + 1)
+                            || (rampPrev == first + 1 && rampNext == first - 1)) continue;
                         for (int delta = 2; delta <= 0x40; delta += 2)
                         {
                             if (BitConverter.ToInt16(buffer, index + delta) != second) continue;
