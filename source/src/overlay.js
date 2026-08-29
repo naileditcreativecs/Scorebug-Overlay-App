@@ -1366,12 +1366,12 @@ function guestBootstrapSource(state, layout = {}) {
         const hidden = record === null || record === undefined || String(record).trim() === '';
         const matched = new Set();
         document.querySelectorAll(
-          `[data-cfb27-bind="${side}.record"],[data-cfb27-field="${side}Record" i],[data-field="${side}-record" i]`,
+          '[data-cfb27-bind="' + side + '.record"],[data-cfb27-field="' + side + 'Record" i],[data-field="' + side + '-record" i]',
         ).forEach((element) => matched.add(element));
         document.querySelectorAll('[id*="record" i],[class*="record" i]').forEach((element) => {
           const className = typeof element.className === 'string'
             ? element.className : String(element.className?.baseVal || '');
-          if (`${element.id} ${className}`.toLowerCase().includes(side)) matched.add(element);
+          if ((element.id + ' ' + className).toLowerCase().includes(side)) matched.add(element);
         });
         matched.forEach((element) => {
           if (hidden) element.style.setProperty('visibility', 'hidden', 'important');
