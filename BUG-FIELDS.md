@@ -54,6 +54,12 @@ GAME  (game.*)
                   (carries/yards/tds), 'passing' (completions/attempts/
                   yards/tds/ints), 'defense' (tackles/sacks). player may be
                   null when the banner shows no name. playerStat = first.
+                  In Dynasty, entries also carry player (short name),
+                  playerName (full), jersey and position filled from the
+                  save's roster via the banner's player id.
+  statBoard       [ same entries, accumulated all game ]  every stat line
+                  the broadcast has shown this game, latest per player,
+                  named from the save the same way; resets on a new matchup.
   hudTexts        [ { kind, texts[], teamSide, playerId, displayTime } ]
                   the game's own stat lower-thirds while they are on screen,
                   e.g. texts ["T.Dixon 4 Rec, 60 Yds, 1 TD"]; teamSide

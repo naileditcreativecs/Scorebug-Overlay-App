@@ -104,6 +104,12 @@ const ESPN2020_FLAG_PAINT_NEW = `${ESPN2020_FLAG_PAINT_OLD}\n    if ((side === '
 // Only away/home may be remembered as the arrow side.
 const ESPN2020_FLAG_SIDE_OLD = 'if (active) lastFlagSide = side;';
 const ESPN2020_FLAG_SIDE_NEW = "if (active) lastFlagSide = (side === 'away' || side === 'home') ? side : '';";
+// Cap the flag presentation at 5s so it clears a beat before the game's own
+// ~8s banner hold instead of lingering the whole time.
+const ESPN2020_FLAG_VARS_OLD = "var lastFlagActive = false, lastFlagSide = '', flagOffTimer = null;";
+const ESPN2020_FLAG_VARS_NEW = "var lastFlagActive = false, lastFlagSide = '', flagOffTimer = null, flagShownAtMs = 0, flagExpired = false;";
+const ESPN2020_FLAG_FALLBACK_LINE = "if ((side === '' || side === null || side === undefined || side === false) && truthy(F.flagUp)) side = 'flag';";
+const ESPN2020_FLAG_TIMING_NEW = `${ESPN2020_FLAG_FALLBACK_LINE}\n    if (side === 'away' || side === 'home' || side === 'flag') {\n      if (!flagShownAtMs) { flagShownAtMs = Date.now(); flagExpired = false; }\n      if (flagExpired || Date.now() - flagShownAtMs > 5000) { flagExpired = true; side = ''; }\n    } else { flagShownAtMs = 0; flagExpired = false; }`;
 
 function repairEspn2020FlagHookup(source) {
   if (source.includes('flagUp')) return { html: source, changed: false };
@@ -135,6 +141,21 @@ function repairEspn2020FlagSideGuard(source) {
   };
 }
 
+function repairEspn2020FlagTiming(source) {
+  if (!source.includes('flagCapOn') || !source.includes('flagUp')
+    || source.includes('flagShownAtMs')
+    || !source.includes(ESPN2020_FLAG_VARS_OLD)
+    || !source.includes(ESPN2020_FLAG_FALLBACK_LINE)) {
+    return { html: source, changed: false };
+  }
+  return {
+    html: source
+      .replace(ESPN2020_FLAG_VARS_OLD, ESPN2020_FLAG_VARS_NEW)
+      .replace(ESPN2020_FLAG_FALLBACK_LINE, ESPN2020_FLAG_TIMING_NEW),
+    changed: true,
+  };
+}
+
 function repairKnownThemeHtml(bytes) {
   const source = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : String(bytes || '');
   let html = source;
@@ -162,6 +183,11 @@ function repairKnownThemeHtml(bytes) {
   if (espnFlagSide.changed) {
     html = espnFlagSide.html;
     repairs.push('espn-2020-flag-side-guard');
+  }
+  const espnFlagTiming = repairEspn2020FlagTiming(html);
+  if (espnFlagTiming.changed) {
+    html = espnFlagTiming.html;
+    repairs.push('espn-2020-flag-timing');
   }
   return {
     bytes: Buffer.from(html, 'utf8'),

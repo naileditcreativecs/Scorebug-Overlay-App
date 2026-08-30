@@ -35,4 +35,21 @@ function updateStatBoard(board, matchupKey, parsedStats, nowMs) {
   return out;
 }
 
-module.exports = { createStatBoard, updateStatBoard, statBoardKey };
+// Fill player names onto stat entries from the dynasty save's roster map
+// (PresentationId -> {name, shortName, jersey, position}). The banners carry
+// the id but usually no name; the save knows both. A name already parsed
+// from the banner text is never overwritten.
+function enrichStatEntriesWithRoster(entries, rosterIds) {
+  if (!Array.isArray(entries) || !rosterIds || typeof rosterIds !== 'object') return entries;
+  for (const entry of entries) {
+    const info = entry && entry.playerId != null ? rosterIds[entry.playerId] : null;
+    if (!info) continue;
+    if (!entry.player && info.shortName) entry.player = info.shortName;
+    if (info.name) entry.playerName = info.name;
+    if (info.jersey !== null && info.jersey !== undefined) entry.jersey = info.jersey;
+    if (info.position) entry.position = info.position;
+  }
+  return entries;
+}
+
+module.exports = { createStatBoard, updateStatBoard, statBoardKey, enrichStatEntriesWithRoster };

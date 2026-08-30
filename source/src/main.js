@@ -213,7 +213,7 @@ const { applyRamFieldHold, clearRamFieldHold, createRamFieldHoldCache,
 } = require('./ram-field-hold');
 const { flagStateFromMessages } = require('./flag-detector');
 const { parseHudTexts, parseStatLine } = require('./stat-line-parser');
-const { createStatBoard, updateStatBoard } = require('./stat-board');
+const { createStatBoard, updateStatBoard, enrichStatEntriesWithRoster } = require('./stat-board');
 const liveStatBoard = createStatBoard();
 let lastRamQuarter = null;
 const { runPreflight, reportText: preflightReportText } = require('./preflight');
@@ -1046,6 +1046,9 @@ function ramScoreboardPayload(document) {
     // same banners - structured fields a bug can style; unrecognized lines
     // stay raw in hudTexts and are recorded by the reader's stat probe.
     const parsedStats = parseHudTexts(state.game.hudTexts);
+    // The banner carries the player's PresentationId; the dynasty save's
+    // roster map turns it into a real name/jersey/position.
+    enrichStatEntriesWithRoster(parsedStats, runtime.dynasty?.rosterIds);
     apply(state.game, 'playerStats', parsedStats, parsedStats.length > 0, 'game.playerStats');
     apply(state.game, 'playerStat', parsedStats[0] || null, parsedStats.length > 0, 'game.playerStat');
     // Accumulated board: every stat line the broadcast has ever shown this
@@ -1084,6 +1087,7 @@ function ramScoreboardPayload(document) {
       liveEntries.push(entry);
     }
     if (liveEntries.length) {
+      enrichStatEntriesWithRoster(liveEntries, runtime.dynasty?.rosterIds);
       const matchupKey = `${state.away?.name ?? ''}@${state.home?.name ?? ''}`;
       const boardOut = updateStatBoard(liveStatBoard, matchupKey, liveEntries, Date.now());
       apply(state.game, 'statBoard', boardOut, boardOut.length > 0, 'game.statBoard');
@@ -4271,6 +4275,7 @@ function repairKnownThemeLibraryBugs() {
     if (item.repairs.includes('fox-v7-live-identity')) details.push('live team names and ranks now replace preview text');
     if (item.repairs.includes('espn-2020-flag-hookup')) details.push('on-screen flags now play the flag animation');
     if (item.repairs.includes('espn-2020-flag-side-guard')) details.push('the flag presentation now retracts instead of sticking');
+    if (item.repairs.includes('espn-2020-flag-timing')) details.push('the flag clears after 5 seconds');
     logMessage(`Repaired ${item.name}: ${details.join('; ') || 'known compatibility update applied'}.`);
   }
   persistSettings();
@@ -4458,6 +4463,7 @@ function maybeRequestDynastyLeaders() {
     .then((context) => {
       if (runtime.dynasty && runtime.dynasty.savePath === dynasty.savePath) {
         runtime.dynasty.leaders = context.leaders || {};
+        runtime.dynasty.rosterIds = context.rosterIds || {};
         logMessage(`Dynasty leaders loaded for ${awayTeam.name} and ${homeTeam.name}.`);
         publishCurrentScoreboardState();
       }

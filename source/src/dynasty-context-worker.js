@@ -124,7 +124,7 @@ async function main() {
     : { gameTypeOverride: 'college', gameYearOverride: 27, saveOnChange: false, autoUnempty: false }));
   await new Promise((resolve, reject) => { if (franchise.isLoaded) resolve(); else { franchise.on('ready', resolve); franchise.on('error', reject); } });
 
-  const out = { save: savePath, savedAt: fs.statSync(savePath).mtime.toISOString(), readAt: new Date().toISOString(), season: null, teams: [], gamesThisWeek: [], leaders: {} };
+  const out = { save: savePath, savedAt: fs.statSync(savePath).mtime.toISOString(), readAt: new Date().toISOString(), season: null, teams: [], gamesThisWeek: [], leaders: {}, rosterIds: {} };
 
   const seasonInfo = await findTable(franchise, ['SeasonInfo'], ['CurrentWeek', 'CurrentSeasonYear']);
   if (seasonInfo) {
@@ -242,7 +242,11 @@ async function main() {
     || null;
   out.userGameIndex = userGame ? userGame.index : null;
 
-  // Offensive leaders for the requested teams (season lines).
+  // Offensive leaders for the requested teams (season lines), plus the full
+  // roster id map: the game's stat banners carry each player's
+  // PresentationId (proven live 2026-08-30: banner ids 25344/25350/19175/
+  // 21700 all matched Player.PresentationId for the featured players), so
+  // this map lets the app put real names on live banner stats.
   if (leaderTeams.size) {
     const playerTable = await findTable(franchise, ['Player'], ['FirstName', 'LastName', 'Position'], 1000);
     const wantedTeamIndexes = new Set([...leaderTeams].map((idx) => byIndex.get(idx)?.teamIndex).filter((x) => x !== null && x !== undefined));
@@ -253,6 +257,14 @@ async function main() {
         const s = scalar(r);
         if (!wantedTeamIndexes.has(s.TeamIndex)) continue;
         const pos = String(s.Position || '');
+        const presentationId = num(s.PresentationId);
+        if (presentationId) {
+          out.rosterIds[presentationId] = {
+            name: `${s.FirstName || ''} ${s.LastName || ''}`.trim(),
+            shortName: `${String(s.FirstName || '').slice(0, 1)}. ${s.LastName || ''}`.trim(),
+            jersey: num(s.JerseyNum), position: pos || null, teamIndex: num(s.TeamIndex),
+          };
+        }
         if (!['QB', 'HB', 'WR', 'TE', 'FB'].includes(pos)) continue;
         let seasons = [];
         try { seasons = await followArray(franchise, r.SeasonStats, 8); } catch { seasons = []; }

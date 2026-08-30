@@ -169,3 +169,29 @@ test('ESPN 2020 flag side guard: neutral flags cannot break the retraction', () 
   const secondPass = repairKnownThemeHtml(reRepaired.bytes);
   assert.equal(secondPass.repairs.includes('espn-2020-flag-side-guard'), false, 'side guard is idempotent');
 });
+
+test('ESPN 2020 flag timing: legacy copies get all three flag repairs in one pass', () => {
+  const legacy = Buffer.from(`<html><body><script>
+    var F = {
+    penaltyFlag: '', penaltyType: '', penaltyYards: ''
+  };
+  alias('penaltyFlag',    ['penalty_flag','penalty-flag','flagTeam','flag_team','penaltyTeam','penalty_team']);
+  var lastFlagActive = false, lastFlagSide = '', flagOffTimer = null;
+  function flagPaint() {
+    var side = F.penaltyFlag;
+    if (side === true || side === 'true') side = 'flag';
+    var cap = 'flagCapOn';
+    lastFlagActive = active;
+    if (active) lastFlagSide = side;
+  }
+  </script></body></html>`);
+  const repaired = repairKnownThemeHtml(legacy);
+  for (const tag of ['espn-2020-flag-hookup', 'espn-2020-flag-side-guard', 'espn-2020-flag-timing']) {
+    assert.ok(repaired.repairs.includes(tag), tag);
+  }
+  const html = repaired.bytes.toString('utf8');
+  assert.match(html, /flagShownAtMs = Date\.now\(\)/);
+  assert.match(html, /> 5000/);
+  const secondPass = repairKnownThemeHtml(repaired.bytes);
+  assert.equal(secondPass.changed, false, 'all flag repairs are idempotent together');
+});

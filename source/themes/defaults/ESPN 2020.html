@@ -658,7 +658,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
   // is (score, record, quarter, clock, playClock, plate, hatch marks) — only
   // the offending team's name swaps to the penalty call, and their end-cap
   // arrow turns yellow so it's clear which team the flag is on.
-  var lastFlagActive = false, lastFlagSide = '', flagOffTimer = null;
+  var lastFlagActive = false, lastFlagSide = '', flagOffTimer = null, flagShownAtMs = 0, flagExpired = false;
   function flagPaint() {
     var side = F.penaltyFlag;
     // 'flag' (or a bare true) means a flag with no team attributed yet - the
@@ -668,6 +668,10 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     // Bare game.flag with no attributed penaltyFlag: run the neutral flag
     // presentation the moment the game's own FLAG banner is up.
     if ((side === '' || side === null || side === undefined || side === false) && truthy(F.flagUp)) side = 'flag';
+    if (side === 'away' || side === 'home' || side === 'flag') {
+      if (!flagShownAtMs) { flagShownAtMs = Date.now(); flagExpired = false; }
+      if (flagExpired || Date.now() - flagShownAtMs > 5000) { flagExpired = true; side = ''; }
+    } else { flagShownAtMs = 0; flagExpired = false; }
     var active = side === 'away' || side === 'home' || side === 'flag';
     var label = String(F.penaltyType || 'FLAG').toUpperCase();
     if (active) {
