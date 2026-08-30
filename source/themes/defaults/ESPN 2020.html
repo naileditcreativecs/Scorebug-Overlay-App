@@ -704,7 +704,10 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
       if (on) $(s + 'PenText').textContent = label;
     });
     lastFlagActive = active;
-    if (active) lastFlagSide = side;
+    // Only away/home are real arrow sides; a neutral 'flag' stored here made
+    // the retraction look up a nonexistent flagPenArrow element and throw,
+    // leaving the FLAG plate stuck on screen.
+    if (active) lastFlagSide = (side === 'away' || side === 'home') ? side : '';
   }
 
   var flagDemoTimer = null;

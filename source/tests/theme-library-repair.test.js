@@ -132,3 +132,40 @@ test('the shipped ESPN 2020 default already carries the flag hookup and needs no
   const pass = repairKnownThemeHtml(shipped);
   assert.equal(pass.repairs.includes('espn-2020-flag-hookup'), false);
 });
+
+test('ESPN 2020 flag side guard: neutral flags cannot break the retraction', () => {
+  const legacy = Buffer.from(`<html><body><script>
+    var F = {
+    penaltyFlag: '', penaltyType: '', penaltyYards: ''
+  };
+  alias('penaltyFlag',    ['penalty_flag','penalty-flag','flagTeam','flag_team','penaltyTeam','penalty_team']);
+  function flagPaint() {
+    var side = F.penaltyFlag;
+    if (side === true || side === 'true') side = 'flag';
+    var cap = 'flagCapOn';
+    lastFlagActive = active;
+    if (active) lastFlagSide = side;
+  }
+  </script></body></html>`);
+  const fresh = repairKnownThemeHtml(legacy);
+  assert.ok(fresh.repairs.includes('espn-2020-flag-hookup'));
+  assert.ok(fresh.repairs.includes('espn-2020-flag-side-guard'), 'guard applies in the same pass as the hookup');
+  const html = fresh.bytes.toString('utf8');
+  assert.match(html, /lastFlagSide = \(side === 'away' \|\| side === 'home'\) \? side : '';/);
+  assert.doesNotMatch(html, /lastFlagSide = side;/);
+
+  // A copy already repaired by the buggy first hookup: flagUp present, side
+  // line unguarded. The guard must still fire on its own.
+  const buggyRepaired = Buffer.from(`<html><body><script>
+    var F = { penaltyFlag: '', flagUp: false };
+  function flagPaint() {
+    var cap = 'flagCapOn';
+    if (active) lastFlagSide = side;
+  }
+  </script></body></html>`);
+  const reRepaired = repairKnownThemeHtml(buggyRepaired);
+  assert.equal(reRepaired.repairs.includes('espn-2020-flag-hookup'), false);
+  assert.ok(reRepaired.repairs.includes('espn-2020-flag-side-guard'));
+  const secondPass = repairKnownThemeHtml(reRepaired.bytes);
+  assert.equal(secondPass.repairs.includes('espn-2020-flag-side-guard'), false, 'side guard is idempotent');
+});

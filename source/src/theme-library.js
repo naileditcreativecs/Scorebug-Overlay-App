@@ -98,6 +98,12 @@ const ESPN2020_FLAG_ALIAS_OLD = "alias('penaltyFlag',    ['penalty_flag','penalt
 const ESPN2020_FLAG_ALIAS_NEW = `${ESPN2020_FLAG_ALIAS_OLD}\n  alias('flagUp',         ['flag','flag_up','flagactive','flag_active']);`;
 const ESPN2020_FLAG_PAINT_OLD = "if (side === true || side === 'true') side = 'flag';";
 const ESPN2020_FLAG_PAINT_NEW = `${ESPN2020_FLAG_PAINT_OLD}\n    if ((side === '' || side === null || side === undefined || side === false) && truthy(F.flagUp)) side = 'flag';`;
+// The retraction path looks up $(lastFlagSide + 'PenArrow'); a neutral 'flag'
+// stored as lastFlagSide made that null and the resulting TypeError aborted
+// every retraction, leaving the FLAG plate stuck (live game 2026-08-30).
+// Only away/home may be remembered as the arrow side.
+const ESPN2020_FLAG_SIDE_OLD = 'if (active) lastFlagSide = side;';
+const ESPN2020_FLAG_SIDE_NEW = "if (active) lastFlagSide = (side === 'away' || side === 'home') ? side : '';";
 
 function repairEspn2020FlagHookup(source) {
   if (source.includes('flagUp')) return { html: source, changed: false };
@@ -112,6 +118,19 @@ function repairEspn2020FlagHookup(source) {
       .replace(ESPN2020_FLAG_DEFAULTS_OLD, ESPN2020_FLAG_DEFAULTS_NEW)
       .replace(ESPN2020_FLAG_ALIAS_OLD, ESPN2020_FLAG_ALIAS_NEW)
       .replace(ESPN2020_FLAG_PAINT_OLD, ESPN2020_FLAG_PAINT_NEW),
+    changed: true,
+  };
+}
+
+// Fixes both a copy repaired by the buggy first hookup (already has flagUp)
+// and runs right after the hookup itself in the same pass.
+function repairEspn2020FlagSideGuard(source) {
+  if (!source.includes('flagCapOn') || !source.includes('flagUp')
+    || !source.includes(ESPN2020_FLAG_SIDE_OLD)) {
+    return { html: source, changed: false };
+  }
+  return {
+    html: source.replace(ESPN2020_FLAG_SIDE_OLD, ESPN2020_FLAG_SIDE_NEW),
     changed: true,
   };
 }
@@ -138,6 +157,11 @@ function repairKnownThemeHtml(bytes) {
   if (espnFlag.changed) {
     html = espnFlag.html;
     repairs.push('espn-2020-flag-hookup');
+  }
+  const espnFlagSide = repairEspn2020FlagSideGuard(html);
+  if (espnFlagSide.changed) {
+    html = espnFlagSide.html;
+    repairs.push('espn-2020-flag-side-guard');
   }
   return {
     bytes: Buffer.from(html, 'utf8'),
