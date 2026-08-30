@@ -452,7 +452,7 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     homeScore: '0', homePossession: false, homeLogo: '',
     awayTimeouts: 3, homeTimeouts: 3,
     quarter: '1', clock: '15:00', playClock: '40', down: '1', distance: '10', downDistance: '',
-    penaltyFlag: '', penaltyType: '', penaltyYards: ''
+    penaltyFlag: '', penaltyType: '', penaltyYards: '', flagUp: false
   };
 
   /* ---------------- alias table ---------------- */
@@ -484,6 +484,11 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
   alias('down',           ['down']);
   alias('distance',       ['distance']);
   alias('penaltyFlag',    ['penalty_flag','penalty-flag','flagTeam','flag_team','penaltyTeam','penalty_team']);
+  // The host publishes game.flag (bare boolean, up while the game's FLAG
+  // banner shows) before - and sometimes without - a team-attributed
+  // game.penaltyFlag. Keep it on its own field so an empty penaltyFlag in the
+  // same update cannot cancel it.
+  alias('flagUp',         ['flag','flag_up','flagactive','flag_active']);
   alias('penaltyType',    ['penalty_type','penalty-type','penaltyText','penalty_name','foul','foulType','flagType']);
   alias('penaltyYards',   ['penalty_yards','penalty-yards','flagYards','yards','penaltyYds']);
 
@@ -660,6 +665,9 @@ body { -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; 
     // game's banner often has no team id. Plate, caps and underline all fire;
     // only the team arrow waits until a side is known.
     if (side === true || side === 'true') side = 'flag';
+    // Bare game.flag with no attributed penaltyFlag: run the neutral flag
+    // presentation the moment the game's own FLAG banner is up.
+    if ((side === '' || side === null || side === undefined || side === false) && truthy(F.flagUp)) side = 'flag';
     var active = side === 'away' || side === 'home' || side === 'flag';
     var label = String(F.penaltyType || 'FLAG').toUpperCase();
     if (active) {

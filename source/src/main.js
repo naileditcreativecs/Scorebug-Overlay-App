@@ -4269,6 +4269,7 @@ function repairKnownThemeLibraryBugs() {
     const details = [];
     if (item.repairs.includes('allow-team-name-ampersand')) details.push('team names containing & now display correctly');
     if (item.repairs.includes('fox-v7-live-identity')) details.push('live team names and ranks now replace preview text');
+    if (item.repairs.includes('espn-2020-flag-hookup')) details.push('on-screen flags now play the flag animation');
     logMessage(`Repaired ${item.name}: ${details.join('; ') || 'known compatibility update applied'}.`);
   }
   persistSettings();

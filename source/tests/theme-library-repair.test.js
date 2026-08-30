@@ -102,3 +102,33 @@ test('known FOX-family bundle receives live name bridge and renders Texas A&M', 
   const secondPass = repairKnownThemeHtml(repaired.bytes);
   assert.equal(secondPass.changed, false, 'repair is idempotent');
 });
+
+test('ESPN 2020 flag hookup: stored copies gain the flagUp field and neutral-flag fallback', () => {
+  const legacy = Buffer.from(`<html><body><script>
+    var F = {
+    penaltyFlag: '', penaltyType: '', penaltyYards: ''
+  };
+  alias('penaltyFlag',    ['penalty_flag','penalty-flag','flagTeam','flag_team','penaltyTeam','penalty_team']);
+  function flagPaint() {
+    var side = F.penaltyFlag;
+    if (side === true || side === 'true') side = 'flag';
+    var cap = 'flagCapOn';
+  }
+  </script></body></html>`);
+  const repaired = repairKnownThemeHtml(legacy);
+  assert.equal(repaired.changed, true);
+  assert.ok(repaired.repairs.includes('espn-2020-flag-hookup'));
+  const html = repaired.bytes.toString('utf8');
+  assert.match(html, /flagUp: false/);
+  assert.match(html, /alias\('flagUp'/);
+  assert.match(html, /truthy\(F\.flagUp\)\) side = 'flag';/);
+  const secondPass = repairKnownThemeHtml(repaired.bytes);
+  assert.equal(secondPass.repairs.includes('espn-2020-flag-hookup'), false, 'flag hookup repair is idempotent');
+});
+
+test('the shipped ESPN 2020 default already carries the flag hookup and needs no repair', () => {
+  const shipped = fs.readFileSync(path.join(__dirname, '..', 'themes', 'defaults', 'ESPN 2020.html'));
+  assert.match(shipped.toString('utf8'), /alias\('flagUp'/);
+  const pass = repairKnownThemeHtml(shipped);
+  assert.equal(pass.repairs.includes('espn-2020-flag-hookup'), false);
+});

@@ -86,6 +86,36 @@ function repairFoxV7IdentityBridge(source) {
   };
 }
 
+// ESPN 2020 family: the authored flag presentation (flagCapOn caps, plate,
+// underline) only listened to a team-attributed penaltyFlag, but the host
+// raises bare game.flag first - and often without a team id - so stored
+// copies never animated on real flags. Wire game.flag to its own flagUp
+// field (an empty penaltyFlag in the same update must not cancel it) and
+// let it run the neutral flag presentation.
+const ESPN2020_FLAG_DEFAULTS_OLD = "penaltyFlag: '', penaltyType: '', penaltyYards: ''";
+const ESPN2020_FLAG_DEFAULTS_NEW = "penaltyFlag: '', penaltyType: '', penaltyYards: '', flagUp: false";
+const ESPN2020_FLAG_ALIAS_OLD = "alias('penaltyFlag',    ['penalty_flag','penalty-flag','flagTeam','flag_team','penaltyTeam','penalty_team']);";
+const ESPN2020_FLAG_ALIAS_NEW = `${ESPN2020_FLAG_ALIAS_OLD}\n  alias('flagUp',         ['flag','flag_up','flagactive','flag_active']);`;
+const ESPN2020_FLAG_PAINT_OLD = "if (side === true || side === 'true') side = 'flag';";
+const ESPN2020_FLAG_PAINT_NEW = `${ESPN2020_FLAG_PAINT_OLD}\n    if ((side === '' || side === null || side === undefined || side === false) && truthy(F.flagUp)) side = 'flag';`;
+
+function repairEspn2020FlagHookup(source) {
+  if (source.includes('flagUp')) return { html: source, changed: false };
+  if (!source.includes('flagCapOn')
+    || !source.includes(ESPN2020_FLAG_DEFAULTS_OLD)
+    || !source.includes(ESPN2020_FLAG_ALIAS_OLD)
+    || !source.includes(ESPN2020_FLAG_PAINT_OLD)) {
+    return { html: source, changed: false };
+  }
+  return {
+    html: source
+      .replace(ESPN2020_FLAG_DEFAULTS_OLD, ESPN2020_FLAG_DEFAULTS_NEW)
+      .replace(ESPN2020_FLAG_ALIAS_OLD, ESPN2020_FLAG_ALIAS_NEW)
+      .replace(ESPN2020_FLAG_PAINT_OLD, ESPN2020_FLAG_PAINT_NEW),
+    changed: true,
+  };
+}
+
 function repairKnownThemeHtml(bytes) {
   const source = Buffer.isBuffer(bytes) ? bytes.toString('utf8') : String(bytes || '');
   let html = source;
@@ -103,6 +133,11 @@ function repairKnownThemeHtml(bytes) {
   if (foxV7.changed) {
     html = foxV7.html;
     repairs.push('fox-v7-live-identity');
+  }
+  const espnFlag = repairEspn2020FlagHookup(html);
+  if (espnFlag.changed) {
+    html = espnFlag.html;
+    repairs.push('espn-2020-flag-hookup');
   }
   return {
     bytes: Buffer.from(html, 'utf8'),
