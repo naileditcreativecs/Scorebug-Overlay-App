@@ -7470,15 +7470,29 @@ namespace CollegeFootballRamDiagnostic
                 {
                     StatRowCandidate candidate = statTableWatch[index];
                     if (candidate.PlayerId != playerId) continue;
-                    int a, b;
+                    // TOLERANT RE-MATCH (2026-08-31): consecutive banners for
+                    // one player anchored the tuple at slightly different
+                    // offsets within the same record (+44, +38, +46 live), so
+                    // an exact (+0, +DeltaB) re-read almost never confirmed.
+                    // Scan the candidate's neighborhood for the new pair at
+                    // any stat-shaped spacing instead.
+                    bool matched = false;
                     try
                     {
-                        byte[] bytes = scanner.ReadBytes(candidate.Address, candidate.DeltaB + 2);
-                        a = BitConverter.ToInt16(bytes, 0);
-                        b = BitConverter.ToInt16(bytes, candidate.DeltaB);
+                        byte[] bytes = scanner.ReadBytes(candidate.Address - 0x20, 0x80);
+                        for (int offset = 0; offset + 2 <= bytes.Length - 0x40 && !matched; offset += 2)
+                        {
+                            if (BitConverter.ToInt16(bytes, offset) != first) continue;
+                            for (int delta = 2; delta <= 0x40; delta += 2)
+                            {
+                                if (BitConverter.ToInt16(bytes, offset + delta) != second) continue;
+                                matched = true;
+                                break;
+                            }
+                        }
                     }
                     catch { statTableWatch.RemoveAt(index); continue; }
-                    if (a == first && b == second)
+                    if (matched)
                     {
                         if (candidate.Confirmed == 0) newlyConfirmed.Add(candidate.Address);
                         candidate.Confirmed++;

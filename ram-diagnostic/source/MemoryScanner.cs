@@ -2647,7 +2647,10 @@ namespace CollegeFootballRamDiagnostic
                                 + " +s" + delta.ToString(CultureInfo.InvariantCulture));
                             break;
                         }
-                        if (found.Count >= 20) return found;
+                        // 48 (was 20): with ramp/curve rejection the hits are
+                        // high-quality, and live scatters kept saturating the
+                        // old cap before every mirror of the real row was in.
+                        if (found.Count >= 48) return found;
                     }
                     // Pacing: a short breather per 1MB chunk keeps this hunt
                     // invisible to the game's own memory streaming.
