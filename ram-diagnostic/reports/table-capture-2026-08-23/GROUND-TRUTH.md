@@ -44,3 +44,27 @@ just before the record (likely identity/name).
   rows, and dereference the leading pointer trio for name strings.
 - Analysis scripts from tonight: ../madden-timeout-2026-08-22/*.js pattern
   (timeline reconstruction) + the inline node passes in session history.
+
+## Dev-PC decode verdict (2026-08-24)
+
+decode-table-dumps.js finds ZERO layouts consistent across both players of
+either position, at +-96 AND +-512 bytes. Closer inspection confirms the
+v1.4.136 conclusion — every "clean" box-score hit is RENDER data:
+
+- CalQB 0x2BA75A0: att/comp/yds all present, but the row sits next to
+  ASCII glyph-markup strings ("i68::i59", "i67::i59", ... at fixed 32-byte
+  spacing) — this is the glyph-indexed menu renderer's data, materialized
+  on open. Not a persistent stat record.
+- MohamedRB 0x2B4F6A8: car 6 / yds 80 / lng 40 cohere as int32s, but the
+  interleaved 255/128/64/48 fields are render/tween params (powers of two,
+  no relation to his TD/YAC/BT truth values). Same family.
+- Both TurnerRB regions are dense small-int noise (coincidence fields).
+- PittQB "family A/B" rows never reproduce for CalQB — UI contexts, not a
+  shared table.
+
+CONCLUSION: nothing further to decode in this dataset; the box-score menu
+is a dead end, exactly as bf33717 decided. The banner pipeline (drift
+confirmation -> +-0x2000 confirmed-neighborhood dumps in
+stattable-probe.jsonl) is the sole path to game.playerTable. Next live game
+with stat banners should produce the first decodable table-neighborhood
+capture.
